@@ -108,7 +108,8 @@ small { display: block; color: var(--muted); font-size: var(--fs-small); }
 
 /* focus: sempre visibile da tastiera / switch control */
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
-.btn:focus-visible, .chip:focus-visible, .st:focus-visible { border-radius: var(--r-pill); }
+.btn:focus-visible, .chip:focus-visible { border-radius: var(--r-pill); }
+.st-ic:focus-visible { border-radius: 50%; }
 
 .demo { background: var(--yellow); color: var(--on-pastel); border-radius: var(--r-sm); padding: .6rem .9rem; font-size: var(--fs-small); margin-bottom: .75rem; }
 .demo.dev { background: var(--lilac); }
@@ -195,20 +196,29 @@ ul { list-style: none; margin: 0; padding: 0; }
 .prog li:last-child { border-bottom: 0; }
 .rowbtn { appearance: none; flex: 1 1 10rem; min-width: 0; display: flex; align-items: center; gap: .5rem; min-height: var(--target);
   background: none; border: 0; padding: .25rem .25rem .25rem 0; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--r-sm); }
-.st { flex: none; max-width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: .35rem;
-  border: 2px solid var(--ink); font: inherit; font-size: .78rem; font-weight: 800; border-radius: var(--r-pill);
-  padding: .3rem .7rem; min-width: 7.2em; color: var(--ink); }
-.st .ic { width: 1.15em; height: 1.15em; }
-button.st { cursor: pointer; min-height: var(--target); }
-.st.todo { background: var(--surface-2); }
-.st.doing { background: var(--yellow); }
-.st.done { background: var(--sage); }
-.st.doing, .st.done { color: var(--on-pastel); border-color: var(--on-pastel); }
+/* stato dell'elemento: cerchio a destra della riga (forma dell'icona + legenda + nome per VoiceOver) */
+.st-ic { flex: none; display: grid; place-items: center; width: var(--target); height: var(--target); padding: 0; border-radius: 50%;
+  border: 2px solid var(--ink); background: var(--surface-2); color: var(--ink); font: inherit; }
+button.st-ic { cursor: pointer; }
+.st-ic .ic { width: 1.45rem; height: 1.45rem; }
+.st-ic.doing { background: var(--yellow); }
+.st-ic.done { background: var(--sage); }
+.st-ic.doing, .st-ic.done { color: var(--on-pastel); border-color: var(--on-pastel); }
+.st-ic.xs { width: 1.5rem; height: 1.5rem; border-width: 1.5px; }
+.st-ic.xs .ic { width: 1rem; height: 1rem; }
+.legend { display: flex; flex-wrap: wrap; gap: .35rem 1rem; font-size: var(--fs-small); color: var(--muted); margin: .25rem 0 .25rem; }
+.legend .lg { display: inline-flex; align-items: center; gap: .35rem; }
+.lvl { display: inline-block; font-size: .85rem; font-weight: 800; letter-spacing: .02em; background: var(--ink); color: var(--ink-on);
+  border-radius: var(--r-pill); padding: .2rem .8rem; margin: 1.1rem 0 .1rem; }
+.lvl-note { margin: .2rem 0 0; }
+h4.cat { margin-top: .7rem; }
+.sum { display: flex; align-items: center; gap: .6rem; } .sum .bar { flex: 1; margin: 0; }
+.prog li > .txt { flex: 1 1 10rem; }
 .note { font-style: italic; }
 
 .students li { margin: 0; }
 .stu { display: flex; gap: .85rem; align-items: center; }
-.stu-main { flex: 1; min-width: 0; }
+.stu-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .stu .row { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: space-between; align-items: center; }
 .av { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%;
   border: 2px solid var(--on-pastel); font-weight: 800; font-size: 1.1rem; color: var(--on-pastel); }
@@ -286,7 +296,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   background: var(--ink); transform: translateY(-50%); transition: left var(--dur); }
 .switch:checked { background: var(--ink); }
 .switch:checked::before { left: calc(100% - 1.5rem); background: var(--ink-on); }
-.row2 { display: flex; gap: .5rem; } .row2 select { flex: 0 0 40%; } .row2 input { flex: 1; }
+.row2 { display: flex; flex-wrap: wrap; gap: .5rem; } .row2 select { flex: 1 1 8rem; min-width: 0; } .row2 input { flex: 1 1 100%; }
 .row2 > * { margin-top: 0 !important; }
 .sheet-btns { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; } .sheet-btns .btn { flex: 1 1 8rem; min-width: 0; }
 
@@ -348,7 +358,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* riscontro sull'elemento appena toccato */
 .check.just .box { animation: pop .25s ease-out; }
-.st.just { animation: pop .22s ease-out; }
+.st-ic.just { animation: pop .22s ease-out; }
 li.just > .check { animation: flash .5s ease-out; }
 
 /* pannelli e avvisi */
@@ -356,8 +366,8 @@ li.just > .check { animation: flash .5s ease-out; }
 .toast { animation: toast-in .2s ease-out both; }
 
 /* pressione: leggero rimpicciolimento */
-.check, .mi, .chip, .icon, .st, .rowbtn, .fab, .seg-opt { transition: transform .12s ease-out, background-color .15s; }
-.check:active, .mi:active, .chip:active, .icon:active, button.st:active, .rowbtn:active, .fab:active, .seg-opt:active { transform: scale(.97); }
+.check, .mi, .chip, .icon, .st-ic, .rowbtn, .fab, .seg-opt { transition: transform .12s ease-out, background-color .15s; }
+.check:active, .mi:active, .chip:active, .icon:active, button.st-ic:active, .rowbtn:active, .fab:active, .seg-opt:active { transform: scale(.97); }
 .icon:disabled:active { transform: none; }
 
 /* ricerca nell'elenco alunni */
@@ -366,7 +376,7 @@ li.just > .check { animation: flash .5s ease-out; }
 .search input { width: 100%; min-height: var(--target); font: inherit; font-size: max(1rem, 16px); color: var(--ink);
   padding: .7rem 1rem .7rem 2.7rem; border: 2px solid var(--line-strong); border-radius: var(--r-pill); background: var(--surface); }
 .search input::-webkit-search-decoration { -webkit-appearance: none; }
-.seg-opt:has(input[name=theme]:checked) { background: var(--ink); color: var(--ink-on); border-color: var(--ink); }
+.seg-opt:has(input[name=theme]:checked), .seg-opt:has(input[name=level]:checked) { background: var(--ink); color: var(--ink-on); border-color: var(--ink); }
 
 /* campo data su iPhone: senza questo esce dal pannello e centra il testo */
 .sheet-panel input[type=date] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; text-align: left; }

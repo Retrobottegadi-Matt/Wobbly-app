@@ -48,15 +48,18 @@ async def main():
 
         # crea alunno, aggiungi elementi e esercizi
         await pg.click("[data-act=c-new]"); await pg.wait_for_timeout(100); await font16("nuovo alunno")
-        await pg.fill("input[name=name]", "Test"); await pg.click("button[type=submit]")
+        await pg.fill("input[name=name]", "Test"); await pg.click("label.seg-opt.lv:has-text('Intermedio')"); await pg.click("button[type=submit]")
         await pg.wait_for_timeout(300)
         await pg.click("text=Progressi"); await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
         assert await pg.evaluate("document.querySelector('#sheet .scroll').scrollTop") == 0, "il catalogo deve aprirsi dall'inizio"
         await pg.click("label.chk:has-text('Toe loop')")
         assert await pg.locator("#sheet button[type=submit]").inner_text() == "Aggiungi (1)"
         await pg.click("button[type=submit]"); await pg.wait_for_timeout(200)
-        await pg.click("button.st >> nth=0"); await pg.wait_for_timeout(200)
-        assert "In corso" in await pg.locator("button.st >> nth=0").inner_text()
+        assert "Intermedio" in await pg.locator("header small").inner_text(), "livello dell'alunno nella testata"
+        await pg.click("button.st-ic >> nth=0"); await pg.wait_for_timeout(200)
+        st = pg.locator("button.st-ic >> nth=0")
+        assert "doing" in await st.get_attribute("class") and "In corso" in await st.get_attribute("aria-label")
+        assert await pg.locator(".prog li").count() == 1 and await pg.locator("h3.lvl").inner_text() == "Intermedio", "Toe loop è di livello intermedio"
         assert await pg.evaluate("document.activeElement.dataset.act") == "c-cycle", "il focus resta sullo stato appena cambiato"
         # la modifica dell'elemento è un vero pulsante (raggiungibile con tastiera e VoiceOver)
         assert await pg.evaluate("document.querySelector('.prog li [data-act=c-edit-prog]').tagName") == "BUTTON"
@@ -65,7 +68,8 @@ async def main():
         await font16("modifica elemento")
         pid = await pg.evaluate("document.querySelector('[data-act=c-edit-prog]').dataset.id")
         await pg.click("label.seg-opt.done"); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
-        assert "Completato" in await pg.locator("button.st >> nth=0").inner_text()
+        st = pg.locator("button.st-ic >> nth=0")
+        assert "done" in await st.get_attribute("class") and "Completato" in await st.get_attribute("aria-label")
         assert await pg.evaluate(f"document.activeElement.matches('[data-act=c-edit-prog][data-id=\"{pid}\"]')"), "dopo il salvataggio il focus torna sulla riga modificata"
         await pg.click("text=Scheda")
         for t in ["Spirale", "Incrociati"]:
@@ -100,6 +104,22 @@ async def main():
         assert await pg.locator(".students li").count() == 10
         await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", path); await pg.wait_for_timeout(500)
         assert await pg.locator(".students li").count() == 11
+
+        # backup "vecchio" (categoria Base, nessun livello, categoria sconosciuta): nessun elemento deve sparire
+        import json
+        legacy = {"app": "pattinaggio", "version": 1, "students": [{"code": "VECCHIOCODE2", "name": "Vecchio", "createdAt": 1,
+            "progress": [{"id": "a1", "cat": "Base", "name": "Pattinaggio avanti", "status": "done", "date": "2026-01-02", "note": ""},
+                         {"id": "a2", "cat": "Boh", "name": "Elemento strano", "status": "todo", "date": "", "note": ""},
+                         {"id": "a3", "cat": "Salti", "name": "Axel", "status": "doing", "date": "", "note": ""}],
+            "plan": [], "checks": {}}]}
+        lpath = "/tmp/pattinaggio-legacy-test.json"; open(lpath, "w").write(json.dumps(legacy))
+        await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", lpath); await pg.wait_for_timeout(500)
+        await pg.click("text=Vecchio"); await pg.wait_for_timeout(300)
+        assert await pg.locator(".prog li").count() == 3, "tutti gli elementi del backup vecchio sono visibili"
+        assert await pg.locator("h3.lvl").all_inner_texts() == ["Base", "Avanzato"]
+        await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
+        assert await pg.locator(".chk.dis:has-text('Pattinaggio avanti')").count() == 1, "riconosciuto come già presente"
+        await pg.keyboard.press("Escape")
 
         # accessibilità: target >= 44px sulle schermate principali
         MIN = """() => [...document.querySelectorAll('button, a.icon, .tabs a, .chip, .btn, .foot a, .demo a, .check, label.chk, .mi, .seg-opt, input:not([type=hidden]):not([hidden]), select')]

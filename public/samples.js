@@ -1,5 +1,5 @@
 // Alunni di esempio per la modalità sviluppo (?dev). Dati inventati.
-import { CATALOG } from "./catalog.js";
+import { lookup } from "./catalog.js";
 
 const NAMES = ["Giulia B.", "Marco", "Sofi", "Luca R.", "Emma", "Tommy", "Alice", "Nico", "Bea", "Leo"];
 const NOTES = ["", "", "Tenere la spalla ferma", "Più spinta in uscita", "Guardare avanti, non il ghiaccio",
@@ -14,12 +14,12 @@ const PLAN = [
   ["Entrata in trottola", "6 tentativi"],
   ["Filo esterno avanti su un piede", "Tutto il lato corto"],
 ];
-// livello di ogni alunno: quanti elementi del percorso ha già affrontato
+// percorso tipico: ogni alunno ha affrontato i primi N elementi
 const ORDER = [
-  ["Base", 0], ["Base", 1], ["Base", 2], ["Base", 4], ["Base", 6],
-  ["Passi e giri", 0], ["Passi e giri", 1], ["Passi e giri", 2], ["Salti", 0], ["Trottole", 0],
-  ["Passi e giri", 4], ["Salti", 1], ["Salti", 2], ["Trottole", 1], ["Salti", 3], ["Trottole", 2],
-  ["Passi e giri", 5], ["Salti", 4],
+  "Pattinaggio avanti", "Pattinaggio indietro", "Frenata a spazzaneve", "Swizzle avanti", "Spirale",
+  "Incrociati avanti", "Incrociati indietro", "Tre avanti esterno", "Mezzo giro (waltz)", "Trottola verticale (upright)",
+  "Mohawk", "Toe loop", "Salchow", "Trottola bassa (sit)", "Loop", "Trottola ad angelo (camel)",
+  "Bracket", "Flip",
 ];
 
 // generatore pseudo-casuale con seme fisso: gli esempi sono sempre gli stessi
@@ -36,11 +36,12 @@ export function sampleStudents(makeCode, makeId) {
   NAMES.forEach((name, i) => {
     const level = 3 + Math.floor((i / NAMES.length) * (ORDER.length - 3)) + Math.floor(r() * 3);
     const items = ORDER.slice(0, Math.min(level, ORDER.length));
-    const progress = items.map(([cat, idx], k) => {
+    const progress = items.map((name, k) => {
+      const { cat, level: lv } = lookup(name);
       const left = items.length - k;
       const status = left > 3 ? "done" : left > 1 ? (r() < 0.6 ? "doing" : "done") : (r() < 0.5 ? "todo" : "doing");
       const d = new Date(now - (left * 9 + Math.floor(r() * 6)) * 86400000).toISOString().slice(0, 10);
-      return { id: makeId(), cat, name: CATALOG[cat][idx], status, date: status === "done" ? d : "", note: status === "todo" ? "" : pick(NOTES) };
+      return { id: makeId(), level: lv, cat, name, status, date: status === "done" ? d : "", note: status === "todo" ? "" : pick(NOTES) };
     });
     const start = Math.floor(r() * 4);
     const plan = PLAN.slice(start, start + 3 + Math.floor(r() * 3)).map(([title, detail]) => ({ id: makeId(), title, detail }));
@@ -52,7 +53,8 @@ export function sampleStudents(makeCode, makeId) {
       if (Object.keys(checks).length) checksAt = Math.max(...Object.values(checks));
     }
     const code = i === 0 ? "DEMOALUNNO23" : makeCode();
-    out[code] = { name, createdAt: now - (60 - i) * 86400000, progress, plan, checks, ...(checksAt ? { checksAt } : {}) };
+    const stuLevel = items.length < 9 ? "base" : items.length < 15 ? "intermedio" : "avanzato";
+    out[code] = { name, level: stuLevel, createdAt: now - (60 - i) * 86400000, progress, plan, checks, ...(checksAt ? { checksAt } : {}) };
   });
   return out;
 }

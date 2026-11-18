@@ -36,7 +36,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   catalog.js       catalogo elementi per categoria + idee esercizi (generico, da adattare)
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), testo sempre --ink, bottone primario nero a pillola
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v5)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v6)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)

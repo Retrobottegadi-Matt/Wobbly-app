@@ -76,6 +76,26 @@ async def main():
         await pg.goto(B); await pg.wait_for_timeout(300)
         small = await pg.evaluate(MIN); assert not small, ("alunno", small)
 
+        # testo grande (200% e data-text=large): niente scroll orizzontale né testo tagliato
+        OVER = """() => { const d = document.documentElement;
+            const bad = [...document.querySelectorAll('main *, #sheet *')].filter(e => e.offsetParent !== null && e.clientWidth > 0
+              && e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX === 'visible'
+              && !['inline'].includes(getComputedStyle(e).display)).map(e => e.className + ' ' + (e.textContent||'').trim().slice(0,15));
+            return { page: d.scrollWidth > innerWidth, bad }; }"""
+        async def reflow(label):
+            for mode in ("200%", "large"):
+                if mode == "large": await pg.evaluate("document.documentElement.style.fontSize=''; document.documentElement.dataset.text='large'")
+                else: await pg.evaluate("document.documentElement.removeAttribute('data-text'); document.documentElement.style.fontSize='200%'")
+                r = await pg.evaluate(OVER); assert not r["page"] and not r["bad"], (label, mode, r)
+            await pg.evaluate("document.documentElement.style.fontSize=''; document.documentElement.removeAttribute('data-text')")
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300); await reflow("elenco")
+        await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
+        for tab in ["Progressi", "Scheda", "Invito"]:
+            await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200); await reflow(tab)
+        await pg.click("nav.tabs >> text=Progressi"); await pg.click("text=+ Aggiungi elementi"); await pg.wait_for_timeout(200); await reflow("pannello elementi")
+        await pg.keyboard.press("Escape")
+        await pg.goto(B); await pg.wait_for_timeout(300); await reflow("alunno")
+
         # pagina design system (#/design, solo dev)
         await pg.goto(B + "#/design"); await pg.wait_for_timeout(400)
         assert await pg.locator(".ds header h1").inner_text() == "Design system"

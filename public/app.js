@@ -169,7 +169,7 @@ function renderStudent() {
 
 function checkRow(x, val, interactive) {
   const on = !!val;
-  const inner = `<span class="box">${on ? "✓" : ""}</span>
+  const inner = `<span class="box" aria-hidden="true">${on ? "✓" : ""}</span>
     <span class="txt"><b>${esc(x.title)}</b>${x.detail ? `<small>${esc(x.detail)}</small>` : ""}
     ${on && typeof val === "number" ? `<small class="when">Fatto ${fmtWhen(val)}</small>` : ""}</span>`;
   return `<li>${interactive

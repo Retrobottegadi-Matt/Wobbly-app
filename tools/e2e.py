@@ -1,0 +1,63 @@
+"""Test end-to-end in modalità demo/dev (nessun Firebase necessario).
+Uso:  cd public && python3 -m http.server 8765   (in un altro terminale)
+      python3 tools/e2e.py
+Richiede: pip install playwright && playwright install chromium
+"""
+import asyncio, sys
+from playwright.async_api import async_playwright
+
+B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/"
+
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch()
+        ctx = await b.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
+        pg = await ctx.new_page()
+        errs = []
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.on("console", lambda m: m.type == "error" and errs.append(m.text))
+        pg.on("dialog", lambda d: asyncio.ensure_future(d.accept()))
+
+        # dev: 10 alunni di esempio, allenatrice già abilitata
+        await pg.goto(B + "?dev#/coach"); await pg.wait_for_timeout(600)
+        assert await pg.locator(".students li").count() == 10, "attesi 10 alunni di esempio"
+
+        # crea alunno, aggiungi elementi e esercizi
+        await pg.click("text=+ Alunno"); await pg.fill("input[name=name]", "Test"); await pg.click("button[type=submit]")
+        await pg.wait_for_timeout(300)
+        await pg.click("text=Progressi"); await pg.click("text=+ Aggiungi elementi")
+        await pg.click("label.chk:has-text('Toe loop')"); await pg.click("button[type=submit]"); await pg.wait_for_timeout(200)
+        await pg.click("button.st >> nth=0"); await pg.wait_for_timeout(200)
+        assert "In corso" in await pg.locator("button.st >> nth=0").inner_text()
+        await pg.click("text=Scheda"); await pg.click("text=+ Aggiungi esercizio")
+        await pg.fill("input[name=title]", "Spirale"); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
+        code = pg.url.split("/")[-2]
+
+        # vista alunno: spunta
+        await pg.evaluate(f"localStorage.setItem('pg_my_code','{code}')")
+        await pg.goto(B); await pg.wait_for_timeout(400)
+        await pg.click("[data-act=s-check]"); await pg.wait_for_timeout(200)
+        assert await pg.locator(".check.on").count() == 1
+
+        # backup / ripristino
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-settings]")
+        async with pg.expect_download() as dl:
+            await pg.click("text=Esporta backup")
+        path = "/tmp/pattinaggio-backup-test.json"; await (await dl.value).save_as(path)
+        await pg.click("text=Chiudi")
+        await pg.click("text=Test"); await pg.click("text=Invito"); await pg.click("text=Elimina alunno"); await pg.wait_for_timeout(300)
+        assert await pg.locator(".students li").count() == 10
+        await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", path); await pg.wait_for_timeout(500)
+        assert await pg.locator(".students li").count() == 11
+
+        # rigenera esempi e uscita dalla modalità dev
+        await pg.click("[data-act=c-settings]"); await pg.click("text=Rigenera alunni di esempio"); await pg.wait_for_timeout(300)
+        assert await pg.locator(".students li").count() == 10
+        await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(400)
+
+        await b.close()
+        assert not errs, errs
+        print("OK")
+
+asyncio.run(main())

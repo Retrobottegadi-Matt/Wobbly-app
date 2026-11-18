@@ -1,6 +1,6 @@
 // Cache dei file dell'app: si apre anche senza rete (i dati usano la cache di Firestore).
-const C = "pattinaggio-v2";
-const FILES = ["./", "index.html", "style.css", "app.js", "backend.js", "catalog.js", "config.js",
+const C = "pattinaggio-v4";
+const FILES = ["./", "index.html", "style.css", "app.js", "backend.js", "catalog.js", "config.js", "samples.js",
   "manifest.json", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(C).then((c) => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {

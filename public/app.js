@@ -47,13 +47,20 @@ const pct = (s) => {
 const checksDone = (s) => (s.plan || []).filter((x) => s.checks && s.checks[x.id]).length;
 const findStudent = (code) => S.students.find((s) => s.code === code);
 const inviteLink = (code) => `${location.origin}${location.pathname}?c=${code}`;
-const demoBanner = () => (be && be.demo
-  ? `<div class="demo">Modalità demo: i dati restano solo su questo dispositivo.</div>` : "");
+const LS_DEV = "pg_dev";
+const demoBanner = () => {
+  if (!be || !be.demo) return "";
+  if (be.dev) return `<div class="demo dev"><b>Modalità sviluppo</b>: dati di esempio, solo in questo browser.
+    <a href="#" data-act="dev-exit">Esci</a></div>`;
+  return `<div class="demo">Modalità demo: i dati restano solo su questo dispositivo.</div>`;
+};
 
 // ---------------------------------------------------------- avvio
 async function main() {
   try {
-    be = await createBackend(CONFIG);
+    const q = new URLSearchParams(location.search);
+    if (q.has("dev")) localStorage.setItem(LS_DEV, "1");
+    be = await createBackend(CONFIG, { dev: localStorage.getItem(LS_DEV) === "1" });
   } catch (e) {
     console.error(e);
     $root.innerHTML = `<div class="center"><p>Impossibile avviare l'app. Controlla la connessione e riprova.</p>
@@ -61,8 +68,8 @@ async function main() {
     return;
   }
   const c = normCode(new URLSearchParams(location.search).get("c"));
-  if (c) {
-    localStorage.setItem(LS_CODE, c);
+  if (c) localStorage.setItem(LS_CODE, c);
+  if (c || new URLSearchParams(location.search).has("dev")) {
     history.replaceState(null, "", location.pathname + location.hash);
   }
   window.addEventListener("hashchange", route);
@@ -112,7 +119,10 @@ function renderCodeEntry(msg = "") {
     ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
     <button class="btn wide" type="submit">Apri la mia scheda</button>
   </form>
-  ${be.demo ? `<p class="hint">Demo: prova il codice <b>DEMO-ALUN-NO23</b></p>` : ""}
+  ${be.dev ? `<div class="card"><h3>Entra come alunno di esempio</h3><div class="chips">
+      ${be.sampleCodes().map((x) => `<button class="chip" data-act="dev-as" data-code="${x.code}">${esc(x.name)}</button>`).join("")}
+    </div></div>`
+    : be.demo ? `<p class="hint">Demo: prova il codice <b>DEMO-ALUN-NO23</b></p>` : ""}
   <p class="foot"><a href="#/coach">Sei l'allenatrice?</a></p>`;
   document.getElementById("codeForm").onsubmit = (e) => {
     e.preventDefault();
@@ -341,6 +351,16 @@ const ACTIONS = {
 
   // allenatrice
   async "c-demo"() { await be.demoEnable(); },
+  "dev-as"(el) { localStorage.setItem(LS_CODE, el.dataset.code); route(); },
+  async "dev-reseed"() {
+    if (!confirm("Sostituire tutti i dati di sviluppo con gli alunni di esempio?")) return;
+    await be.reseed(); closeSheet(); toast("Alunni di esempio rigenerati");
+  },
+  "dev-exit"() {
+    localStorage.removeItem(LS_DEV);
+    localStorage.removeItem(LS_CODE);
+    location.href = location.pathname;
+  },
   async "c-copy-id"(el) {
     try { await navigator.clipboard.writeText(el.dataset.id); toast("ID copiato"); }
     catch { prompt("Copia l'ID:", el.dataset.id); }
@@ -352,6 +372,7 @@ const ACTIONS = {
       <button type="button" class="btn ghost wide" data-act="c-export">Esporta backup</button>
       <label class="btn ghost wide filebtn">Ripristina da backup<input type="file" accept=".json,application/json" id="impIn" hidden></label>
       <p class="muted small">Il backup è un file sul tuo telefono: tienine una copia ogni tanto.</p>
+      ${be.dev ? `<button type="button" class="btn ghost wide" data-act="dev-reseed">Rigenera alunni di esempio</button>` : ""}
       <button type="button" class="btn danger wide" data-act="c-remove-dev">Disabilita questo telefono</button>
       <div class="sheet-btns"><button type="button" class="btn" data-act="close">Chiudi</button></div>`, () => {});
     document.getElementById("impIn").onchange = importBackup;

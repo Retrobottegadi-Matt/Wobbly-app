@@ -1,4 +1,5 @@
-// Livello dati: Firebase (reale) oppure localStorage (demo).
+// Livello dati: Firebase (reale) oppure localStorage (demo / sviluppo).
+import { sampleStudents } from "./samples.js";
 const ALPH = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // niente 0/O, 1/I/L
 export const CODE_LEN = 12;
 
@@ -15,10 +16,12 @@ export function newId() {
 export const normCode = (s) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 export const fmtCode = (c) => (c.match(/.{1,4}/g) || []).join("-");
 
-export async function createBackend(cfg) {
+// dev = modalità sviluppo: dati di esempio solo nel browser, anche se Firebase è configurato.
+export async function createBackend(cfg, { dev = false } = {}) {
   const k = cfg.firebase && cfg.firebase.apiKey;
   const demo = !k || k.startsWith("INSERISCI");
-  return demo ? demoBackend() : firebaseBackend(cfg);
+  if (dev) return demoBackend("pg_dev_v1", true);
+  return demo ? demoBackend("pg_demo_v1", false) : firebaseBackend(cfg);
 }
 
 // ---------------------------------------------------------- Firebase
@@ -109,8 +112,7 @@ async function firebaseBackend(cfg) {
 }
 
 // ---------------------------------------------------------- Demo
-function demoBackend() {
-  const KEY = "pg_demo_v1";
+function demoBackend(KEY, dev) {
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const load = () => {
     try { return JSON.parse(localStorage.getItem(KEY)) || { students: {} }; }
@@ -123,24 +125,13 @@ function demoBackend() {
   window.addEventListener("storage", (e) => { if (e.key === KEY) { data = load(); emit(); } });
   const sub = (f) => { subs.add(f); f(); return () => subs.delete(f); };
 
-  if (!Object.keys(data.students).length) {
-    const code = "DEMOALUNNO23";
-    data.students[code] = {
-      name: "Giulia (esempio)", createdAt: Date.now(), checks: {},
-      progress: [
-        { id: newId(), cat: "Base", name: "Pattinaggio indietro", status: "done", date: "2026-10-02", note: "Ottima postura" },
-        { id: newId(), cat: "Passi e giri", name: "Incrociati avanti", status: "done", date: "2026-10-20", note: "" },
-        { id: newId(), cat: "Passi e giri", name: "Tre avanti esterno", status: "doing", date: "", note: "Tenere la spalla ferma" },
-        { id: newId(), cat: "Salti", name: "Mezzo giro (waltz)", status: "doing", date: "", note: "" },
-        { id: newId(), cat: "Trottole", name: "Trottola verticale (upright)", status: "todo", date: "", note: "" },
-      ],
-      plan: [
-        { id: newId(), title: "Incrociati avanti in cerchio", detail: "5 giri per lato" },
-        { id: newId(), title: "Tre alternati lungo il lato lungo", detail: "3 vasche" },
-        { id: newId(), title: "Mezzo giro (waltz)", detail: "10 tentativi, atterraggio pulito" },
-      ],
-    };
+  const seed = () => {
+    data = { students: sampleStudents(newCode, newId) };
     localStorage.setItem(KEY, JSON.stringify(data));
+  };
+  if (!Object.keys(data.students).length) {
+    seed();
+    if (dev) localStorage.setItem(KEY + "_coach", JSON.stringify({ uid: "dev" }));
   }
 
   let coach = JSON.parse(localStorage.getItem(KEY + "_coach") || "null");
@@ -154,6 +145,9 @@ function demoBackend() {
 
   return {
     demo: true,
+    dev,
+    sampleCodes: () => Object.entries(data.students).map(([code, st]) => ({ code, name: st.name })),
+    async reseed() { seed(); emit(); },
     onCoachAuth(cb) {
       const f = (c) => cb(c ? { uid: "demo", isCoach: true } : { uid: "DEMO-DISPOSITIVO", isCoach: false });
       aSubs.add(f); f(coach); return () => aSubs.delete(f);

@@ -1,0 +1,52 @@
+rules_version = '2';
+// Regole di sicurezza (applicate dai server Google, non aggirabili dall'app).
+// Nessuna email o password: l'allenatrice usa un accesso anonimo e il suo
+// dispositivo è abilitato se esiste il documento coaches/{suo-ID}.
+//
+//  - Solo i dispositivi dell'allenatrice possono elencare, creare, modificare
+//    ed eliminare gli alunni.
+//  - Un alunno può leggere SOLO il documento il cui ID è il suo codice
+//    (12 caratteri casuali, non indovinabile) e può modificare SOLO le spunte.
+//  - Un nuovo dispositivo dell'allenatrice si abilita con un codice di
+//    trasferimento creato da un dispositivo già abilitato (vale 15 minuti).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isCoach() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/coaches/$(request.auth.uid));
+    }
+
+    match /students/{code} {
+      allow list, create, delete: if isCoach();
+      allow get: if isCoach() || code.size() == 12;
+      allow update: if isCoach() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checks', 'checksAt'])
+        && request.resource.data.checks is map
+        && request.resource.data.checks.size() <= 100
+      );
+    }
+
+    match /coaches/{uid} {
+      allow get, delete: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['via', 'at'])
+        && request.resource.data.via is string
+        && request.resource.data.via.size() == 12
+        && exists(/databases/$(database)/documents/transfers/$(request.resource.data.via))
+        && get(/databases/$(database)/documents/transfers/$(request.resource.data.via)).data.at
+             > request.time - duration.value(15, 'm');
+    }
+
+    match /transfers/{t} {
+      allow create: if isCoach() && t.size() == 12
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.at == request.time;
+      allow delete: if request.auth != null;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

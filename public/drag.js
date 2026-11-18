@@ -17,7 +17,11 @@ export function initDrag(root, { onDrop, onEnd }) {
     press = { li, x: e.clientX, y: e.clientY, pid: e.pointerId, timer: setTimeout(start, HOLD) };
   });
   document.addEventListener("pointermove", (e) => {
-    if (drag && e.pointerId === drag.pid) { drag.lastY = e.clientY; update(); return; }
+    if (drag && e.pointerId === drag.pid) {
+      drag.lastY = e.clientY;
+      if (Math.abs(e.clientY - drag.liftY) > SLOP) drag.moved = true;
+      update(); return;
+    }
     if (press && e.pointerId === press.pid && Math.hypot(e.clientX - press.x, e.clientY - press.y) > SLOP) cancelPress();
   });
   document.addEventListener("pointerup", (e) => {
@@ -43,7 +47,7 @@ export function initDrag(root, { onDrop, onEnd }) {
     const rects = items.map((el) => { const r = el.getBoundingClientRect(); return { top: r.top + sy, h: r.height }; });
     const from = items.indexOf(li);
     const gap = items.length > 1 ? Math.max(0, rects[1].top - (rects[0].top + rects[0].h)) : 0;
-    drag = { li, ul, items, rects, from, to: from, pid, startY: y + sy, lastY: y, shift: rects[from].h + gap };
+    drag = { li, ul, items, rects, from, to: from, pid, startY: y + sy, liftY: y, lastY: y, moved: false, shift: rects[from].h + gap };
     ul.classList.add("sorting");
     li.classList.add("dragging");
     if (navigator.vibrate) navigator.vibrate(12);
@@ -65,9 +69,11 @@ export function initDrag(root, { onDrop, onEnd }) {
     });
   }
 
-  // scorrimento automatico vicino ai bordi dello schermo
+  // scorrimento automatico vicino ai bordi dello schermo, solo dopo che il dito si è mosso
+  // (altrimenti tenere premuto fermo vicino al bordo farebbe scorrere e riordinare da solo)
   function tick() {
     if (!drag) return;
+    if (!drag.moved) { raf = requestAnimationFrame(tick); return; }
     const y = drag.lastY, h = window.innerHeight;
     const v = y < EDGE ? -Math.ceil((EDGE - y) / 6) : y > h - EDGE ? Math.ceil((y - (h - EDGE)) / 6) : 0;
     if (v) { window.scrollBy(0, v); update(); }

@@ -267,6 +267,20 @@ async def main():
             await p2.wait_for_timeout(16)
         await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(300)
         assert await p2.locator(".plan li b").all_inner_texts() == after, "scorrere non deve riordinare"
+        # pressione lunga ferma vicino al bordo basso: niente scorrimento automatico né riordino
+        await p2.tap("nav.tabs >> text=Progressi"); await p2.wait_for_timeout(500)
+        ul = p2.locator("ul.prog:has(li + li) >> nth=0")
+        row = ul.locator("li >> nth=0")
+        await row.evaluate("e => { const r = e.getBoundingClientRect(); window.scrollBy(0, r.top + r.height / 2 - (innerHeight - 30)); }")
+        await p2.wait_for_timeout(200)
+        names, sy = await ul.locator("li b").all_inner_texts(), await p2.evaluate("scrollY")
+        r = await row.bounding_box()
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": r["x"] + r["width"] / 3, "y": r["y"] + r["height"] / 2}]})
+        await p2.wait_for_timeout(1100)
+        assert await p2.evaluate("scrollY") == sy, "tenere premuto fermo non deve far scorrere la pagina"
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(300)
+        assert await ul.locator("li b").all_inner_texts() == names, "tenere premuto fermo non deve riordinare"
+        assert await p2.locator("#sheet").is_hidden()
         await ctx2.close()
 
         await b.close()

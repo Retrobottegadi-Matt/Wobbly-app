@@ -33,15 +33,40 @@ function fmtWhen(ts) {
   if (d.toDateString() === y.toDateString()) return `ieri ${hm}`;
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" });
 }
+// Avviso: un'unica regione "status" sempre presente (VoiceOver annuncia in modo affidabile solo le
+// regioni che esistono già). Ogni nuovo avviso sostituisce il precedente, niente avvisi sovrapposti.
+let $toast = null, toastTimer = 0, toastSet = 0;
+function ensureToast() {
+  if ($toast) return $toast;
+  $toast = document.createElement("div");
+  $toast.className = "toast idle";
+  $toast.setAttribute("role", "status");
+  $toast.setAttribute("aria-live", "polite");
+  document.body.appendChild($toast);
+  return $toast;
+}
 function toast(msg) {
-  const t = document.createElement("div");
-  t.className = "toast";
-  t.setAttribute("role", "status");
-  t.setAttribute("aria-live", "polite");
-  document.body.appendChild(t);
-  // il testo va inserito dopo l'inserimento nel DOM, altrimenti i lettori di schermo non lo annunciano
-  setTimeout(() => { t.textContent = msg; }, 50);
-  setTimeout(() => t.remove(), 3500);
+  const t = ensureToast();
+  clearTimeout(toastTimer); clearTimeout(toastSet);
+  t.textContent = ""; // svuota prima: così anche un messaggio uguale al precedente viene riletto
+  toastSet = setTimeout(() => { t.textContent = msg; t.classList.remove("idle"); }, 50);
+  toastTimer = setTimeout(() => { t.classList.add("idle"); t.textContent = ""; }, 3500);
+}
+
+// Dopo un tocco il focus torna sull'elemento giusto (serve a VoiceOver), ma senza l'anello viola
+// che Safari mostrerebbe: l'anello resta solo per chi usa la tastiera.
+let lastPointer = false;
+document.addEventListener("pointerdown", () => { lastPointer = true; }, true);
+document.addEventListener("keydown", () => {
+  lastPointer = false;
+  document.querySelectorAll("[data-quiet]").forEach((el) => el.removeAttribute("data-quiet"));
+}, true);
+function restoreFocus(el) {
+  if (lastPointer) {
+    el.setAttribute("data-quiet", "");
+    el.addEventListener("blur", () => el.removeAttribute("data-quiet"), { once: true });
+  }
+  el.focus({ preventScroll: true });
 }
 function fail(e) {
   console.error(e);
@@ -86,11 +111,12 @@ function paint(html) {
   if (document.activeElement && document.activeElement !== document.body) return;
   let el = $root.querySelector(sel);
   if (el && el.disabled) el = $root.querySelector(`${sel.replace(/\[data-d="-?\d+"\]/, "")}:not([disabled])`);
-  if (el) el.focus({ preventScroll: true });
+  if (el) restoreFocus(el);
 }
 
 // ---------------------------------------------------------- avvio
 async function main() {
+  ensureToast();
   try {
     const q = new URLSearchParams(location.search);
     if (q.has("dev")) localStorage.setItem(LS_DEV, "1");
@@ -488,7 +514,7 @@ function openSheet({ title, body, onSubmit = () => {}, focus = "title" }) {
     btns.forEach((b) => { b.disabled = false; });
   };
   const target = focus === "input" ? f.querySelector("input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea") : null;
-  setTimeout(() => (target || f.querySelector("#sheetTitle")).focus(), 50);
+  setTimeout(() => (target ? target.focus() : restoreFocus(f.querySelector("#sheetTitle"))), 50);
   return f;
 }
 function closeSheet() {
@@ -499,7 +525,7 @@ function closeSheet() {
     // dopo un salvataggio la lista viene ridisegnata e il pulsante originale non esiste più:
     // si cerca quello nuovo equivalente, adesso o al prossimo ridisegno
     const el = sheetOpener && document.contains(sheetOpener) ? sheetOpener : sheetOpenerSel && $root.querySelector(sheetOpenerSel);
-    if (el) el.focus({ preventScroll: true });
+    if (el) restoreFocus(el);
     if (sheetOpenerSel) pendingFocus = sheetOpenerSel;
   }
   sheetOpener = null; sheetOpenerSel = null;

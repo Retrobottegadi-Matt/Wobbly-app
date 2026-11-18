@@ -39,7 +39,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v9)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v10)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -70,6 +70,8 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - Gestione elementi: nei Progressi lo stato è un cerchio con icona a destra della riga (tocco = stato successivo, annunciato con un avviso; legenda sempre visibile; nome dello stato letto da VoiceOver). Toccando la riga si modifica (livello, categoria, stato, data, note). Nella Scheda la riga apre la modifica.
 - Riordino: tieni premuto e trascina (`drag.js`, come su iPhone) in Scheda e Progressi (nei Progressi solo dentro lo stesso livello + categoria). Alternativa obbligatoria (WCAG 2.5.7, VoiceOver): modalità "Riordina" con frecce in entrambe le schede. `[data-nodrag]` esclude cerchio di stato e frecce. Durante il trascinamento `renderCoachStudent` rimanda il ridisegno.
 - Livelli: ogni elemento ha `level`, ogni alunno ha `level` (scelto alla creazione e in "Nome e livello"). La vecchia categoria "Base" si chiama ora "Fondamentali": passare sempre da `normItem()` prima di raggruppare o confrontare elementi.
+- Avvisi (`toast()`): un'unica regione `role=status` sempre presente, in alto sotto la barra di stato, larga quanto il testo (max 2 righe), `pointer-events: none`; ogni avviso sostituisce il precedente.
+- Focus riportato dopo un tocco (`restoreFocus`): niente anello visibile (`data-quiet`); dopo un tasto l'anello resta.
 - Campi di testo ≥ 16px (sotto, iPhone ingrandisce la pagina al tocco). Non usare `maximum-scale`/`user-scalable=no`: bloccano lo zoom su Android.
 
 ## Modello dati (Firestore)

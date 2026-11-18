@@ -14,6 +14,12 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
+<script>
+  // tema e accessibilità prima del primo disegno (niente lampo chiaro con il tema Scuro); il resto lo fa a11y.js
+  try { var p = JSON.parse(localStorage.getItem("pg_a11y")) || {}, r = document.documentElement;
+    if (p.theme === "dark" || p.theme === "light") r.setAttribute("data-theme", p.theme);
+    if (p.contrast) r.setAttribute("data-contrast", "more"); if (p.motion) r.setAttribute("data-motion", "reduce"); } catch (e) {}
+</script>
 </head>
 <body>
 <main id="app"></main>

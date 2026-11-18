@@ -27,6 +27,7 @@ async def main():
         await pg.fill("#stuSearch", "ALÌ"); await pg.wait_for_timeout(100)
         assert await pg.locator(".students li").count() == 1
         assert await pg.evaluate("document.activeElement.id") == "stuSearch"
+        assert await pg.evaluate("getComputedStyle(document.querySelector('.students li')).animationName") == "none", "la ricerca non rifà l'entrata"
         await pg.wait_for_timeout(500)
         assert await pg.locator("#stuCount").inner_text() == "1 alunno trovato"
         await pg.fill("#stuSearch", "zzz"); await pg.wait_for_timeout(100)

@@ -327,7 +327,7 @@ function renderCoachList() {
   // già sull'elenco (es. dati aggiornati mentre si scrive nella ricerca): aggiorna solo le righe,
   // così il campo non perde testo e focus
   const box = document.getElementById("stuList");
-  if (box && $root.dataset.view === "list" && !animateNext) { box.innerHTML = studentRows(); return; }
+  if (box && $root.dataset.view === "list" && !animateNext) { $root.classList.remove("enter"); box.innerHTML = studentRows(); return; }
   paint(`${demoBanner()}
   <header class="top"><div class="grow"><small>Allenatrice</small><h1>I miei alunni</h1></div>
     <button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
@@ -341,7 +341,12 @@ function renderCoachList() {
   $root.dataset.view = "list";
   const inp = document.getElementById("stuSearch");
   if (inp) {
-    inp.oninput = () => { S.q = inp.value; document.getElementById("stuList").innerHTML = studentRows(); announceCount(); };
+    inp.oninput = () => {
+      S.q = inp.value;
+      $root.classList.remove("enter"); // le righe filtrate non rifanno l'animazione d'entrata
+      document.getElementById("stuList").innerHTML = studentRows();
+      announceCount();
+    };
     inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } };
   }
 }

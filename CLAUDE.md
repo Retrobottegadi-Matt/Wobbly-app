@@ -35,10 +35,11 @@ public/            ← cartella da pubblicare (GitHub Pages)
   a11y.js          preferenze di accessibilità degli utenti (chiave pg_a11y): testo più grande, contrasto, animazioni
   design.js        pagina #/design (solo ?dev): token, contrasti calcolati, componenti, modifica colori dal vivo
   samples.js       10 alunni di esempio deterministici (seed fisso) per la modalità dev
-  catalog.js       catalogo elementi per categoria + idee esercizi (generico, da adattare)
+  catalog.js       catalogo per livello (base/intermedio/avanzato) → categoria; normItem() rende validi anche i dati vecchi (indicativo, da adattare)
+  drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v8)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v9)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -66,11 +67,15 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - Contrasto elevato: ogni tema definisce `--muted-n/-hc`, `--line-n/-hc`, `--line-strong-n/-hc`; le regole di contrasto scelgono solo la variante `-hc`.
 - Animazioni: entrate solo al cambio di schermata (`.enter`, messa da `paint()` dopo `route()`), riscontro solo sull'elemento toccato (`.just`), durata ≤ 250 ms, niente transform su `main` (romperebbe `.fab`). Con riduzione movimento durata e ritardi vanno a 0.
 - Ricerca nell'elenco alunni (da 6 alunni in su): senza accenti né maiuscole; quando arrivano dati nuovi si aggiorna solo `#stuList`, così il campo non perde testo e focus.
-- Gestione elementi: nei Progressi lo stato si cambia toccando la pillola (annunciato con un avviso), l'elemento si modifica toccando la riga. Nella Scheda la riga apre la modifica; il riordino è una modalità "Riordina" con frecce (niente trascinamento: poco accessibile).
+- Gestione elementi: nei Progressi lo stato è un cerchio con icona a destra della riga (tocco = stato successivo, annunciato con un avviso; legenda sempre visibile; nome dello stato letto da VoiceOver). Toccando la riga si modifica (livello, categoria, stato, data, note). Nella Scheda la riga apre la modifica.
+- Riordino: tieni premuto e trascina (`drag.js`, come su iPhone) in Scheda e Progressi (nei Progressi solo dentro lo stesso livello + categoria). Alternativa obbligatoria (WCAG 2.5.7, VoiceOver): modalità "Riordina" con frecce in entrambe le schede. `[data-nodrag]` esclude cerchio di stato e frecce. Durante il trascinamento `renderCoachStudent` rimanda il ridisegno.
+- Livelli: ogni elemento ha `level`, ogni alunno ha `level` (scelto alla creazione e in "Nome e livello"). La vecchia categoria "Base" si chiama ora "Fondamentali": passare sempre da `normItem()` prima di raggruppare o confrontare elementi.
+- Campi di testo ≥ 16px (sotto, iPhone ingrandisce la pagina al tocco). Non usare `maximum-scale`/`user-scalable=no`: bloccano lo zoom su Android.
 
 ## Modello dati (Firestore)
 - `students/{code}`:
-  - `{ name, createdAt, progress: [{id, cat, name, status: todo|doing|done, date: "YYYY-MM-DD", note}], plan: [{id, title, detail}], checks: {exerciseId: timestampMs}, checksAt }`
+  - `{ name, level: base|intermedio|avanzato, createdAt, progress: [{id, level, cat, name, status: todo|doing|done, date: "YYYY-MM-DD", note}], plan: [{id, title, detail}], checks: {exerciseId: timestampMs}, checksAt }`
+  - `level` può mancare nei dati creati prima dei livelli: `normItem()` lo ricava dal catalogo (altrimenti "base").
   - L'allenatrice aggiorna gli array interi (`progress`, `plan`); l'alunno scrive solo `checks.{id}` e `checksAt`.
 - `coaches/{uid}`: `{ via: transferCode, at }`
 - `transfers/{code}`: `{ by: uid, at: serverTimestamp }`
@@ -93,8 +98,8 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 
 ## Possibili prossimi passi
 - Verificare le regole con `firebase emulators:start --only firestore,auth` e test delle regole (`@firebase/rules-unit-testing`).
-- Adattare `catalog.js` ai livelli usati davvero dall'allenatrice: chiedere all'utente la lista (federazione o programma).
-- Idee non ancora richieste, da proporre solo se utili: storico delle sessioni di spunte, riepilogo "chi ha completato l'elemento X", ordinamento o ricerca nell'elenco alunni.
+- Adattare `catalog.js` al programma reale dell'allenatrice: la divisione Base/Intermedio/Avanzato attuale è indicativa.
+- Idee non ancora richieste, da proporre solo se utili: storico delle sessioni di spunte, riepilogo "chi ha completato l'elemento X", ordinamento dell'elenco alunni, filtro per livello.
 
 ## Come lavorare su questo progetto
 - Niente build: è JS vanilla con ES modules. Per servirlo in locale: `cd public && python3 -m http.server 8765`, poi aprire `http://localhost:8765/?dev`.

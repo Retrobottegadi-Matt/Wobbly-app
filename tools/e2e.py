@@ -18,8 +18,19 @@ async def main():
         pg.on("console", lambda m: m.type == "error" and errs.append(m.text))
         pg.on("dialog", lambda d: asyncio.ensure_future(d.accept()))
 
+        # campi di testo >= 16px: sotto, iPhone ingrandisce la pagina quando li tocchi
+        FONT16 = """() => [...document.querySelectorAll('#sheet input:not([type=checkbox]):not([type=radio]):not([type=file]), #sheet select, #sheet textarea, main input:not([type=checkbox]):not([type=radio])')]
+            .filter(e => e.offsetParent !== null && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => (e.name || e.id) + ' ' + getComputedStyle(e).fontSize)"""
+        async def font16(label):
+            bad = await pg.evaluate(FONT16); assert not bad, (label, bad)
+
         # dev: 10 alunni di esempio, allenatrice già abilitata
         await pg.goto(B + "?dev#/coach"); await pg.wait_for_timeout(600)
+        # il service worker deve prendere il controllo (un errore nel suo fetch romperebbe l'app installata)
+        await pg.reload(); await pg.wait_for_timeout(700)
+        assert await pg.evaluate("!!navigator.serviceWorker.controller"), "service worker non attivo"
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(500)
+        await font16("elenco")
         assert await pg.locator(".students li").count() == 10, "attesi 10 alunni di esempio"
         assert await pg.locator("#app.enter").count() == 1, "entrata animata al cambio di schermata"
 
@@ -36,29 +47,35 @@ async def main():
         assert await pg.locator(".students li").count() == 10
 
         # crea alunno, aggiungi elementi e esercizi
-        await pg.click("[data-act=c-new]"); await pg.fill("input[name=name]", "Test"); await pg.click("button[type=submit]")
+        await pg.click("[data-act=c-new]"); await pg.wait_for_timeout(100); await font16("nuovo alunno")
+        await pg.fill("input[name=name]", "Test"); await pg.click("label.seg-opt.lv:has-text('Intermedio')"); await pg.click("button[type=submit]")
         await pg.wait_for_timeout(300)
         await pg.click("text=Progressi"); await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
         assert await pg.evaluate("document.querySelector('#sheet .scroll').scrollTop") == 0, "il catalogo deve aprirsi dall'inizio"
         await pg.click("label.chk:has-text('Toe loop')")
         assert await pg.locator("#sheet button[type=submit]").inner_text() == "Aggiungi (1)"
         await pg.click("button[type=submit]"); await pg.wait_for_timeout(200)
-        await pg.click("button.st >> nth=0"); await pg.wait_for_timeout(200)
-        assert "In corso" in await pg.locator("button.st >> nth=0").inner_text()
+        assert "Intermedio" in await pg.locator("header small").inner_text(), "livello dell'alunno nella testata"
+        await pg.click("button.st-ic >> nth=0"); await pg.wait_for_timeout(200)
+        st = pg.locator("button.st-ic >> nth=0")
+        assert "doing" in await st.get_attribute("class") and "In corso" in await st.get_attribute("aria-label")
+        assert await pg.locator(".prog li").count() == 1 and await pg.locator("h3.lvl").inner_text() == "Intermedio", "Toe loop è di livello intermedio"
         assert await pg.evaluate("document.activeElement.dataset.act") == "c-cycle", "il focus resta sullo stato appena cambiato"
         # la modifica dell'elemento è un vero pulsante (raggiungibile con tastiera e VoiceOver)
         assert await pg.evaluate("document.querySelector('.prog li [data-act=c-edit-prog]').tagName") == "BUTTON"
         await pg.click("[data-act=c-edit-prog] >> nth=0"); await pg.wait_for_timeout(150)
         assert await pg.evaluate("document.activeElement.id") == "sheetTitle", "i pannelli di modifica mettono il focus sul titolo"
+        await font16("modifica elemento")
         pid = await pg.evaluate("document.querySelector('[data-act=c-edit-prog]').dataset.id")
         await pg.click("label.seg-opt.done"); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
-        assert "Completato" in await pg.locator("button.st >> nth=0").inner_text()
+        st = pg.locator("button.st-ic >> nth=0")
+        assert "done" in await st.get_attribute("class") and "Completato" in await st.get_attribute("aria-label")
         assert await pg.evaluate(f"document.activeElement.matches('[data-act=c-edit-prog][data-id=\"{pid}\"]')"), "dopo il salvataggio il focus torna sulla riga modificata"
         await pg.click("text=Scheda")
         for t in ["Spirale", "Incrociati"]:
             await pg.click("[data-act=c-add-ex]"); await pg.wait_for_timeout(100)
             assert await pg.evaluate("document.activeElement.name") == "title", "i moduli di creazione mettono il focus sul campo"
-            await pg.fill("input[name=title]", t); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
+            await font16("esercizio"); await pg.fill("input[name=title]", t); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
         # riordino: modalità dedicata con frecce, il focus segue l'elemento spostato
         await pg.click("[data-act=c-reorder]"); await pg.wait_for_timeout(150)
         await pg.click("[data-act=c-move][data-d='1']"); await pg.wait_for_timeout(200)
@@ -66,6 +83,19 @@ async def main():
         assert await pg.evaluate("document.activeElement.dataset.act") == "c-move"
         await pg.click("[data-act=c-reorder]"); await pg.wait_for_timeout(150)
         assert await pg.locator(".plan [data-act=c-edit-ex]").count() == 2
+        # tieni premuto e trascina (mouse): il primo esercizio va sotto il secondo, senza aprire la modifica
+        a = await pg.locator(".plan > li >> nth=0").bounding_box(); c = await pg.locator(".plan > li >> nth=1").bounding_box()
+        x, y0, y1 = a["x"] + a["width"] / 2, a["y"] + a["height"] / 2, c["y"] + c["height"] / 2 + 15
+        await pg.mouse.move(x, y0); await pg.mouse.down(); await pg.wait_for_timeout(600)
+        for k in range(1, 11):
+            await pg.mouse.move(x, y0 + (y1 - y0) * k / 10); await pg.wait_for_timeout(16)
+        await pg.mouse.up(); await pg.wait_for_timeout(300)
+        assert (await pg.locator(".plan li b").all_inner_texts()) == ["Spirale", "Incrociati"], "ordine dopo il trascinamento"
+        assert await pg.locator("#sheet").is_hidden(), "il trascinamento non apre la modifica"
+        await pg.wait_for_timeout(450)
+        await pg.click(".plan [data-act=c-edit-ex] >> nth=0"); await pg.wait_for_timeout(150)
+        assert await pg.locator("#sheet").is_visible(), "un tocco normale apre ancora la modifica"
+        await pg.keyboard.press("Escape")
         code = pg.url.split("/")[-2]
 
         # vista alunno: spunta
@@ -87,6 +117,22 @@ async def main():
         assert await pg.locator(".students li").count() == 10
         await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", path); await pg.wait_for_timeout(500)
         assert await pg.locator(".students li").count() == 11
+
+        # backup "vecchio" (categoria Base, nessun livello, categoria sconosciuta): nessun elemento deve sparire
+        import json
+        legacy = {"app": "pattinaggio", "version": 1, "students": [{"code": "VECCHIOCODE2", "name": "Vecchio", "createdAt": 1,
+            "progress": [{"id": "a1", "cat": "Base", "name": "Pattinaggio avanti", "status": "done", "date": "2026-01-02", "note": ""},
+                         {"id": "a2", "cat": "Boh", "name": "Elemento strano", "status": "todo", "date": "", "note": ""},
+                         {"id": "a3", "cat": "Salti", "name": "Axel", "status": "doing", "date": "", "note": ""}],
+            "plan": [], "checks": {}}]}
+        lpath = "/tmp/pattinaggio-legacy-test.json"; open(lpath, "w").write(json.dumps(legacy))
+        await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", lpath); await pg.wait_for_timeout(500)
+        await pg.click("text=Vecchio"); await pg.wait_for_timeout(300)
+        assert await pg.locator(".prog li").count() == 3, "tutti gli elementi del backup vecchio sono visibili"
+        assert await pg.locator("h3.lvl").all_inner_texts() == ["Base", "Avanzato"]
+        await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
+        assert await pg.locator(".chk.dis:has-text('Pattinaggio avanti')").count() == 1, "riconosciuto come già presente"
+        await pg.keyboard.press("Escape")
 
         # accessibilità: target >= 44px sulle schermate principali
         MIN = """() => [...document.querySelectorAll('button, a.icon, .tabs a, .chip, .btn, .foot a, .demo a, .check, label.chk, .mi, .seg-opt, input:not([type=hidden]):not([hidden]), select')]
@@ -189,6 +235,53 @@ async def main():
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
         assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f4a6c8", "gli override colore dev non arrivano agli utenti"
+
+        # trascinamento con il dito (eventi touch reali via CDP): la pagina non deve scorrere
+        ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)
+        p2 = await ctx2.new_page()
+        p2.on("pageerror", lambda e: errs.append(str(e)))
+        await p2.goto(B + "?dev#/coach"); await p2.wait_for_timeout(700)
+        await p2.tap(".students li a >> nth=0"); await p2.wait_for_timeout(300)
+        await p2.tap("nav.tabs >> text=Scheda"); await p2.wait_for_timeout(500)
+        await p2.evaluate("document.querySelector('.plan').scrollIntoView({block: 'center'})"); await p2.wait_for_timeout(200)
+        before = await p2.locator(".plan li b").all_inner_texts()
+        assert await p2.evaluate("document.documentElement.scrollHeight > innerHeight + 50"), "serve una pagina scorrevole per il test"
+        a = await p2.locator(".plan > li >> nth=0").bounding_box(); c = await p2.locator(".plan > li >> nth=1").bounding_box()
+        x, y0, y1 = a["x"] + a["width"] / 2, a["y"] + a["height"] / 2, c["y"] + c["height"] / 2 + 15
+        sy = await p2.evaluate("scrollY")
+        cdp = await ctx2.new_cdp_session(p2)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0}]})
+        await p2.wait_for_timeout(600)
+        for k in range(1, 11):
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 + (y1 - y0) * k / 10}]})
+            await p2.wait_for_timeout(16)
+        assert await p2.evaluate("scrollY") == sy, "la pagina non deve scorrere mentre si trascina"
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(400)
+        after = await p2.locator(".plan li b").all_inner_texts()
+        assert after == [before[1], before[0]] + before[2:], (before, after)
+        assert await p2.locator("#sheet").is_hidden(), "il trascinamento con il dito non apre la modifica"
+        # uno scorrimento normale (senza pressione lunga) non sposta nulla
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0 + 60}]})
+        for k in range(1, 8):
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 + 60 - 12 * k}]})
+            await p2.wait_for_timeout(16)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(300)
+        assert await p2.locator(".plan li b").all_inner_texts() == after, "scorrere non deve riordinare"
+        # pressione lunga ferma vicino al bordo basso: niente scorrimento automatico né riordino
+        await p2.tap("nav.tabs >> text=Progressi"); await p2.wait_for_timeout(500)
+        ul = p2.locator("ul.prog:has(li + li) >> nth=0")
+        row = ul.locator("li >> nth=0")
+        await row.evaluate("e => { const r = e.getBoundingClientRect(); window.scrollBy(0, r.top + r.height / 2 - (innerHeight - 30)); }")
+        await p2.wait_for_timeout(200)
+        names, sy = await ul.locator("li b").all_inner_texts(), await p2.evaluate("scrollY")
+        r = await row.bounding_box()
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": r["x"] + r["width"] / 3, "y": r["y"] + r["height"] / 2}]})
+        await p2.wait_for_timeout(1100)
+        assert await p2.evaluate("scrollY") == sy, "tenere premuto fermo non deve far scorrere la pagina"
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(300)
+        assert await ul.locator("li b").all_inner_texts() == names, "tenere premuto fermo non deve riordinare"
+        assert await p2.locator("#sheet").is_hidden()
+        await ctx2.close()
 
         await b.close()
         assert not errs, errs

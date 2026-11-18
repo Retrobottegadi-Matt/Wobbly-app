@@ -85,9 +85,9 @@ async function firebaseBackend(cfg) {
         (d) => cb(d.exists() ? { code: d.id, ...d.data() } : null, { fromCache: d.metadata.fromCache }),
         err);
     },
-    async createStudent(name) {
+    async createStudent(name, level = "base") {
       const code = newCode();
-      await fs.setDoc(ref(code), { name, progress: [], plan: [], checks: {}, createdAt: Date.now() });
+      await fs.setDoc(ref(code), { name, level, progress: [], plan: [], checks: {}, createdAt: Date.now() });
       return code;
     },
     updateStudent: (code, patch) => fs.updateDoc(ref(code), patch),
@@ -163,9 +163,9 @@ function demoBackend(KEY, dev) {
     watchStudent(code, cb) {
       return sub(() => { const s = S(code); cb(s ? { code, ...clone(s) } : null, { fromCache: false }); });
     },
-    async createStudent(name) {
+    async createStudent(name, level = "base") {
       const code = newCode();
-      data.students[code] = { name, progress: [], plan: [], checks: {}, createdAt: Date.now() };
+      data.students[code] = { name, level, progress: [], plan: [], checks: {}, createdAt: Date.now() };
       save();
       return code;
     },

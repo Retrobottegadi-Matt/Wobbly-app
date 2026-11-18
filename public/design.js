@@ -152,9 +152,11 @@ export function renderDesign($root) {
 
   <h2>Stati dei progressi</h2>
   <section class="card"><div class="row">
-    <span class="st todo">${icon("todo")}<span>Da iniziare</span></span><span class="st doing">${icon("doing")}<span>In corso</span></span><span class="st done">${icon("done")}<span>Completato</span></span></div>
-    <code>.st.todo</code> · <code>.st.doing</code> · <code>.st.done</code>
-    <p class="muted small">Lo stato non è mai solo un colore: ha icona con forma diversa, etichetta di testo e bordo.</p></section>
+    <span class="st-ic todo">${icon("todo")}</span><span class="st-ic doing">${icon("doing")}</span><span class="st-ic done">${icon("done")}</span></div>
+    <code>.st-ic.todo</code> · <code>.st-ic.doing</code> · <code>.st-ic.done</code> (a destra della riga; tocco = stato successivo)
+    <p class="legend" style="margin-top:.5rem">${["todo", "doing", "done"].map((k) => `<span class="lg"><span class="st-ic xs ${k}">${icon(k)}</span>${{ todo: "Da iniziare", doing: "In corso", done: "Completato" }[k]}</span>`).join("")}</p>
+    <code>.legend</code> (in cima alla lista) · <code>.lvl</code> intestazione di livello: <span class="lvl">Intermedio</span>
+    <p class="muted small">Lo stato non è mai solo un colore: ogni icona ha una forma diversa, la legenda è sempre visibile e VoiceOver legge il nome dello stato.</p></section>
 
   <h2>Navigazione</h2>
   <section class="card"><nav class="tabs" aria-label="Esempio tab"><a href="#/design" class="on" aria-current="page">Progressi</a><a href="#/design">Scheda</a><a href="#/design">Invito</a></nav>

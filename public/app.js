@@ -1,8 +1,9 @@
 import { CONFIG } from "./config.js";
 import { createBackend, normCode, fmtCode, newId, CODE_LEN } from "./backend.js";
-import { CATALOG, CATEGORIES, EXERCISE_IDEAS } from "./catalog.js";
+import { CATALOG, CATEGORIES, EXERCISE_IDEAS, LEVELS, LEVEL_LABEL, normItem, normLevel, itemKey } from "./catalog.js";
 import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
+import { initDrag, isDragging } from "./drag.js";
 import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
@@ -114,6 +115,10 @@ async function main() {
   window.addEventListener("hashchange", route);
   document.addEventListener("click", onClick);
   document.addEventListener("touchstart", () => {}, { passive: true }); // attiva :active su iPhone
+  initDrag($root, {
+    onDrop: (kind, group, ids, id, to) => applyOrder(kind, group, ids, id, to).catch(fail),
+    onEnd: () => { const f = S.pendingRender; S.pendingRender = null; if (f) f(); },
+  });
   route();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
@@ -185,7 +190,7 @@ function renderStudent() {
   const plan = s.plan || [];
   const done = checksDone(s);
   paint(`${demoBanner()}
-  <header class="top"><div class="grow"><small>Ciao</small><h1>${esc(s.name)}</h1></div>
+  <header class="top"><div class="grow"><small>Ciao${lvlOf(s) ? ` · livello ${LEVEL_LABEL[lvlOf(s)].toLowerCase()}` : ""}</small><h1>${esc(s.name)}</h1></div>
     <button class="icon" data-act="s-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
 
   <section class="card" aria-labelledby="hScheda">
@@ -198,7 +203,7 @@ function renderStudent() {
   <section class="card" aria-labelledby="hProg">
     <div class="sec-h"><h2 id="hProg">I miei progressi</h2><span class="pill" aria-label="${pct(s)} per cento completato">${pct(s)}%</span></div>
     ${progressBar(s)}
-    ${progressList(s.progress || [], false)}
+    ${progressList(s.progress, "student")}
   </section>`);
 }
 
@@ -212,7 +217,7 @@ function checkRow(x, val, mode) {
     return `<li><button class="check ${on ? "on" : ""}" data-act="s-check" data-id="${x.id}" aria-pressed="${on}">${inner}</button></li>`;
   }
   if (mode === "coach") {
-    return `<li><button class="check coach ${on ? "on" : ""}" data-act="c-edit-ex" data-id="${x.id}">${inner}
+    return `<li data-id="${x.id}"><button class="check coach ${on ? "on" : ""}" data-act="c-edit-ex" data-id="${x.id}">${inner}
       <span class="sr">${on ? "Spuntato dall'alunno." : "Non ancora spuntato."} Tocca per modificare.</span>${icon("chevron", "chev")}</button></li>`;
   }
   return `<div class="check ro ${on ? "on" : ""}">${inner}<span class="sr">${on ? "Spuntato." : ""}</span></div>`;
@@ -224,22 +229,63 @@ function progressBar(s) {
 
 const stPill = (st) => `${icon(st)}<span>${STATUS[st]}</span>`;
 
-function progressList(items, coach) {
-  if (!items.length) return `<p class="muted">${coach ? "Nessun elemento. Aggiungine uno." : "Ancora nessun elemento."}</p>`;
-  return CATEGORIES.filter((c) => items.some((i) => (i.cat || "Altro") === c)).map((c) => `
-    <h3 class="cat">${esc(c)}</h3>
-    <ul class="prog">${items.filter((i) => (i.cat || "Altro") === c).map((i) => {
-      const meta = `${i.status === "done" && i.date ? `<small>Completato il ${fmtDate(i.date)}</small>` : ""}
-          ${i.note ? `<small class="note">${esc(i.note)}</small>` : ""}`;
-      return coach ? `<li>
-        <button class="st ${i.status}" data-act="c-cycle" data-id="${i.id}"
-          aria-label="${esc(i.name)}: ${STATUS[i.status]}. Tocca per passare a ${STATUS[NEXT[i.status]]}">${stPill(i.status)}</button>
-        <button class="rowbtn" data-act="c-edit-prog" data-id="${i.id}"><span class="txt"><b>${esc(i.name)}</b>${meta}</span>
-          <span class="sr">Modifica stato, data e note</span>${icon("chevron", "chev")}</button>
-      </li>` : `<li><span class="st ${i.status}">${stPill(i.status)}</span>
-        <div class="txt"><b>${esc(i.name)}</b>${meta}</div></li>`;
-    }).join("")}</ul>`).join("");
+const groupKey = (i) => `${i.level}|${i.cat}`;
+// livelli → categorie → elementi (gli elementi arrivano già normalizzati: nessuno resta fuori)
+function groups(items) {
+  return LEVELS.map(([lv, label]) => {
+    const inLv = items.filter((i) => i.level === lv);
+    return { lv, label, cats: CATEGORIES.filter((c) => inLv.some((i) => i.cat === c)).map((c) => ({ cat: c, items: inLv.filter((i) => i.cat === c) })) };
+  }).filter((g) => g.cats.length);
 }
+const legend = () => `<p class="legend" aria-hidden="true">${Object.keys(STATUS).map((k) =>
+  `<span class="lg"><span class="st-ic xs ${k}">${icon(k)}</span>${STATUS[k]}</span>`).join("")}</p>`;
+const arrows = (kind, id, title, i, n) =>
+  `<button class="icon sm" data-act="c-move" data-kind="${kind}" data-id="${id}" data-d="-1" aria-label="Sposta su: ${esc(title)}" ${i ? "" : "disabled"}>${icon("up")}</button>
+   <button class="icon sm" data-act="c-move" data-kind="${kind}" data-id="${id}" data-d="1" aria-label="Sposta giù: ${esc(title)}" ${i < n - 1 ? "" : "disabled"}>${icon("down")}</button>`;
+
+// mode: "student" (sola lettura), "coach" (stato a destra + modifica), "reorder" (frecce)
+function progressList(raw, mode) {
+  const items = (raw || []).map(normItem);
+  if (!items.length) return `<p class="muted">${mode === "student" ? "Ancora nessun elemento." : "Nessun elemento. Aggiungine uno."}</p>`;
+  return `${mode === "reorder" ? "" : legend()}${groups(items).map((g) => `
+    <h3 class="lvl">${g.label}</h3>
+    ${g.cats.map((c) => `<h4 class="cat">${esc(c.cat)}</h4>
+    <ul class="prog" ${mode === "student" ? "" : `data-drag="prog" data-group="${g.lv}|${esc(c.cat)}"`}>${c.items.map((i, k) => progRow(i, mode, k, c.items.length)).join("")}</ul>`).join("")}`).join("")}`;
+}
+function progRow(i, mode, k, n) {
+  const meta = `${i.status === "done" && i.date ? `<small>Completato il ${fmtDate(i.date)}</small>` : ""}
+    ${i.note ? `<small class="note">${esc(i.note)}</small>` : ""}`;
+  const txt = `<span class="txt"><b>${esc(i.name)}</b>${meta}</span>`;
+  if (mode === "coach") return `<li data-id="${i.id}">
+      <button class="rowbtn" data-act="c-edit-prog" data-id="${i.id}">${txt}<span class="sr">Modifica livello, stato, data e note</span></button>
+      <button class="st-ic ${i.status}" data-nodrag data-act="c-cycle" data-id="${i.id}"
+        aria-label="${esc(i.name)}: ${STATUS[i.status]}. Tocca per passare a ${STATUS[NEXT[i.status]]}">${icon(i.status)}</button></li>`;
+  if (mode === "reorder") return `<li data-id="${i.id}"><div class="rowbtn ro">${txt}</div><div class="ops" data-nodrag>${arrows("prog", i.id, i.name, k, n)}</div></li>`;
+  return `<li>${txt}<span class="st-ic ${i.status}">${icon(i.status)}<span class="sr">${STATUS[i.status]}</span></span></li>`;
+}
+// nuovo ordine dopo un trascinamento: la scheda intera, oppure le sole posizioni di un gruppo dei progressi
+async function applyOrder(kind, group, ids, id, to) {
+  const s = cur();
+  if (!s) return;
+  if (kind === "plan") {
+    const by = Object.fromEntries((s.plan || []).map((x) => [x.id, x]));
+    const plan = ids.map((k) => by[k]).filter(Boolean);
+    if (plan.length !== (s.plan || []).length) return;
+    pendingFocus = `[data-act="c-edit-ex"][data-id="${id}"]`; flashSel = `li[data-id="${id}"]`;
+    await be.updateStudent(s.code, { plan });
+    return toast(`${by[id].title}: posizione ${to + 1} di ${plan.length}`);
+  }
+  const arr = (s.progress || []).map(normItem);
+  const slots = arr.map((x, k) => (groupKey(x) === group ? k : -1)).filter((k) => k >= 0);
+  const by = Object.fromEntries(arr.map((x) => [x.id, x]));
+  if (slots.length !== ids.length || ids.some((k) => !by[k] || groupKey(by[k]) !== group)) return;
+  slots.forEach((k, j) => { arr[k] = by[ids[j]]; });
+  pendingFocus = `[data-act="c-edit-prog"][data-id="${id}"]`; flashSel = `li[data-id="${id}"]`;
+  await be.updateStudent(s.code, { progress: arr });
+  toast(`${by[id].name}: posizione ${to + 1} di ${slots.length}`);
+}
+const reorderBtn = (tab, on) => `<button class="btn ghost sm" data-act="c-reorder" data-tab="${tab}" aria-pressed="${on}">${icon(on ? "check" : "reorder")} ${on ? "Fine" : "Riordina"}</button>`;
+const lvlOf = (s) => normLevel(s.level);
 
 // ======================================================== ALLENATRICE
 function routeCoach(code, tab) {
@@ -307,7 +353,7 @@ function studentRows() {
         <span class="av" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
         <span class="stu-main"><span class="row"><b>${esc(s.name)}</b><span class="pill">${pct(s)}%</span></span>
         ${progressBar(s)}
-        <small class="muted">Scheda: ${done}/${tot} spuntati${s.checksAt && done ? ` · ${fmtWhen(s.checksAt)}` : ""}</small></span>
+        <small class="muted">${lvlOf(s) ? `${LEVEL_LABEL[lvlOf(s)]} · ` : ""}Scheda: ${done}/${tot} spuntati${s.checksAt && done ? ` · ${fmtWhen(s.checksAt)}` : ""}</small></span>
       </a></li>`;
     }).join("")}</ul>`;
 }
@@ -352,28 +398,31 @@ function renderCoachList() {
 }
 
 function renderCoachStudent(code, tab) {
+  // niente ridisegno a metà trascinamento: si fa appena l'elemento viene lasciato
+  if (isDragging()) { S.pendingRender = () => renderCoachStudent(code, tab); return; }
   const s = findStudent(code);
   if (!s) { go("#/coach"); return; }
   const tabs = [["progressi", "Progressi"], ["scheda", "Scheda"], ["invito", "Invito"]];
   let body = "";
   if (tab === "progressi") {
+    const n = (s.progress || []).length, ro = S.reorder === "progressi" && n > 1;
     body = `<section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Elementi tecnici</h2>
-      <div class="sec-h"><p class="muted small">Tocca lo stato per cambiarlo al volo, oppure l'elemento per data e note.</p>
-        <span class="pill" aria-label="${pct(s)} per cento completato">${pct(s)}%</span></div>
-      ${progressBar(s)}${progressList(s.progress || [], true)}
-      <button class="btn wide" data-act="c-add-prog">${icon("plus")} Aggiungi elementi</button></section>`;
+      <div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine dentro ogni gruppo."
+        : "Tocca il cerchio a destra per cambiare lo stato, l'elemento per modificarlo. Tieni premuto per spostarlo."}</p>
+        ${n > 1 ? reorderBtn("progressi", ro) : ""}</div>
+      <div class="sum"><span class="pill" aria-label="${pct(s)} per cento completato">${pct(s)}%</span>${progressBar(s)}</div>
+      ${progressList(s.progress, ro ? "reorder" : "coach")}
+      ${ro ? "" : `<button class="btn wide" data-act="c-add-prog">${icon("plus")} Aggiungi elementi</button>`}</section>`;
   } else if (tab === "scheda") {
     const plan = s.plan || [];
-    const ro = S.reorder && plan.length > 1;
+    const ro = S.reorder === "scheda" && plan.length > 1;
     body = `<section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Esercizi della scheda</h2>
-      <div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine." : "Esercizi da fare durante il pattinaggio libero. L'alunno li spunta dal suo telefono."}</p>
-        ${plan.length > 1 ? `<button class="btn ghost sm" data-act="c-reorder" aria-pressed="${ro}">${icon(ro ? "check" : "reorder")} ${ro ? "Fine" : "Riordina"}</button>` : ""}</div>
-      ${plan.length ? `<ul class="plan ${ro ? "reo" : ""}">${plan.map((x, i) => ro ? `<li>
+      <div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine."
+        : `Esercizi da fare durante il pattinaggio libero. L'alunno li spunta dal suo telefono.${plan.length > 1 ? " Tieni premuto un esercizio per spostarlo." : ""}`}</p>
+        ${plan.length > 1 ? reorderBtn("scheda", ro) : ""}</div>
+      ${plan.length ? `<ul class="plan ${ro ? "reo" : ""}" data-drag="plan">${plan.map((x, i) => ro ? `<li data-id="${x.id}">
           ${checkRow(x, s.checks && s.checks[x.id], "reorder")}
-          <div class="ops">
-            <button class="icon sm" data-act="c-move" data-id="${x.id}" data-d="-1" aria-label="Sposta su: ${esc(x.title)}" ${i ? "" : "disabled"}>${icon("up")}</button>
-            <button class="icon sm" data-act="c-move" data-id="${x.id}" data-d="1" aria-label="Sposta giù: ${esc(x.title)}" ${i < plan.length - 1 ? "" : "disabled"}>${icon("down")}</button>
-          </div></li>` : checkRow(x, s.checks && s.checks[x.id], "coach")).join("")}</ul>` : `<p class="muted">Scheda vuota.</p>`}
+          <div class="ops" data-nodrag>${arrows("plan", x.id, x.title, i, plan.length)}</div></li>` : checkRow(x, s.checks && s.checks[x.id], "coach")).join("")}</ul>` : `<p class="muted">Scheda vuota.</p>`}
       ${ro ? "" : `<button class="btn wide" data-act="c-add-ex">${icon("plus")} Aggiungi esercizio</button>
       ${checksDone(s) ? `<button class="btn ghost wide" data-act="c-reset" data-code="${s.code}">${icon("refresh")} Togli tutte le spunte</button>` : ""}`}
     </section>`;
@@ -391,7 +440,7 @@ function renderCoachStudent(code, tab) {
     <section class="card" aria-labelledby="hGest">
       <h2 class="h3" id="hGest">Gestione</h2>
       <ul class="menu">
-        <li><button class="mi" data-act="c-rename">${icon("edit")}<span>Rinomina alunno</span>${icon("chevron", "chev")}</button></li>
+        <li><button class="mi" data-act="c-rename">${icon("edit")}<span>Modifica nome e livello</span>${icon("chevron", "chev")}</button></li>
         <li><button class="mi" data-act="c-regen" aria-describedby="regenHelp">${icon("refresh")}<span>Genera un nuovo codice</span>${icon("chevron", "chev")}</button>
           <small id="regenHelp" class="mi-help">Il vecchio codice smette di funzionare: utile se è finito in mani sbagliate.</small></li>
       </ul>
@@ -400,7 +449,7 @@ function renderCoachStudent(code, tab) {
   }
   paint(`${demoBanner()}
   <header class="top"><a href="#/coach" class="icon" aria-label="Torna all'elenco alunni">${icon("back")}</a>
-    <div class="grow"><small>Alunno</small><h1>${esc(s.name)}</h1></div></header>
+    <div class="grow"><small>Alunno${lvlOf(s) ? ` · ${LEVEL_LABEL[lvlOf(s)]}` : ""}</small><h1>${esc(s.name)}</h1></div></header>
   <nav class="tabs" aria-label="Sezioni alunno">${tabs.map(([k, l]) => `<a href="#/coach/${code}/${k}" class="${k === tab ? "on" : ""}"${k === tab ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
   ${body}`);
   $root.dataset.code = code;
@@ -457,6 +506,9 @@ function closeSheet() {
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$sheet.hidden) closeSheet(); });
 
+const levelSeg = (cur) => `<fieldset class="seg"><legend>Livello</legend><div class="seg-opts">
+  ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="level" value="${k}" ${k === cur ? "checked" : ""}><span>${l}</span></label>`).join("")}
+  </div></fieldset>`;
 const sheetBtns = (ok, cancel = "Annulla") => `<div class="sheet-btns">
   <button type="button" class="btn ghost" data-act="close">${cancel}</button><button class="btn" type="submit">${ok}</button></div>`;
 const delBtn = (label) => `<button type="submit" name="del" value="1" class="btn danger wide del" formnovalidate>${icon("trash")} ${label}</button>`;
@@ -585,11 +637,12 @@ const ACTIONS = {
   "c-new"() {
     openSheet({ title: "Nuovo alunno", focus: "input", body: `
       <label>Soprannome<input name="name" required maxlength="40" placeholder="Es. Giulia B." aria-describedby="nameHelp"></label>
+      ${levelSeg("base")}
       <p class="muted small" id="nameHelp">Usa solo un nome o un soprannome: niente cognome, email o telefono.
       L'invito lo mandi tu da WhatsApp o email, l'app non salva contatti.</p>
       ${sheetBtns("Crea")}`,
     onSubmit: async (fd) => {
-      const code = await be.createStudent(fd.get("name").trim());
+      const code = await be.createStudent(fd.get("name").trim(), normLevel(fd.get("level")) || "base");
       go(`#/coach/${code}/invito`);
     } });
   },
@@ -608,12 +661,15 @@ const ACTIONS = {
   },
 
   "c-edit-prog"(el) {
-    const s = cur(), p = (s.progress || []).find((x) => x.id === el.dataset.id);
-    if (!p) return;
+    const s = cur(), raw = (s.progress || []).find((x) => x.id === el.dataset.id);
+    if (!raw) return;
+    const p = normItem(raw);
     openSheet({ title: esc(p.name), body: `
       <fieldset class="seg"><legend>Stato</legend><div class="seg-opts">
         ${Object.keys(STATUS).map((k) => `<label class="seg-opt ${k}"><input type="radio" name="status" value="${k}" ${k === p.status ? "checked" : ""}>${stPill(k)}</label>`).join("")}
       </div></fieldset>
+      ${levelSeg(p.level)}
+      <label>Categoria<select name="cat">${CATEGORIES.map((c) => `<option ${c === p.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label>
       <label>Data completamento<input type="date" name="date" value="${esc(p.date)}"></label>
       <label>Note<textarea name="note" rows="3" maxlength="500" placeholder="Cosa migliorare, consigli…">${esc(p.note)}</textarea></label>
       ${sheetBtns("Salva")}
@@ -628,31 +684,32 @@ const ACTIONS = {
       let date = fd.get("date") || "";
       if (status === "done" && !date) date = today();
       await be.updateStudent(s2.code, {
-        progress: s2.progress.map((x) => x.id === p.id ? { ...x, status, date, note: fd.get("note").trim() } : x),
+        progress: s2.progress.map((x) => x.id === p.id ? { ...normItem(x), status, date, note: fd.get("note").trim(),
+          level: normLevel(fd.get("level")) || p.level, cat: CATEGORIES.includes(fd.get("cat")) ? fd.get("cat") : p.cat } : x),
       });
     } });
   },
 
   "c-add-prog"() {
     const s = cur();
-    const have = new Set((s.progress || []).map((p) => `${p.cat}|${p.name}`));
+    const lv = lvlOf(s) || "base";
+    const order = [lv, ...LEVELS.map(([k]) => k).filter((k) => k !== lv)];
+    const have = new Set((s.progress || []).map(itemKey));
     const f = openSheet({ title: "Aggiungi elementi", body: `
-      <div class="scroll">${CATEGORIES.filter((c) => CATALOG[c].length).map((c) => `
-        <fieldset class="grp"><legend class="cat">${c}</legend>
-        ${CATALOG[c].map((n) => {
-          const k = `${c}|${n}`;
-          return have.has(k)
-            ? `<div class="chk dis">${icon("check")}<span>${esc(n)}</span><small>già presente</small></div>`
-            : `<label class="chk"><input type="checkbox" name="pick" value="${esc(k)}"> ${esc(n)}</label>`;
-        }).join("")}</fieldset>`).join("")}
+      <div class="scroll">${order.map((L) => `<h3 class="lvl">${LEVEL_LABEL[L]}</h3>${L === lv && lvlOf(s) ? `<small class="lvl-note">Livello di ${esc(s.name)}</small>` : ""}
+        ${Object.entries(CATALOG[L]).map(([c, names]) => `<fieldset class="grp"><legend class="cat">${c}</legend>
+        ${names.map((n) => have.has(itemKey({ name: n }))
+          ? `<div class="chk dis">${icon("check")}<span>${esc(n)}</span><small>già presente</small></div>`
+          : `<label class="chk"><input type="checkbox" name="pick" value="${esc(`${L}|${c}|${n}`)}"> ${esc(n)}</label>`).join("")}</fieldset>`).join("")}`).join("")}
       <fieldset class="grp"><legend class="cat">Personalizzato</legend>
-      <div class="row2"><label class="sr" for="ccat">Categoria</label><select name="ccat" id="ccat">${CATEGORIES.map((c) => `<option ${c === "Altro" ? "selected" : ""}>${c}</option>`).join("")}</select>
+      <div class="row2"><label class="sr" for="clevel">Livello</label><select name="clevel" id="clevel">${LEVELS.map(([k, l]) => `<option value="${k}" ${k === lv ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <label class="sr" for="ccat">Categoria</label><select name="ccat" id="ccat">${CATEGORIES.map((c) => `<option ${c === "Altro" ? "selected" : ""}>${c}</option>`).join("")}</select>
       <label class="sr" for="cname">Nome elemento</label><input name="cname" id="cname" maxlength="60" placeholder="Nome elemento"></div></fieldset></div>
       ${sheetBtns("Aggiungi")}`,
     onSubmit: async (fd) => {
-      const add = fd.getAll("pick").map((k) => { const [cat, name] = k.split("|"); return { cat, name }; });
+      const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
       const cn = (fd.get("cname") || "").trim();
-      if (cn) add.push({ cat: fd.get("ccat"), name: cn });
+      if (cn) add.push({ level: normLevel(fd.get("clevel")) || lv, cat: fd.get("ccat"), name: cn });
       if (!add.length) { toast("Seleziona almeno un elemento"); return false; }
       const s2 = cur();
       await be.updateStudent(s2.code, {
@@ -670,11 +727,23 @@ const ACTIONS = {
 
   "c-add-ex"() { exerciseSheet(null); },
   "c-edit-ex"(el) { exerciseSheet((cur().plan || []).find((x) => x.id === el.dataset.id)); },
-  "c-reorder"() { S.reorder = !S.reorder; renderCoachStudent(curCode(), "scheda"); },
+  "c-reorder"(el) { const t = el.dataset.tab; S.reorder = S.reorder === t ? false : t; renderCoachStudent(curCode(), t); },
 
   async "c-move"(el) {
-    const s = cur(), plan = [...(s.plan || [])];
-    const i = plan.findIndex((x) => x.id === el.dataset.id), j = i + Number(el.dataset.d);
+    const s = cur(), d = Number(el.dataset.d), id = el.dataset.id;
+    if (el.dataset.kind === "prog") {
+      // dentro il gruppo (livello + categoria) dell'elemento
+      const arr = (s.progress || []).map(normItem), it = arr.find((x) => x.id === id);
+      if (!it) return;
+      const slots = arr.map((x, k) => (groupKey(x) === groupKey(it) ? k : -1)).filter((k) => k >= 0);
+      const p = slots.indexOf(arr.indexOf(it)), q = p + d;
+      if (q < 0 || q >= slots.length) return;
+      [arr[slots[p]], arr[slots[q]]] = [arr[slots[q]], arr[slots[p]]];
+      await be.updateStudent(s.code, { progress: arr });
+      return toast(`${it.name}: posizione ${q + 1} di ${slots.length}`);
+    }
+    const plan = [...(s.plan || [])];
+    const i = plan.findIndex((x) => x.id === id), j = i + d;
     if (i < 0 || j < 0 || j >= plan.length) return;
     [plan[i], plan[j]] = [plan[j], plan[i]];
     await be.updateStudent(s.code, { plan });
@@ -702,9 +771,10 @@ const ACTIONS = {
   },
   "c-rename"() {
     const s = cur();
-    openSheet({ title: "Rinomina", focus: "input",
-      body: `<label>Soprannome<input name="name" required maxlength="40" value="${esc(s.name)}"></label>${sheetBtns("Salva")}`,
-      onSubmit: (fd) => be.updateStudent(s.code, { name: fd.get("name").trim() }) });
+    openSheet({ title: "Nome e livello", focus: "input",
+      body: `<label>Soprannome<input name="name" required maxlength="40" value="${esc(s.name)}"></label>
+        ${levelSeg(lvlOf(s) || "base")}${sheetBtns("Salva")}`,
+      onSubmit: (fd) => be.updateStudent(s.code, { name: fd.get("name").trim(), level: normLevel(fd.get("level")) || "base" }) });
   },
   async "c-regen"() {
     const s = cur();

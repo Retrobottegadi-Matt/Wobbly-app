@@ -61,6 +61,15 @@ async def main():
         assert "doing" in await st.get_attribute("class") and "In corso" in await st.get_attribute("aria-label")
         assert await pg.locator(".prog li").count() == 1 and await pg.locator("h3.lvl").inner_text() == "Intermedio", "Toe loop è di livello intermedio"
         assert await pg.evaluate("document.activeElement.dataset.act") == "c-cycle", "il focus resta sullo stato appena cambiato"
+        assert await pg.evaluate("getComputedStyle(document.activeElement).outlineStyle") == "none", "niente anello dopo un tocco"
+        # due avvisi di fila: uno solo, con il testo più recente
+        await pg.click("button.st-ic >> nth=0"); await pg.click("button.st-ic >> nth=0"); await pg.wait_for_timeout(150)
+        assert await pg.locator(".toast").count() == 1
+        assert (await pg.locator(".toast").inner_text()).endswith("Da iniziare")
+        # da tastiera l'anello di focus resta visibile
+        await pg.focus("button.st-ic >> nth=0"); await pg.keyboard.press("Enter"); await pg.wait_for_timeout(200)
+        assert await pg.evaluate("document.activeElement.dataset.act") == "c-cycle"
+        assert await pg.evaluate("getComputedStyle(document.activeElement).outlineStyle") != "none", "anello visibile per la tastiera"
         # la modifica dell'elemento è un vero pulsante (raggiungibile con tastiera e VoiceOver)
         assert await pg.evaluate("document.querySelector('.prog li [data-act=c-edit-prog]').tagName") == "BUTTON"
         await pg.click("[data-act=c-edit-prog] >> nth=0"); await pg.wait_for_timeout(150)
@@ -92,6 +101,7 @@ async def main():
         await pg.mouse.up(); await pg.wait_for_timeout(300)
         assert (await pg.locator(".plan li b").all_inner_texts()) == ["Spirale", "Incrociati"], "ordine dopo il trascinamento"
         assert await pg.locator("#sheet").is_hidden(), "il trascinamento non apre la modifica"
+        assert await pg.evaluate("getComputedStyle(document.activeElement).outlineStyle") == "none", "niente anello dopo il trascinamento"
         await pg.wait_for_timeout(450)
         await pg.click(".plan [data-act=c-edit-ex] >> nth=0"); await pg.wait_for_timeout(150)
         assert await pg.locator("#sheet").is_visible(), "un tocco normale apre ancora la modifica"
@@ -260,6 +270,13 @@ async def main():
         after = await p2.locator(".plan li b").all_inner_texts()
         assert after == [before[1], before[0]] + before[2:], (before, after)
         assert await p2.locator("#sheet").is_hidden(), "il trascinamento con il dito non apre la modifica"
+        # avviso lungo ("…: posizione 2 di 5"): largo quanto serve, al massimo 2 righe, non blocca i tocchi
+        await p2.wait_for_timeout(100)
+        t = await p2.evaluate("""(() => { const t = document.querySelector('.toast'), r = t.getBoundingClientRect(), c = getComputedStyle(t);
+            const lines = (r.height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom)) / parseFloat(c.lineHeight);
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return { text: t.textContent, lines, blocks: hit === t || t.contains(hit), right: r.right <= innerWidth, top: r.top }; })()""")
+        assert "posizione" in t["text"] and t["lines"] <= 2.2 and not t["blocks"] and t["right"] and t["top"] < 80, t
         # uno scorrimento normale (senza pressione lunga) non sposta nulla
         await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0 + 60}]})
         for k in range(1, 8):

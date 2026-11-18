@@ -300,8 +300,13 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .row2 > * { margin-top: 0 !important; }
 .sheet-btns { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; } .sheet-btns .btn { flex: 1 1 8rem; min-width: 0; }
 
-.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 5.5rem); transform: translateX(-50%);
-  background: var(--ink); color: var(--ink-on); padding: .7rem 1.2rem; border-radius: var(--r-pill); z-index: 20; font-size: .9rem; font-weight: 600; max-width: 90vw; }
+/* avviso: in alto (lontano da barra di Safari, pulsante "Nuovo alunno" e pulsanti dei pannelli),
+   largo quanto il testo, non intercetta i tocchi */
+.toast { position: fixed; left: 0; right: 0; margin-inline: auto; top: max(env(safe-area-inset-top), 12px);
+  width: fit-content; max-width: min(92vw, 26rem); background: var(--ink); color: var(--ink-on); padding: .65rem 1.1rem;
+  border-radius: var(--r); z-index: 30; font-size: .9rem; font-weight: 600; text-align: center; pointer-events: none;
+  box-shadow: 0 8px 24px rgba(20, 17, 15, .3); transition: opacity .2s ease-out, translate .2s ease-out; }
+.toast.idle { opacity: 0; translate: 0 -8px; }
 .small-code { font-size: .85rem; letter-spacing: 0; word-break: break-all; }
 .sr { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .h3 { font-size: 1rem; margin: 0 0 .5rem; font-weight: 700; letter-spacing: 0; }
@@ -343,7 +348,6 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 @keyframes pop { 45% { transform: scale(1.18); } }
 @keyframes grow { from { transform: scaleX(0); } }
 @keyframes flash { from { background-color: var(--yellow); } }
-@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px); } }
 
 .enter > * { animation: rise .24s cubic-bezier(.2, .8, .2, 1) both; }
 .enter > :nth-child(2) { animation-delay: .03s; }
@@ -363,7 +367,6 @@ li.just > .check { animation: flash .5s ease-out; }
 
 /* pannelli e avvisi */
 .sheet-bg { animation: fade .2s ease-out both; }
-.toast { animation: toast-in .2s ease-out both; }
 
 /* pressione: leggero rimpicciolimento */
 .check, .mi, .chip, .icon, .st-ic, .rowbtn, .fab, .seg-opt { transition: transform .12s ease-out, background-color .15s; }
@@ -389,3 +392,6 @@ li.just > .check { animation: flash .5s ease-out; }
   border-radius: var(--r-sm); box-shadow: 0 12px 30px rgba(20, 17, 15, .28); }
 .sorting .check:active, .sorting .rowbtn:active { transform: none; }
 li.just > .rowbtn { animation: flash .5s ease-out; }
+
+/* focus riportato dopo un tocco: niente anello (resta per la tastiera, vedi restoreFocus in app.js) */
+[data-quiet]:focus-visible, [data-quiet]:focus { outline: none; }

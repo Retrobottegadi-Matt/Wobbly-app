@@ -21,6 +21,18 @@ async def main():
         # dev: 10 alunni di esempio, allenatrice già abilitata
         await pg.goto(B + "?dev#/coach"); await pg.wait_for_timeout(600)
         assert await pg.locator(".students li").count() == 10, "attesi 10 alunni di esempio"
+        assert await pg.locator("#app.enter").count() == 1, "entrata animata al cambio di schermata"
+
+        # ricerca: senza accenti né maiuscole, il campo non perde il focus, conteggio annunciato
+        await pg.fill("#stuSearch", "ALÌ"); await pg.wait_for_timeout(100)
+        assert await pg.locator(".students li").count() == 1
+        assert await pg.evaluate("document.activeElement.id") == "stuSearch"
+        await pg.wait_for_timeout(500)
+        assert await pg.locator("#stuCount").inner_text() == "1 alunno trovato"
+        await pg.fill("#stuSearch", "zzz"); await pg.wait_for_timeout(100)
+        assert "Nessun alunno corrisponde" in await pg.locator("#stuList").inner_text()
+        await pg.fill("#stuSearch", ""); await pg.wait_for_timeout(100)
+        assert await pg.locator(".students li").count() == 10
 
         # crea alunno, aggiungi elementi e esercizi
         await pg.click("[data-act=c-new]"); await pg.fill("input[name=name]", "Test"); await pg.click("button[type=submit]")
@@ -60,6 +72,8 @@ async def main():
         await pg.goto(B); await pg.wait_for_timeout(400)
         await pg.click("[data-act=s-check] >> nth=0"); await pg.wait_for_timeout(200)
         assert await pg.locator(".check.on").count() == 1
+        assert await pg.locator(".check.just").count() == 1, "riscontro animato sulla spunta toccata"
+        assert await pg.locator("#app.enter").count() == 0, "niente entrata animata a ogni aggiornamento"
 
         # backup / ripristino
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
@@ -132,6 +146,28 @@ async def main():
         assert await pg.evaluate("parseFloat(document.documentElement.style.fontSize)") >= 20, "testo più grande attivo"
         small = await pg.evaluate(MIN); assert not small, ("design", small)
         await pg.uncheck("[data-pref=text]"); await pg.uncheck("[data-pref=contrast]"); await pg.uncheck("[data-pref=motion]")
+
+        # tema scuro: contrasti WCAG anche in scuro, con e senza contrasto elevato, e in automatico
+        await pg.click("label.seg-opt:has([name=dsTheme][value=dark])"); await pg.wait_for_timeout(100)
+        assert await pg.evaluate("document.documentElement.dataset.theme") == "dark"
+        assert await pg.locator("#dsContrast td.ko").count() == 0, ("scuro", await pg.locator("#dsContrast td.ko").all_inner_texts())
+        await pg.check("[data-pref=contrast]")
+        assert await pg.locator("#dsContrast td.ko").count() == 0, "scuro + contrasto elevato"
+        await pg.uncheck("[data-pref=contrast]")
+        await pg.click("label.seg-opt:has([name=dsTheme][value=auto])")
+        await pg.emulate_media(color_scheme="dark"); await pg.wait_for_timeout(100)
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == "#15130f", "automatico segue il telefono"
+        await pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+        await pg.click("label.seg-opt:has([name=dsTheme][value=auto])")
+        assert await pg.locator("#dsContrast td.ko").count() == 0, "automatico in scuro"
+        await pg.emulate_media(color_scheme="light")
+
+        # movimento ridotto: durata ~0 e nessun ritardo (gli elementi non restano invisibili)
+        await pg.emulate_media(reduced_motion="reduce")
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
+        d = await pg.evaluate("(() => { const c = getComputedStyle(document.querySelector('#app.enter > :nth-child(3)')); return [parseFloat(c.animationDuration), c.animationDelay]; })()")
+        assert d[0] < 0.01 and d[1] == "0s", d
+        await pg.emulate_media(reduced_motion="no-preference")
 
         # rigenera esempi e uscita dalla modalità dev
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)

@@ -3,7 +3,7 @@
 const P = {
   back: '<path d="M19 12H5M11 18l-6-6 6-6"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>',
-  settings: '<path d="M4 7h8M16 7h4M4 17h4M12 17h8"/><circle cx="14" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>',
+  settings: '<path d="M19.02 9.67 L21.41 10.09 L21.41 13.91 L19.02 14.33 L18.61 15.32 L20.00 17.30 L17.30 20.00 L15.32 18.61 L14.33 19.02 L13.91 21.41 L10.09 21.41 L9.67 19.02 L8.68 18.61 L6.70 20.00 L4.00 17.30 L5.39 15.32 L4.98 14.33 L2.59 13.91 L2.59 10.09 L4.98 9.67 L5.39 8.68 L4.00 6.70 L6.70 4.00 L8.68 5.39 L9.67 4.98 L10.09 2.59 L13.91 2.59 L14.33 4.98 L15.32 5.39 L17.30 4.00 L20.00 6.70 L18.61 8.68Z"/><circle cx="12" cy="12" r="3"/>',
   up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   down: '<path d="M12 5v14M18 13l-6 6-6-6"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
@@ -25,13 +25,17 @@ const P = {
   text: '<path d="M4 18L8.5 6 13 18M5.6 14h5.8M15 18l2.75-7.5L20.5 18M15.9 15.5h3.7"/>',
   contrast: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
   motion: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+  auto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   palette: '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 1.4-2.2-.6-1.2.2-2.6 1.6-2.6H17a3.5 3.5 0 0 0 3.5-3.5c0-4.9-3.8-8.7-8.5-8.7z"/><circle cx="7.5" cy="11" r="1.1" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.1" fill="currentColor"/><circle cx="15" cy="7.8" r="1.1" fill="currentColor"/>',
   // pattino: scarpone + lama
   skate: '<path d="M6 3.5h5.5v6l4.2 1.6A3.3 3.3 0 0 1 18 14.2V16H6z"/><path d="M3 20h15.5a2.5 2.5 0 0 0 2.5-2.5M8.5 16v4M15.5 16v4"/>',
   // stati dei progressi: forma diversa per ciascuno (mai solo colore)
   todo: '<circle cx="12" cy="12" r="8" stroke-dasharray="3.2 3"/>',
   doing: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>',
-  done: '<circle cx="12" cy="12" r="9" fill="currentColor"/><path d="M8 12.3l2.8 2.8L16.2 9.5" stroke="#fff"/>',
+  done: '<circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.8 2.8L16.2 9.5" stroke-width="2.4"/>',
 };
 
 export const icon = (name, cls = "") =>

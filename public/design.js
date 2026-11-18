@@ -2,18 +2,20 @@
 // Ogni elemento riporta il nome reale del token o della classe, così si può chiedere "cambia --pink" o ".btn.ghost".
 
 import { icon, ICON_NAMES } from "./icons.js";
-import { loadA11y, saveA11y, A11Y_OPTIONS } from "./a11y.js";
+import { loadA11y, saveA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 
 const LS_PREFS = "pg_ds_prefs"; // solo override di colori e raggi (modalità dev)
-const COLORS = ["--bg", "--surface", "--surface-2", "--ink", "--muted", "--line", "--line-strong",
-  "--yellow", "--pink", "--lilac", "--sage", "--sky", "--danger-bg", "--danger-ink", "--focus"];
+const COLORS = ["--bg", "--surface", "--surface-2", "--ink", "--ink-on", "--muted", "--line", "--line-strong",
+  "--yellow", "--pink", "--lilac", "--sage", "--sky", "--on-pastel", "--danger-bg", "--danger-ink", "--ok-ink", "--focus"];
 
 // coppie (testo, sfondo, soglia WCAG): 4.5 per testo normale, 3 per elementi UI / testo grande
 const PAIRS = [
   ["--ink", "--bg", 4.5, "Testo su sfondo"], ["--ink", "--surface", 4.5, "Testo su carta"],
-  ["--ink", "--yellow", 4.5, "Testo su giallo"], ["--ink", "--pink", 4.5, "Testo su rosa"],
-  ["--ink", "--lilac", 4.5, "Testo su lilla"], ["--ink", "--sage", 4.5, "Testo su salvia"],
-  ["--ink", "--sky", 4.5, "Testo su azzurro"], ["--muted", "--bg", 4.5, "Testo secondario su sfondo"],
+  ["--on-pastel", "--yellow", 4.5, "Testo su giallo"], ["--on-pastel", "--pink", 4.5, "Testo su rosa"],
+  ["--on-pastel", "--lilac", 4.5, "Testo su lilla"], ["--on-pastel", "--sage", 4.5, "Testo su salvia"],
+  ["--on-pastel", "--sky", 4.5, "Testo su azzurro"], ["--on-pastel-inv", "--on-pastel", 4.5, "Spunta sulla riga fatta"],
+  ["--muted", "--bg", 4.5, "Testo secondario su sfondo"], ["--ok-ink", "--surface", 4.5, "Testo positivo"],
+  ["--line-strong", "--surface", 3, "Bordo dei campi su carta"], ["--focus", "--surface", 3, "Focus su carta"],
   ["--muted", "--surface", 4.5, "Testo secondario su carta"], ["--ink-on", "--ink", 4.5, "Bottone primario"],
   ["--danger-ink", "--danger-bg", 4.5, "Bottone elimina"], ["--line-strong", "--bg", 3, "Bordo dei campi"],
   ["--focus", "--bg", 3, "Anello di focus"], ["--ink", "--surface-2", 4.5, "Testo su riquadro"],
@@ -78,6 +80,9 @@ export function renderDesign($root) {
   <section class="card"><h2>Accessibilità (anteprima)</h2>
     <p class="muted small">Riferimento: WCAG 2.2 AA e linee guida Apple (testo dinamico, contrasto, riduzione movimento, VoiceOver, target ≥ 44 pt).
     Sono le stesse opzioni che alunni e allenatrice trovano in Impostazioni → Accessibilità (<code>a11y.js</code>, chiave <code>pg_a11y</code>).</p>
+    <fieldset class="seg"><legend>Tema (verifica i contrasti anche in scuro)</legend><div class="seg-opts">
+      ${THEMES.map(([k, ic, label]) => `<label class="seg-opt"><input type="radio" name="dsTheme" value="${k}" ${(a11y.theme || "auto") === k ? "checked" : ""}>${icon(ic)}<span>${label}</span></label>`).join("")}
+    </div></fieldset>
     <div class="toggles">${A11Y_OPTIONS.map(([k, , label]) =>
       `<label><input type="checkbox" role="switch" class="switch" data-pref="${k}" ${a11y[k] ? "checked" : ""}> ${label}</label>`).join("")}
     </div></section>
@@ -172,11 +177,13 @@ export function renderDesign($root) {
     document.getElementById("dsContrast").innerHTML = contrastRows();
     $root.querySelectorAll("[data-hex]").forEach((e) => { e.textContent = toHex(e.dataset.hex); });
     $root.querySelectorAll(".tok .sw").forEach((e, i) => { e.style.background = `var(${COLORS[i]})`; });
+    $root.querySelectorAll("input[data-var]").forEach((e) => { e.value = toHex(e.dataset.var); });
   };
 
   $root.onchange = $root.oninput = (e) => {
     const t = e.target;
     if (t.dataset.pref) { const a = loadA11y(); a[t.dataset.pref] = t.checked; saveA11y(a); refresh(); }
+    if (t.name === "dsTheme") { const a = loadA11y(); a.theme = t.value; saveA11y(a); refresh(); }
     if (t.dataset.var) { prefs.vars[t.dataset.var] = t.value; document.documentElement.style.setProperty(t.dataset.var, t.value); savePrefs(prefs); refresh(); }
     if (t.dataset.range) { const v = t.value + "px"; prefs.vars[t.dataset.range] = v; document.documentElement.style.setProperty(t.dataset.range, v); savePrefs(prefs); }
   };

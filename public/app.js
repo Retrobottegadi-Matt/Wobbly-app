@@ -3,7 +3,7 @@ import { createBackend, normCode, fmtCode, newId, CODE_LEN } from "./backend.js"
 import { CATALOG, CATEGORIES, EXERCISE_IDEAS } from "./catalog.js";
 import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
-import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS } from "./a11y.js";
+import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
 
@@ -16,7 +16,7 @@ const AV = ["--yellow", "--pink", "--lilac", "--sage", "--sky"];
 
 let be;
 let unsub = [];
-const S = { coach: null, students: [], student: null, reorder: false };
+const S = { coach: null, students: [], student: null, reorder: false, q: "" };
 
 // ---------------------------------------------------------- utilità
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -68,9 +68,18 @@ const logo = (sm) => `<div class="logo${sm ? " sm" : ""}" aria-hidden="true">${i
 
 // Ridisegna la schermata. Se il pulsante appena toccato è stato ricreato, gli ridà il focus
 // (altrimenti VoiceOver e la tastiera ripartirebbero dall'inizio della pagina).
-let pendingFocus = null;
+// Entrata animata solo quando si cambia schermata (route), non a ogni aggiornamento dei dati;
+// il riscontro animato (.just) va solo sull'elemento appena toccato.
+let pendingFocus = null, flashSel = null, animateNext = false;
 function paint(html) {
   $root.innerHTML = html;
+  delete $root.dataset.view;
+  $root.classList.remove("enter");
+  if (animateNext) { animateNext = false; void $root.offsetWidth; $root.classList.add("enter"); }
+  if (flashSel) {
+    const el = $root.querySelector(flashSel); flashSel = null;
+    if (el) (el.dataset.act === "c-move" ? el.closest("li") : el).classList.add("just");
+  }
   if (!pendingFocus) return;
   const sel = pendingFocus; pendingFocus = null;
   if (document.activeElement && document.activeElement !== document.body) return;
@@ -104,6 +113,7 @@ async function main() {
     <button class="btn" type="submit">Salva</button></div>`, onSubmit: () => {} }));
   window.addEventListener("hashchange", route);
   document.addEventListener("click", onClick);
+  document.addEventListener("touchstart", () => {}, { passive: true }); // attiva :active su iPhone
   route();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
@@ -114,6 +124,8 @@ function route() {
   closeSheet();
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[1] !== lastCode) { S.reorder = false; lastCode = parts[1]; }
+  if (parts[0] !== "coach") S.q = "";
+  animateNext = true;
   if (parts[0] === "design" && be.dev) return renderDesign($root);
   if (parts[0] === "coach") routeCoach(parts[1], parts[2] || "progressi");
   else routeStudent();
@@ -280,12 +292,16 @@ function renderCoachLogin(u) {
   };
 }
 
-function renderCoachList() {
+const norm = (t) => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const SEARCH_MIN = 6; // la ricerca compare da 6 alunni in su
+
+function studentRows() {
   const list = S.students;
-  paint(`${demoBanner()}
-  <header class="top"><div class="grow"><small>Allenatrice</small><h1>I miei alunni</h1></div>
-    <button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
-  ${list.length ? `<ul class="students">${list.map((s) => {
+  if (!list.length) return `<div class="card"><p class="muted">Nessun alunno. Tocca “Nuovo alunno” per crearne uno e mandargli l'invito.</p></div>`;
+  const q = norm(S.q);
+  const shown = q ? list.filter((s) => norm(s.name).includes(q)) : list;
+  if (!shown.length) return `<div class="card"><p class="muted">Nessun alunno corrisponde a “${esc(S.q)}”.</p></div>`;
+  return `<ul class="students">${shown.map((s) => {
       const done = checksDone(s), tot = (s.plan || []).length;
       return `<li><a href="#/coach/${s.code}" class="card stu">
         <span class="av" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
@@ -293,9 +309,41 @@ function renderCoachList() {
         ${progressBar(s)}
         <small class="muted">Scheda: ${done}/${tot} spuntati${s.checksAt && done ? ` · ${fmtWhen(s.checksAt)}` : ""}</small></span>
       </a></li>`;
-    }).join("")}</ul>`
-    : `<div class="card"><p class="muted">Nessun alunno. Tocca “Nuovo alunno” per crearne uno e mandargli l'invito.</p></div>`}
+    }).join("")}</ul>`;
+}
+
+let countTimer = null;
+function announceCount() {
+  clearTimeout(countTimer);
+  countTimer = setTimeout(() => {
+    const el = document.getElementById("stuCount");
+    if (!el) return;
+    const q = norm(S.q), n = q ? S.students.filter((s) => norm(s.name).includes(q)).length : S.students.length;
+    el.textContent = !q ? "" : n === 0 ? "Nessun alunno trovato" : n === 1 ? "1 alunno trovato" : `${n} alunni trovati`;
+  }, 400); // aspetta una pausa nella digitazione, così VoiceOver non legge ogni tasto
+}
+
+function renderCoachList() {
+  // già sull'elenco (es. dati aggiornati mentre si scrive nella ricerca): aggiorna solo le righe,
+  // così il campo non perde testo e focus
+  const box = document.getElementById("stuList");
+  if (box && $root.dataset.view === "list" && !animateNext) { box.innerHTML = studentRows(); return; }
+  paint(`${demoBanner()}
+  <header class="top"><div class="grow"><small>Allenatrice</small><h1>I miei alunni</h1></div>
+    <button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
+  ${S.students.length >= SEARCH_MIN ? `<div class="search" role="search">
+    <label for="stuSearch" class="sr">Cerca alunno</label>${icon("search")}
+    <input id="stuSearch" type="search" placeholder="Cerca alunno" autocomplete="off" autocorrect="off" spellcheck="false"
+      enterkeyhint="search" value="${esc(S.q)}" aria-describedby="stuCount"></div>
+    <p id="stuCount" class="sr" aria-live="polite"></p>` : ""}
+  <div id="stuList">${studentRows()}</div>
   <button class="fab" data-act="c-new">${icon("plus")} Nuovo alunno</button>`);
+  $root.dataset.view = "list";
+  const inp = document.getElementById("stuSearch");
+  if (inp) {
+    inp.oninput = () => { S.q = inp.value; document.getElementById("stuList").innerHTML = studentRows(); announceCount(); };
+    inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } };
+  }
 }
 
 function renderCoachStudent(code, tab) {
@@ -412,15 +460,20 @@ function a11ySheet() {
   const p = loadA11y();
   const f = openSheet({ title: "Accessibilità", body: `
     <p class="muted small">Si sommano alle impostazioni del telefono (Impostazioni → Accessibilità) e valgono solo su questo dispositivo.</p>
+    <fieldset class="seg"><legend>Tema</legend><div class="seg-opts">
+      ${THEMES.map(([k, ic, label]) => `<label class="seg-opt"><input type="radio" name="theme" value="${k}" ${(p.theme || "auto") === k ? "checked" : ""}>${icon(ic)}<span>${label}</span></label>`).join("")}
+    </div></fieldset>
     <ul class="menu">${A11Y_OPTIONS.map(([k, ic, label, help]) => `<li>
       <label class="mi sw-row">${icon(ic)}<span class="txt"><b>${label}</b><small>${help}</small></span>
         <input type="checkbox" role="switch" class="switch" data-a11y="${k}" ${p[k] ? "checked" : ""}></label></li>`).join("")}
     </ul>
     <div class="sheet-btns"><button type="button" class="btn" data-act="close">Fatto</button></div>` });
   f.addEventListener("change", (e) => {
-    const k = e.target.dataset.a11y;
-    if (!k) return;
-    const cur = loadA11y(); cur[k] = e.target.checked; saveA11y(cur);
+    const cur = loadA11y();
+    if (e.target.name === "theme") cur.theme = e.target.value;
+    else if (e.target.dataset.a11y) cur[e.target.dataset.a11y] = e.target.checked;
+    else return;
+    saveA11y(cur);
   });
 }
 
@@ -435,7 +488,9 @@ async function onClick(e) {
   const act = el.dataset.act;
   if (el.tagName === "A" && act) e.preventDefault();
   if (KEEP_FOCUS.has(act)) {
-    pendingFocus = `[data-act="${act}"]${el.dataset.id ? `[data-id="${el.dataset.id}"]` : ""}${el.dataset.d ? `[data-d="${el.dataset.d}"]` : ""}`;
+    const base = `[data-act="${act}"]${el.dataset.id ? `[data-id="${el.dataset.id}"]` : ""}`;
+    pendingFocus = `${base}${el.dataset.d ? `[data-d="${el.dataset.d}"]` : ""}`;
+    if (act !== "c-reorder") flashSel = base;
   }
   const fn = ACTIONS[act];
   if (fn) { try { await fn(el); } catch (err) { fail(err); } }

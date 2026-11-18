@@ -20,12 +20,30 @@ export function applyA11y(p = loadA11y()) {
   }
   p.contrast ? root.setAttribute("data-contrast", "more") : root.removeAttribute("data-contrast");
   p.motion ? root.setAttribute("data-motion", "reduce") : root.removeAttribute("data-motion");
+  // tema: "auto" segue il telefono (prefers-color-scheme), altrimenti scelta esplicita
+  const t = p.theme === "light" || p.theme === "dark" ? p.theme : null;
+  t ? root.setAttribute("data-theme", t) : root.removeAttribute("data-theme");
+  syncThemeColor();
 }
+// colore della barra del browser/sistema: segue il tema effettivo
+const dark = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+export const isDark = () => root.dataset.theme ? root.dataset.theme === "dark" : !!(dark && dark.matches);
+function syncThemeColor() {
+  const c = getComputedStyle(root).getPropertyValue("--bg").trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    if (m.dataset.c == null) { m.dataset.c = m.content; m.dataset.media = m.getAttribute("media") || ""; }
+    if (root.dataset.theme) { m.content = c; m.removeAttribute("media"); }
+    else { m.content = m.dataset.c; if (m.dataset.media) m.setAttribute("media", m.dataset.media); }
+  });
+}
+if (dark && dark.addEventListener) dark.addEventListener("change", () => applyA11y());
 // se l'utente cambia la dimensione del testo di sistema mentre l'app è aperta in background
 document.addEventListener("visibilitychange", () => { if (!document.hidden) applyA11y(); });
 
+export const THEMES = [["auto", "auto", "Automatico"], ["light", "sun", "Chiaro"], ["dark", "moon", "Scuro"]];
+
 export const A11Y_OPTIONS = [
   ["text", "text", "Testo più grande", "Ingrandisce il testo oltre la dimensione scelta nel telefono."],
-  ["contrast", "contrast", "Contrasto elevato", "Bordi e testi secondari più scuri."],
+  ["contrast", "contrast", "Contrasto elevato", "Bordi e testi secondari più marcati."],
   ["motion", "motion", "Riduci animazioni", "Toglie movimenti e transizioni."],
 ];

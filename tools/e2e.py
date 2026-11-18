@@ -83,6 +83,19 @@ async def main():
         assert await pg.evaluate("document.activeElement.dataset.act") == "c-move"
         await pg.click("[data-act=c-reorder]"); await pg.wait_for_timeout(150)
         assert await pg.locator(".plan [data-act=c-edit-ex]").count() == 2
+        # tieni premuto e trascina (mouse): il primo esercizio va sotto il secondo, senza aprire la modifica
+        a = await pg.locator(".plan > li >> nth=0").bounding_box(); c = await pg.locator(".plan > li >> nth=1").bounding_box()
+        x, y0, y1 = a["x"] + a["width"] / 2, a["y"] + a["height"] / 2, c["y"] + c["height"] / 2 + 15
+        await pg.mouse.move(x, y0); await pg.mouse.down(); await pg.wait_for_timeout(600)
+        for k in range(1, 11):
+            await pg.mouse.move(x, y0 + (y1 - y0) * k / 10); await pg.wait_for_timeout(16)
+        await pg.mouse.up(); await pg.wait_for_timeout(300)
+        assert (await pg.locator(".plan li b").all_inner_texts()) == ["Spirale", "Incrociati"], "ordine dopo il trascinamento"
+        assert await pg.locator("#sheet").is_hidden(), "il trascinamento non apre la modifica"
+        await pg.wait_for_timeout(450)
+        await pg.click(".plan [data-act=c-edit-ex] >> nth=0"); await pg.wait_for_timeout(150)
+        assert await pg.locator("#sheet").is_visible(), "un tocco normale apre ancora la modifica"
+        await pg.keyboard.press("Escape")
         code = pg.url.split("/")[-2]
 
         # vista alunno: spunta
@@ -222,6 +235,39 @@ async def main():
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
         assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f4a6c8", "gli override colore dev non arrivano agli utenti"
+
+        # trascinamento con il dito (eventi touch reali via CDP): la pagina non deve scorrere
+        ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)
+        p2 = await ctx2.new_page()
+        p2.on("pageerror", lambda e: errs.append(str(e)))
+        await p2.goto(B + "?dev#/coach"); await p2.wait_for_timeout(700)
+        await p2.tap(".students li a >> nth=0"); await p2.wait_for_timeout(300)
+        await p2.tap("nav.tabs >> text=Scheda"); await p2.wait_for_timeout(500)
+        await p2.evaluate("document.querySelector('.plan').scrollIntoView({block: 'center'})"); await p2.wait_for_timeout(200)
+        before = await p2.locator(".plan li b").all_inner_texts()
+        assert await p2.evaluate("document.documentElement.scrollHeight > innerHeight + 50"), "serve una pagina scorrevole per il test"
+        a = await p2.locator(".plan > li >> nth=0").bounding_box(); c = await p2.locator(".plan > li >> nth=1").bounding_box()
+        x, y0, y1 = a["x"] + a["width"] / 2, a["y"] + a["height"] / 2, c["y"] + c["height"] / 2 + 15
+        sy = await p2.evaluate("scrollY")
+        cdp = await ctx2.new_cdp_session(p2)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0}]})
+        await p2.wait_for_timeout(600)
+        for k in range(1, 11):
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 + (y1 - y0) * k / 10}]})
+            await p2.wait_for_timeout(16)
+        assert await p2.evaluate("scrollY") == sy, "la pagina non deve scorrere mentre si trascina"
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(400)
+        after = await p2.locator(".plan li b").all_inner_texts()
+        assert after == [before[1], before[0]] + before[2:], (before, after)
+        assert await p2.locator("#sheet").is_hidden(), "il trascinamento con il dito non apre la modifica"
+        # uno scorrimento normale (senza pressione lunga) non sposta nulla
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y0 + 60}]})
+        for k in range(1, 8):
+            await cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x, "y": y0 + 60 - 12 * k}]})
+            await p2.wait_for_timeout(16)
+        await cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}); await p2.wait_for_timeout(300)
+        assert await p2.locator(".plan li b").all_inner_texts() == after, "scorrere non deve riordinare"
+        await ctx2.close()
 
         await b.close()
         assert not errs, errs

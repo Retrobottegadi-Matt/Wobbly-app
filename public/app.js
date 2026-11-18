@@ -3,6 +3,7 @@ import { createBackend, normCode, fmtCode, newId, CODE_LEN } from "./backend.js"
 import { CATALOG, CATEGORIES, EXERCISE_IDEAS, LEVELS, LEVEL_LABEL, normItem, normLevel, itemKey } from "./catalog.js";
 import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
+import { initDrag, isDragging } from "./drag.js";
 import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
@@ -114,6 +115,10 @@ async function main() {
   window.addEventListener("hashchange", route);
   document.addEventListener("click", onClick);
   document.addEventListener("touchstart", () => {}, { passive: true }); // attiva :active su iPhone
+  initDrag($root, {
+    onDrop: (kind, group, ids, id, to) => applyOrder(kind, group, ids, id, to).catch(fail),
+    onEnd: () => { const f = S.pendingRender; S.pendingRender = null; if (f) f(); },
+  });
   route();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
@@ -255,8 +260,29 @@ function progRow(i, mode, k, n) {
       <button class="rowbtn" data-act="c-edit-prog" data-id="${i.id}">${txt}<span class="sr">Modifica livello, stato, data e note</span></button>
       <button class="st-ic ${i.status}" data-nodrag data-act="c-cycle" data-id="${i.id}"
         aria-label="${esc(i.name)}: ${STATUS[i.status]}. Tocca per passare a ${STATUS[NEXT[i.status]]}">${icon(i.status)}</button></li>`;
-  if (mode === "reorder") return `<li data-id="${i.id}"><div class="rowbtn ro">${txt}</div><div class="ops">${arrows("prog", i.id, i.name, k, n)}</div></li>`;
+  if (mode === "reorder") return `<li data-id="${i.id}"><div class="rowbtn ro">${txt}</div><div class="ops" data-nodrag>${arrows("prog", i.id, i.name, k, n)}</div></li>`;
   return `<li>${txt}<span class="st-ic ${i.status}">${icon(i.status)}<span class="sr">${STATUS[i.status]}</span></span></li>`;
+}
+// nuovo ordine dopo un trascinamento: la scheda intera, oppure le sole posizioni di un gruppo dei progressi
+async function applyOrder(kind, group, ids, id, to) {
+  const s = cur();
+  if (!s) return;
+  if (kind === "plan") {
+    const by = Object.fromEntries((s.plan || []).map((x) => [x.id, x]));
+    const plan = ids.map((k) => by[k]).filter(Boolean);
+    if (plan.length !== (s.plan || []).length) return;
+    pendingFocus = `[data-act="c-edit-ex"][data-id="${id}"]`; flashSel = `li[data-id="${id}"]`;
+    await be.updateStudent(s.code, { plan });
+    return toast(`${by[id].title}: posizione ${to + 1} di ${plan.length}`);
+  }
+  const arr = (s.progress || []).map(normItem);
+  const slots = arr.map((x, k) => (groupKey(x) === group ? k : -1)).filter((k) => k >= 0);
+  const by = Object.fromEntries(arr.map((x) => [x.id, x]));
+  if (slots.length !== ids.length || ids.some((k) => !by[k] || groupKey(by[k]) !== group)) return;
+  slots.forEach((k, j) => { arr[k] = by[ids[j]]; });
+  pendingFocus = `[data-act="c-edit-prog"][data-id="${id}"]`; flashSel = `li[data-id="${id}"]`;
+  await be.updateStudent(s.code, { progress: arr });
+  toast(`${by[id].name}: posizione ${to + 1} di ${slots.length}`);
 }
 const reorderBtn = (tab, on) => `<button class="btn ghost sm" data-act="c-reorder" data-tab="${tab}" aria-pressed="${on}">${icon(on ? "check" : "reorder")} ${on ? "Fine" : "Riordina"}</button>`;
 const lvlOf = (s) => normLevel(s.level);
@@ -372,6 +398,8 @@ function renderCoachList() {
 }
 
 function renderCoachStudent(code, tab) {
+  // niente ridisegno a metà trascinamento: si fa appena l'elemento viene lasciato
+  if (isDragging()) { S.pendingRender = () => renderCoachStudent(code, tab); return; }
   const s = findStudent(code);
   if (!s) { go("#/coach"); return; }
   const tabs = [["progressi", "Progressi"], ["scheda", "Scheda"], ["invito", "Invito"]];
@@ -394,7 +422,7 @@ function renderCoachStudent(code, tab) {
         ${plan.length > 1 ? reorderBtn("scheda", ro) : ""}</div>
       ${plan.length ? `<ul class="plan ${ro ? "reo" : ""}" data-drag="plan">${plan.map((x, i) => ro ? `<li data-id="${x.id}">
           ${checkRow(x, s.checks && s.checks[x.id], "reorder")}
-          <div class="ops">${arrows("plan", x.id, x.title, i, plan.length)}</div></li>` : checkRow(x, s.checks && s.checks[x.id], "coach")).join("")}</ul>` : `<p class="muted">Scheda vuota.</p>`}
+          <div class="ops" data-nodrag>${arrows("plan", x.id, x.title, i, plan.length)}</div></li>` : checkRow(x, s.checks && s.checks[x.id], "coach")).join("")}</ul>` : `<p class="muted">Scheda vuota.</p>`}
       ${ro ? "" : `<button class="btn wide" data-act="c-add-ex">${icon("plus")} Aggiungi esercizio</button>
       ${checksDone(s) ? `<button class="btn ghost wide" data-act="c-reset" data-code="${s.code}">${icon("refresh")} Togli tutte le spunte</button>` : ""}`}
     </section>`;

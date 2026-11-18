@@ -1,7 +1,10 @@
 // Pagina di riferimento del design system — raggiungibile solo in modalità sviluppo: ?dev → #/design
 // Ogni elemento riporta il nome reale del token o della classe, così si può chiedere "cambia --pink" o ".btn.ghost".
 
-const LS_PREFS = "pg_ds_prefs";
+import { icon, ICON_NAMES } from "./icons.js";
+import { loadA11y, saveA11y, A11Y_OPTIONS } from "./a11y.js";
+
+const LS_PREFS = "pg_ds_prefs"; // solo override di colori e raggi (modalità dev)
 const COLORS = ["--bg", "--surface", "--surface-2", "--ink", "--muted", "--line", "--line-strong",
   "--yellow", "--pink", "--lilac", "--sage", "--sky", "--danger-bg", "--danger-ink", "--focus"];
 
@@ -39,24 +42,21 @@ const toHex = (v) => {
 const cssVal = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-export function loadPrefs() {
-  let p = {};
-  try { p = JSON.parse(localStorage.getItem(LS_PREFS) || "{}"); } catch { /* ignora */ }
-  applyPrefs(p);
-  return p;
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(LS_PREFS) || "{}"); } catch { return {}; }
 }
-function applyPrefs(p) {
-  const r = document.documentElement;
-  p.text ? r.setAttribute("data-text", "large") : r.removeAttribute("data-text");
-  p.contrast ? r.setAttribute("data-contrast", "more") : r.removeAttribute("data-contrast");
-  p.motion ? r.setAttribute("data-motion", "reduce") : r.removeAttribute("data-motion");
-  Object.entries(p.vars || {}).forEach(([k, v]) => r.style.setProperty(k, v));
+// chiamata da app.js solo in modalità dev: gli override non arrivano mai agli utenti veri
+export function applyDevVars() {
+  const p = loadPrefs();
+  Object.entries(p.vars || {}).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+  return p;
 }
 function savePrefs(p) { try { localStorage.setItem(LS_PREFS, JSON.stringify(p)); } catch { /* ignora */ } }
 
 export function renderDesign($root) {
-  const prefs = loadPrefs();
+  const prefs = applyDevVars();
   prefs.vars = prefs.vars || {};
+  const a11y = loadA11y();
 
   const contrastRows = () => PAIRS.map(([fg, bg, min, label]) => {
     const r = ratio(fg, bg), ok = r >= min;
@@ -70,19 +70,21 @@ export function renderDesign($root) {
       <input type="color" data-var="${v}" value="${toHex(v)}" aria-label="Modifica ${v}"></div></div>`).join("");
 
   $root.innerHTML = `<div class="ds">
-  <header class="top"><a href="#/coach" class="icon" aria-label="Esci dalla pagina design"><span aria-hidden="true">←</span></a>
+  <header class="top"><a href="#/coach" class="icon" aria-label="Esci dalla pagina design">${icon("back")}</a>
     <div class="grow"><small>Solo modalità sviluppo</small><h1>Design system</h1></div></header>
   <p class="muted">Ogni voce mostra il nome reale del token o della classe. Per una modifica precisa scrivi, ad esempio:
     “<code>--pink</code> più caldo” o “<code>.btn.ghost</code> con bordo più sottile”.</p>
 
   <section class="card"><h2>Accessibilità (anteprima)</h2>
     <p class="muted small">Riferimento: WCAG 2.2 AA e linee guida Apple (testo dinamico, contrasto, riduzione movimento, VoiceOver, target ≥ 44 pt).
-    Su iPhone queste impostazioni arrivano già da Impostazioni → Accessibilità.</p>
-    <div class="toggles">
-      <label><input type="checkbox" data-pref="text" ${prefs.text ? "checked" : ""}> Testo grande <code>[data-text=large]</code></label>
-      <label><input type="checkbox" data-pref="contrast" ${prefs.contrast ? "checked" : ""}> Contrasto elevato <code>[data-contrast=more]</code></label>
-      <label><input type="checkbox" data-pref="motion" ${prefs.motion ? "checked" : ""}> Riduci movimento <code>[data-motion=reduce]</code></label>
+    Sono le stesse opzioni che alunni e allenatrice trovano in Impostazioni → Accessibilità (<code>a11y.js</code>, chiave <code>pg_a11y</code>).</p>
+    <div class="toggles">${A11Y_OPTIONS.map(([k, , label]) =>
+      `<label><input type="checkbox" role="switch" class="switch" data-pref="${k}" ${a11y[k] ? "checked" : ""}> ${label}</label>`).join("")}
     </div></section>
+
+  <h2>Icone</h2>
+  <section class="card"><p class="muted small">In <code>icons.js</code>, si usano con <code>icon("nome")</code>. Sempre decorative: il nome accessibile sta sul pulsante.</p>
+    <ul class="icons">${ICON_NAMES.map((n) => `<li>${icon(n)}<code>${n}</code></li>`).join("")}</ul></section>
 
   <h2>Colori (modificabili dal vivo)</h2>
   <section class="card">${tokenRows}
@@ -114,11 +116,16 @@ export function renderDesign($root) {
     <div class="spec"><code>.btn.danger</code><br><button class="btn danger" type="button">Elimina alunno</button></div>
     <div class="spec"><code>.btn:disabled</code><br><button class="btn" type="button" disabled>Non disponibile</button></div>
     <div class="spec"><code>.icon</code> · <code>.icon.sm</code> · <code>:disabled</code><div class="row">
-      <button class="icon" type="button" aria-label="Impostazioni"><span aria-hidden="true">⚙</span></button>
-      <button class="icon sm" type="button" aria-label="Modifica"><span aria-hidden="true">✎</span></button>
-      <button class="icon sm" type="button" aria-label="Su" disabled><span aria-hidden="true">↑</span></button></div></div>
+      <button class="icon" type="button" aria-label="Impostazioni">${icon("settings")}</button>
+      <button class="icon sm" type="button" aria-label="Sposta giù">${icon("down")}</button>
+      <button class="icon sm" type="button" aria-label="Sposta su" disabled>${icon("up")}</button></div></div>
+    <div class="spec"><code>.btn.sm</code> (azione secondaria nella testata di una carta)<br><button class="btn ghost sm" type="button">${icon("reorder")} Riordina</button></div>
+    <div class="spec"><code>.menu .mi</code> (righe di menu nei pannelli)<ul class="menu">
+      <li><button class="mi" type="button">${icon("download")}<span>Esporta backup</span>${icon("chevron", "chev")}</button></li>
+      <li><button class="mi" type="button">${icon("upload")}<span>Ripristina da backup</span>${icon("chevron", "chev")}</button></li></ul></div>
+    <div class="spec"><code>.btn.danger.del</code> (azione distruttiva, sempre separata)<br><button class="btn danger wide del" type="button">${icon("trash")} Elimina</button></div>
     <div class="spec"><code>.fab</code> (fisso in basso nelle schermate reali)<br>
-      <button class="btn" type="button" style="border-radius:999px;font-weight:800">+ Alunno</button></div>
+      <button class="btn" type="button" style="font-weight:800">${icon("plus")} Nuovo alunno</button></div>
     <div class="spec"><code>.chip</code><div class="chips"><button class="chip" type="button">Giulia</button><button class="chip" type="button">Marco</button>
       <button class="chip" type="button">Sofia</button><button class="chip" type="button">Luca</button></div></div></section>
 
@@ -135,14 +142,14 @@ export function renderDesign($root) {
   <h2>Scheda: riga con spunta</h2>
   <section class="card"><ul class="checks">
     <li><div class="check ro"><span class="box"></span><span class="txt"><b>Spirale</b><small>Da fare</small></span></div></li>
-    <li><div class="check on ro"><span class="box" aria-hidden="true">✓</span><span class="txt"><b>Mohawk</b><small class="when">Fatto oggi 18:30</small></span></div></li></ul>
+    <li><div class="check on ro"><span class="box" aria-hidden="true">${icon("check")}</span><span class="txt"><b>Mohawk</b><small class="when">Fatto oggi 18:30</small></span></div></li></ul>
     <code>.check</code> · <code>.check.on</code></section>
 
   <h2>Stati dei progressi</h2>
   <section class="card"><div class="row">
-    <span class="st todo">Da iniziare</span><span class="st doing">In corso</span><span class="st done">Completato</span></div>
+    <span class="st todo">${icon("todo")}<span>Da iniziare</span></span><span class="st doing">${icon("doing")}<span>In corso</span></span><span class="st done">${icon("done")}<span>Completato</span></span></div>
     <code>.st.todo</code> · <code>.st.doing</code> · <code>.st.done</code>
-    <p class="muted small">Lo stato non è mai solo un colore: c'è sempre l'etichetta di testo e il bordo.</p></section>
+    <p class="muted small">Lo stato non è mai solo un colore: ha icona con forma diversa, etichetta di testo e bordo.</p></section>
 
   <h2>Navigazione</h2>
   <section class="card"><nav class="tabs" aria-label="Esempio tab"><a href="#/design" class="on" aria-current="page">Progressi</a><a href="#/design">Scheda</a><a href="#/design">Invito</a></nav>
@@ -154,8 +161,9 @@ export function renderDesign($root) {
     <div class="bigcode">ABCD-EFGH-JKMN</div><code>.bigcode</code></section>
 
   <h2>Pannello e avviso</h2>
-  <section class="card"><div class="row"><button class="btn" data-ds="sheet" type="button">Apri pannello <code style="color:#14110f">.sheet-panel</code></button>
-    <button class="btn ghost" data-ds="toast" type="button">Mostra avviso <code>.toast</code></button></div>
+  <section class="card"><div class="row"><button class="btn" data-ds="sheet" type="button">Apri pannello</button>
+    <button class="btn ghost" data-ds="toast" type="button">Mostra avviso</button></div>
+    <p class="muted small"><code>.sheet-panel</code> · <code>.sheet-h</code> (titolo + chiudi) · <code>.toast</code></p>
     <div class="demo" style="margin-top:.75rem"><code>.demo</code> banner demo</div>
     <div class="demo dev"><code>.demo.dev</code> banner sviluppo</div></section>
   </div>`;
@@ -168,7 +176,7 @@ export function renderDesign($root) {
 
   $root.onchange = $root.oninput = (e) => {
     const t = e.target;
-    if (t.dataset.pref) { prefs[t.dataset.pref] = t.checked; applyPrefs(prefs); savePrefs(prefs); refresh(); }
+    if (t.dataset.pref) { const a = loadA11y(); a[t.dataset.pref] = t.checked; saveA11y(a); refresh(); }
     if (t.dataset.var) { prefs.vars[t.dataset.var] = t.value; document.documentElement.style.setProperty(t.dataset.var, t.value); savePrefs(prefs); refresh(); }
     if (t.dataset.range) { const v = t.value + "px"; prefs.vars[t.dataset.range] = v; document.documentElement.style.setProperty(t.dataset.range, v); savePrefs(prefs); }
   };

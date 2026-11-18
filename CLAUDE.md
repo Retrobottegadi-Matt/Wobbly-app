@@ -31,12 +31,14 @@ public/            ← cartella da pubblicare (GitHub Pages)
   index.html       shell, carica app.js come ES module
   app.js           UI: routing via hash, render con innerHTML, azioni delegate con data-act
   backend.js       livello dati: firebaseBackend (SDK 10.12.2 da gstatic) | demoBackend (localStorage)
+  icons.js         icone SVG inline (icon("nome")), sempre aria-hidden: il nome accessibile va sul pulsante
+  a11y.js          preferenze di accessibilità degli utenti (chiave pg_a11y): testo più grande, contrasto, animazioni
   design.js        pagina #/design (solo ?dev): token, contrasti calcolati, componenti, modifica colori dal vivo
   samples.js       10 alunni di esempio deterministici (seed fisso) per la modalità dev
   catalog.js       catalogo elementi per categoria + idee esercizi (generico, da adattare)
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
-  style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), testo sempre --ink, bottone primario nero a pillola
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v6)
+  style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v8)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -55,7 +57,16 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 ## Accessibilità (vincolante, verificata da tools/e2e.py)
 - Riferimento: WCAG 2.2 AA + linee guida Apple ("OS27" interpretato così). Contrasto 4.5:1 testo / 3:1 UI, target >= 44px (`--target`), rem ovunque (Dynamic Type), `prefers-reduced-motion`, `prefers-contrast`, `:focus-visible`.
 - Pulsanti con sola icona: sempre `aria-label`. Pannelli: `role=dialog`, Esc, ritorno del focus. Mai solo colore per gli stati.
-- Niente font esterni (privacy): stack di sistema.
+- Niente font esterni (privacy): stack di sistema. Niente emoji come icone: solo `icons.js`.
+- Impostazioni → Accessibilità (alunno e allenatrice): "Testo più grande" moltiplica la dimensione di sistema (Dynamic Type) ×1.3 con stile inline su `<html>`, quindi non rimpicciolisce mai. Gli override di colore della pagina `#/design` (chiave `pg_ds_prefs`) valgono solo in modalità dev.
+- Pannelli: `openSheet({ title, body, onSubmit, focus })`. `focus: "title"` per modifica/informazione (niente tastiera o selettore data che si aprono da soli), `"input"` per i moduli di creazione. Ogni pannello ha la X "Chiudi"; "Elimina" sta sempre su una riga separata sotto Salva.
+- Dopo un ridisegno, `paint()` riporta il focus sul pulsante appena toccato (spunte, stato, riordino).
+- Tema: Automatico (segue il telefono) / Chiaro / Scuro, in Impostazioni → Accessibilità (`pg_a11y.theme`, attributo `data-theme`). I due blocchi di token scuri in `style.css` (`[data-theme=dark]` e `prefers-color-scheme: dark`) devono restare identici.
+- Sui pastelli il testo usa sempre `--on-pastel` (scuro fisso), mai `--ink`, che nel tema scuro diventa chiaro. Niente colori esadecimali fuori dai blocchi di token.
+- Contrasto elevato: ogni tema definisce `--muted-n/-hc`, `--line-n/-hc`, `--line-strong-n/-hc`; le regole di contrasto scelgono solo la variante `-hc`.
+- Animazioni: entrate solo al cambio di schermata (`.enter`, messa da `paint()` dopo `route()`), riscontro solo sull'elemento toccato (`.just`), durata ≤ 250 ms, niente transform su `main` (romperebbe `.fab`). Con riduzione movimento durata e ritardi vanno a 0.
+- Ricerca nell'elenco alunni (da 6 alunni in su): senza accenti né maiuscole; quando arrivano dati nuovi si aggiorna solo `#stuList`, così il campo non perde testo e focus.
+- Gestione elementi: nei Progressi lo stato si cambia toccando la pillola (annunciato con un avviso), l'elemento si modifica toccando la riga. Nella Scheda la riga apre la modifica; il riordino è una modalità "Riordina" con frecce (niente trascinamento: poco accessibile).
 
 ## Modello dati (Firestore)
 - `students/{code}`:

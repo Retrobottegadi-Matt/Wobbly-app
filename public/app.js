@@ -269,7 +269,8 @@ function renderCoachLogin(u) {
     <div class="bigcode small-code">${esc(uid)}</div>
     <button class="btn ghost wide" data-act="c-copy-id" data-id="${esc(uid)}">${icon("link")} Copia ID</button>
   </div>` : `<p class="err">${u && u.error ? "Connessione non riuscita. Riprova." : ""}</p>`}
-  <p class="foot"><a href="#">${icon("back")} Torna alla schermata alunno</a></p>`);
+  <p class="foot"><a href="#">${icon("back")} Torna alla schermata alunno</a></p>
+  <p class="foot"><button class="linkbtn" data-act="a11y">${icon("a11y")} Accessibilità</button></p>`);
   document.getElementById("trForm").onsubmit = async (e) => {
     e.preventDefault();
     const t = normCode(document.getElementById("trIn").value);
@@ -355,10 +356,15 @@ function renderCoachStudent(code, tab) {
 // ---------------------------------------------------------- pannello (modale)
 // focus: "title" per pannelli di modifica/informazione (niente tastiera o selettore data che si aprono da soli),
 //        "input" per i moduli di creazione, dove si scrive subito.
-let sheetOpener = null;
+let sheetOpener = null, sheetOpenerSel = null;
+const selOf = (el) => el && el.dataset && el.dataset.act
+  ? `[data-act="${el.dataset.act}"]${el.dataset.id ? `[data-id="${el.dataset.id}"]` : ""}` : null;
 function openSheet({ title, body, onSubmit = () => {}, focus = "title" }) {
   // se si apre un pannello da un altro pannello, il focus tornerà comunque al pulsante originale
-  if (!$sheet.contains(document.activeElement)) sheetOpener = document.activeElement;
+  if (!$sheet.contains(document.activeElement)) {
+    sheetOpener = document.activeElement;
+    sheetOpenerSel = selOf(sheetOpener);
+  }
   $sheet.innerHTML = `<div class="sheet-bg" data-act="close"></div>
     <form class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" novalidate>
       <div class="sheet-h"><h2 id="sheetTitle" tabindex="-1">${title}</h2>
@@ -387,8 +393,14 @@ function closeSheet() {
   const wasOpen = !$sheet.hidden;
   $sheet.hidden = true; $sheet.innerHTML = "";
   $root.removeAttribute("aria-hidden"); $root.inert = false;
-  if (wasOpen && sheetOpener && document.contains(sheetOpener)) sheetOpener.focus();
-  sheetOpener = null;
+  if (wasOpen) {
+    // dopo un salvataggio la lista viene ridisegnata e il pulsante originale non esiste più:
+    // si cerca quello nuovo equivalente, adesso o al prossimo ridisegno
+    const el = sheetOpener && document.contains(sheetOpener) ? sheetOpener : sheetOpenerSel && $root.querySelector(sheetOpenerSel);
+    if (el) el.focus({ preventScroll: true });
+    if (sheetOpenerSel) pendingFocus = sheetOpenerSel;
+  }
+  sheetOpener = null; sheetOpenerSel = null;
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$sheet.hidden) closeSheet(); });
 

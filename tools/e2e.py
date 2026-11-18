@@ -37,8 +37,10 @@ async def main():
         assert await pg.evaluate("document.querySelector('.prog li [data-act=c-edit-prog]').tagName") == "BUTTON"
         await pg.click("[data-act=c-edit-prog] >> nth=0"); await pg.wait_for_timeout(150)
         assert await pg.evaluate("document.activeElement.id") == "sheetTitle", "i pannelli di modifica mettono il focus sul titolo"
+        pid = await pg.evaluate("document.querySelector('[data-act=c-edit-prog]').dataset.id")
         await pg.click("label.seg-opt.done"); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
         assert "Completato" in await pg.locator("button.st >> nth=0").inner_text()
+        assert await pg.evaluate(f"document.activeElement.matches('[data-act=c-edit-prog][data-id=\"{pid}\"]')"), "dopo il salvataggio il focus torna sulla riga modificata"
         await pg.click("text=Scheda")
         for t in ["Spirale", "Incrociati"]:
             await pg.click("[data-act=c-add-ex]"); await pg.wait_for_timeout(100)
@@ -143,6 +145,10 @@ async def main():
         small = await pg.evaluate(MIN); assert not small, ("pannello accessibilità", small)
         await pg.keyboard.press("Escape"); await pg.wait_for_timeout(100)
         assert await pg.evaluate("document.activeElement.dataset.act") == "c-settings", "il focus torna all'ingranaggio anche da pannelli annidati"
+        # override colore della pagina design: attivo in dev, mai fuori
+        await pg.evaluate("localStorage.setItem('pg_ds_prefs', JSON.stringify({vars: {'--pink': '#ff0000'}}))")
+        await pg.reload(); await pg.wait_for_timeout(500)
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#ff0000", "override attivo in dev"
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
         assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f4a6c8", "gli override colore dev non arrivano agli utenti"

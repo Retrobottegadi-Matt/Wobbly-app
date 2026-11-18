@@ -18,8 +18,19 @@ async def main():
         pg.on("console", lambda m: m.type == "error" and errs.append(m.text))
         pg.on("dialog", lambda d: asyncio.ensure_future(d.accept()))
 
+        # campi di testo >= 16px: sotto, iPhone ingrandisce la pagina quando li tocchi
+        FONT16 = """() => [...document.querySelectorAll('#sheet input:not([type=checkbox]):not([type=radio]):not([type=file]), #sheet select, #sheet textarea, main input:not([type=checkbox]):not([type=radio])')]
+            .filter(e => e.offsetParent !== null && parseFloat(getComputedStyle(e).fontSize) < 16).map(e => (e.name || e.id) + ' ' + getComputedStyle(e).fontSize)"""
+        async def font16(label):
+            bad = await pg.evaluate(FONT16); assert not bad, (label, bad)
+
         # dev: 10 alunni di esempio, allenatrice già abilitata
         await pg.goto(B + "?dev#/coach"); await pg.wait_for_timeout(600)
+        # il service worker deve prendere il controllo (un errore nel suo fetch romperebbe l'app installata)
+        await pg.reload(); await pg.wait_for_timeout(700)
+        assert await pg.evaluate("!!navigator.serviceWorker.controller"), "service worker non attivo"
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(500)
+        await font16("elenco")
         assert await pg.locator(".students li").count() == 10, "attesi 10 alunni di esempio"
         assert await pg.locator("#app.enter").count() == 1, "entrata animata al cambio di schermata"
 
@@ -36,7 +47,8 @@ async def main():
         assert await pg.locator(".students li").count() == 10
 
         # crea alunno, aggiungi elementi e esercizi
-        await pg.click("[data-act=c-new]"); await pg.fill("input[name=name]", "Test"); await pg.click("button[type=submit]")
+        await pg.click("[data-act=c-new]"); await pg.wait_for_timeout(100); await font16("nuovo alunno")
+        await pg.fill("input[name=name]", "Test"); await pg.click("button[type=submit]")
         await pg.wait_for_timeout(300)
         await pg.click("text=Progressi"); await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
         assert await pg.evaluate("document.querySelector('#sheet .scroll').scrollTop") == 0, "il catalogo deve aprirsi dall'inizio"
@@ -50,6 +62,7 @@ async def main():
         assert await pg.evaluate("document.querySelector('.prog li [data-act=c-edit-prog]').tagName") == "BUTTON"
         await pg.click("[data-act=c-edit-prog] >> nth=0"); await pg.wait_for_timeout(150)
         assert await pg.evaluate("document.activeElement.id") == "sheetTitle", "i pannelli di modifica mettono il focus sul titolo"
+        await font16("modifica elemento")
         pid = await pg.evaluate("document.querySelector('[data-act=c-edit-prog]').dataset.id")
         await pg.click("label.seg-opt.done"); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
         assert "Completato" in await pg.locator("button.st >> nth=0").inner_text()
@@ -58,7 +71,7 @@ async def main():
         for t in ["Spirale", "Incrociati"]:
             await pg.click("[data-act=c-add-ex]"); await pg.wait_for_timeout(100)
             assert await pg.evaluate("document.activeElement.name") == "title", "i moduli di creazione mettono il focus sul campo"
-            await pg.fill("input[name=title]", t); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
+            await font16("esercizio"); await pg.fill("input[name=title]", t); await pg.click("text=Salva"); await pg.wait_for_timeout(200)
         # riordino: modalità dedicata con frecce, il focus segue l'elemento spostato
         await pg.click("[data-act=c-reorder]"); await pg.wait_for_timeout(150)
         await pg.click("[data-act=c-move][data-d='1']"); await pg.wait_for_timeout(200)

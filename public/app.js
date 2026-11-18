@@ -1,6 +1,7 @@
 import { CONFIG } from "./config.js";
 import { createBackend, normCode, fmtCode, newId, CODE_LEN } from "./backend.js";
 import { CATALOG, CATEGORIES, EXERCISE_IDEAS } from "./catalog.js";
+import { renderDesign, loadPrefs } from "./design.js";
 
 const $root = document.getElementById("app");
 const $sheet = document.getElementById("sheet");
@@ -29,9 +30,12 @@ function fmtWhen(ts) {
 function toast(msg) {
   const t = document.createElement("div");
   t.className = "toast";
-  t.textContent = msg;
+  t.setAttribute("role", "status");
+  t.setAttribute("aria-live", "polite");
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2600);
+  // il testo va inserito dopo l'inserimento nel DOM, altrimenti i lettori di schermo non lo annunciano
+  setTimeout(() => { t.textContent = msg; }, 50);
+  setTimeout(() => t.remove(), 3500);
 }
 function fail(e) {
   console.error(e);
@@ -51,7 +55,7 @@ const LS_DEV = "pg_dev";
 const demoBanner = () => {
   if (!be || !be.demo) return "";
   if (be.dev) return `<div class="demo dev"><b>Modalità sviluppo</b>: dati di esempio, solo in questo browser.
-    <a href="#" data-act="dev-exit">Esci</a></div>`;
+    <a href="#/design">Design system</a> · <a href="#" data-act="dev-exit">Esci</a></div>`;
   return `<div class="demo">Modalità demo: i dati restano solo su questo dispositivo.</div>`;
 };
 
@@ -72,6 +76,12 @@ async function main() {
   if (c || new URLSearchParams(location.search).has("dev")) {
     history.replaceState(null, "", location.pathname + location.hash);
   }
+  if (be.dev) loadPrefs();
+  window.addEventListener("ds-toast", (e) => toast(e.detail));
+  window.addEventListener("ds-sheet", () => openSheet(`<h2>Esempio di pannello</h2>
+    <label>Campo di testo<input name="x" placeholder="Scrivi qui"></label>
+    <div class="sheet-btns"><button type="button" class="btn ghost" data-act="close">Annulla</button>
+    <button class="btn" type="submit">Salva</button></div>`, () => {}));
   window.addEventListener("hashchange", route);
   document.addEventListener("click", onClick);
   route();
@@ -82,6 +92,7 @@ function route() {
   clearSubs();
   closeSheet();
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (parts[0] === "design" && be.dev) return renderDesign($root);
   if (parts[0] === "coach") routeCoach(parts[1], parts[2] || "progressi");
   else routeStudent();
 }
@@ -109,7 +120,7 @@ function routeStudent() {
 function renderCodeEntry(msg = "") {
   $root.innerHTML = `${demoBanner()}
   <div class="hero">
-    <div class="logo">⛸️</div>
+    <div class="logo" aria-hidden="true">⛸️</div>
     <h1>${esc(CONFIG.appName)}</h1>
     <p>Inserisci il codice che ti ha mandato la tua allenatrice.</p>
   </div>
@@ -138,7 +149,7 @@ function renderStudent() {
   const plan = s.plan || [];
   const done = checksDone(s);
   $root.innerHTML = `${demoBanner()}
-  <header class="top"><div><small>Ciao</small><h1>${esc(s.name)}</h1></div><div class="logo sm">⛸️</div></header>
+  <header class="top"><div><small>Ciao</small><h1>${esc(s.name)}</h1></div><div class="logo sm" aria-hidden="true">⛸️</div></header>
 
   <section class="card">
     <div class="sec-h"><h2>La mia scheda</h2><span class="pill">${done}/${plan.length}</span></div>
@@ -176,7 +187,7 @@ function progressList(items, coach) {
     <h3 class="cat">${esc(c)}</h3>
     <ul class="prog">${items.filter((i) => (i.cat || "Altro") === c).map((i) => `
       <li ${coach ? `data-act="c-edit-prog" data-id="${i.id}" class="tap"` : ""}>
-        ${coach ? `<button class="st ${i.status}" data-act="c-cycle" data-id="${i.id}">${STATUS[i.status]}</button>`
+        ${coach ? `<button class="st ${i.status}" data-act="c-cycle" data-id="${i.id}" aria-label="${esc(i.name)}: ${STATUS[i.status]}. Tocca per cambiare stato">${STATUS[i.status]}</button>`
                 : `<span class="st ${i.status}">${STATUS[i.status]}</span>`}
         <div class="txt"><b>${esc(i.name)}</b>
           ${i.status === "done" && i.date ? `<small>Completato il ${fmtDate(i.date)}</small>` : ""}
@@ -209,7 +220,7 @@ function routeCoach(code, tab) {
 function renderCoachLogin(u) {
   const uid = u && u.uid;
   $root.innerHTML = `${demoBanner()}
-  <div class="hero"><div class="logo">⛸️</div><h1>Area allenatrice</h1>
+  <div class="hero"><div class="logo" aria-hidden="true">⛸️</div><h1>Area allenatrice</h1>
     <p>Questo telefono non è ancora abilitato. Non servono email né password.</p></div>
   ${be.demo ? `<div class="card"><button class="btn wide" data-act="c-demo">Entra (demo)</button></div>` : ""}
   <form class="card" id="trForm">
@@ -238,7 +249,7 @@ function renderCoachList() {
   const list = S.students;
   $root.innerHTML = `${demoBanner()}
   <header class="top"><div><small>Allenatrice</small><h1>I miei alunni</h1></div>
-    <button class="icon" data-act="c-settings" title="Impostazioni">⚙</button></header>
+    <button class="icon" data-act="c-settings" aria-label="Impostazioni" title="Impostazioni"><span aria-hidden="true">⚙</span></button></header>
   ${list.length ? `<ul class="students">${list.map((s) => {
       const done = checksDone(s), tot = (s.plan || []).length;
       return `<li><a href="#/coach/${s.code}" class="card stu">
@@ -266,9 +277,9 @@ function renderCoachStudent(code, tab) {
       ${plan.length ? `<ul class="plan">${plan.map((x, i) => `<li>
           ${checkRow(x, s.checks && s.checks[x.id], false).replace(/^<li>|<\/li>$/g, "")}
           <div class="ops">
-            <button class="icon sm" data-act="c-move" data-id="${x.id}" data-d="-1" ${i ? "" : "disabled"}>↑</button>
-            <button class="icon sm" data-act="c-move" data-id="${x.id}" data-d="1" ${i < plan.length - 1 ? "" : "disabled"}>↓</button>
-            <button class="icon sm" data-act="c-edit-ex" data-id="${x.id}">✎</button>
+            <button class="icon sm" data-act="c-move" data-id="${x.id}" data-d="-1" aria-label="Sposta su: ${esc(x.title)}" ${i ? "" : "disabled"}><span aria-hidden="true">↑</span></button>
+            <button class="icon sm" data-act="c-move" data-id="${x.id}" data-d="1" aria-label="Sposta giù: ${esc(x.title)}" ${i < plan.length - 1 ? "" : "disabled"}><span aria-hidden="true">↓</span></button>
+            <button class="icon sm" data-act="c-edit-ex" data-id="${x.id}" aria-label="Modifica: ${esc(x.title)}"><span aria-hidden="true">✎</span></button>
           </div></li>`).join("")}</ul>` : `<p class="muted">Scheda vuota.</p>`}
       <button class="btn wide" data-act="c-add-ex">+ Aggiungi esercizio</button>
       ${checksDone(s) ? `<button class="btn ghost wide" data-act="c-reset" data-code="${s.code}">Togli tutte le spunte</button>` : ""}
@@ -293,17 +304,21 @@ function renderCoachStudent(code, tab) {
     </section>`;
   }
   $root.innerHTML = `${demoBanner()}
-  <header class="top"><a href="#/coach" class="icon">←</a><div class="grow"><small>Alunno</small><h1>${esc(s.name)}</h1></div></header>
-  <nav class="tabs">${tabs.map(([k, l]) => `<a href="#/coach/${code}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav>
+  <header class="top"><a href="#/coach" class="icon" aria-label="Torna all'elenco alunni"><span aria-hidden="true">←</span></a><div class="grow"><small>Alunno</small><h1>${esc(s.name)}</h1></div></header>
+  <nav class="tabs" aria-label="Sezioni alunno">${tabs.map(([k, l]) => `<a href="#/coach/${code}/${k}" class="${k === tab ? "on" : ""}"${k === tab ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
   ${body}`;
   $root.dataset.code = code;
 }
 
 // ---------------------------------------------------------- sheet (modale)
+let sheetOpener = null;
 function openSheet(html, onSubmit) {
+  sheetOpener = document.activeElement;
   $sheet.innerHTML = `<div class="sheet-bg" data-act="close"></div>
-    <form class="sheet-panel">${html}</form>`;
+    <form class="sheet-panel" role="dialog" aria-modal="true">${html}</form>`;
   $sheet.hidden = false;
+  document.getElementById("app").setAttribute("aria-hidden", "true");
+  document.getElementById("app").inert = true;
   const f = $sheet.querySelector("form");
   f.onsubmit = async (e) => {
     e.preventDefault();
@@ -313,10 +328,20 @@ function openSheet(html, onSubmit) {
     catch (err) { fail(err); }
     if (btn) btn.disabled = false;
   };
-  const first = f.querySelector("input:not([type=checkbox]),textarea");
+  const h = f.querySelector("h2");
+  if (h) { h.id = "sheetTitle"; f.setAttribute("aria-labelledby", "sheetTitle"); }
+  const first = f.querySelector("input:not([type=checkbox]),textarea") || f.querySelector("button,select");
   if (first) setTimeout(() => first.focus(), 50);
 }
-function closeSheet() { $sheet.hidden = true; $sheet.innerHTML = ""; }
+function closeSheet() {
+  const wasOpen = !$sheet.hidden;
+  $sheet.hidden = true; $sheet.innerHTML = "";
+  const app = document.getElementById("app");
+  app.removeAttribute("aria-hidden"); app.inert = false;
+  if (wasOpen && sheetOpener && document.contains(sheetOpener)) sheetOpener.focus();
+  sheetOpener = null;
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$sheet.hidden) closeSheet(); });
 
 // ---------------------------------------------------------- azioni
 const curCode = () => location.hash.split("/")[2];

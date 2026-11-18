@@ -51,7 +51,42 @@ async def main():
         await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", path); await pg.wait_for_timeout(500)
         assert await pg.locator(".students li").count() == 11
 
+        # accessibilità: target >= 44px sulle schermate principali
+        MIN = """() => [...document.querySelectorAll('button, a.icon, .tabs a, .chip, .btn, .foot a, .demo a, .check, label.chk, input:not([type=hidden]):not([hidden]), select')]
+            .filter(e => e.offsetParent !== null || getComputedStyle(e).position === 'fixed')
+            .map(e => { const t = (e.type === 'checkbox' && e.closest('label')) || e; return [e, t.getBoundingClientRect()]; })
+            .filter(([e, r]) => r.width > 0 && (r.height < 43.5 || r.width < 43.5))
+            .map(([e, r]) => e.className + ' ' + (e.textContent || '').trim().slice(0, 20) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height))"""
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(400)
+        small = await pg.evaluate(MIN); assert not small, ("elenco", small)
+        await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
+        for tab in ["Progressi", "Scheda", "Invito"]:
+            await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200)
+            small = await pg.evaluate(MIN); assert not small, (tab, small)
+        assert await pg.locator("nav.tabs a[aria-current=page]").count() == 1
+        for el in await pg.locator("button.icon, a.icon").all():
+            assert await el.get_attribute("aria-label"), "icona senza aria-label"
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-settings]"); await pg.wait_for_timeout(200)
+        assert await pg.locator("[role=dialog][aria-modal=true]").count() == 1
+        small = await pg.evaluate(MIN); assert not small, ("pannello", small)
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(200)
+        assert await pg.locator("[role=dialog]").count() == 0, "Esc deve chiudere il pannello"
+        assert await pg.evaluate("document.activeElement && document.activeElement.dataset.act") == "c-settings", "il focus deve tornare al pulsante"
+        await pg.goto(B); await pg.wait_for_timeout(300)
+        small = await pg.evaluate(MIN); assert not small, ("alunno", small)
+
+        # pagina design system (#/design, solo dev)
+        await pg.goto(B + "#/design"); await pg.wait_for_timeout(400)
+        assert await pg.locator(".ds header h1").inner_text() == "Design system"
+        assert await pg.locator("#dsContrast td.ko").count() == 0, "coppie di colori sotto soglia WCAG"
+        await pg.check("[data-pref=text]"); await pg.check("[data-pref=contrast]"); await pg.check("[data-pref=motion]")
+        assert await pg.evaluate("document.documentElement.dataset.text") == "large"
+        small = await pg.evaluate(MIN); assert not small, ("design", small)
+        await pg.uncheck("[data-pref=text]"); await pg.uncheck("[data-pref=contrast]"); await pg.uncheck("[data-pref=motion]")
+
         # rigenera esempi e uscita dalla modalità dev
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-settings]"); await pg.click("text=Rigenera alunni di esempio"); await pg.wait_for_timeout(300)
         assert await pg.locator(".students li").count() == 10
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(400)

@@ -31,11 +31,12 @@ public/            ← cartella da pubblicare (GitHub Pages)
   index.html       shell, carica app.js come ES module
   app.js           UI: routing via hash, render con innerHTML, azioni delegate con data-act
   backend.js       livello dati: firebaseBackend (SDK 10.12.2 da gstatic) | demoBackend (localStorage)
+  design.js        pagina #/design (solo ?dev): token, contrasti calcolati, componenti, modifica colori dal vivo
   samples.js       10 alunni di esempio deterministici (seed fisso) per la modalità dev
   catalog.js       catalogo elementi per categoria + idee esercizi (generico, da adattare)
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
-  style.css        mobile-first, tema "ghiaccio" (navy #0b2545, ice #8ecae6)
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v4)
+  style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), testo sempre --ink, bottone primario nero a pillola
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v5)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -48,6 +49,13 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - `/` → schermata alunno (codice in `localStorage.pg_my_code`; `?c=CODE` lo imposta)
 - `#/coach` → elenco alunni · `#/coach/{code}/{progressi|scheda|invito}` → dettaglio
 - `?dev` → **modalità sviluppo**: backend locale `pg_dev_v1`, anche con Firebase configurato. Contiene 10 alunni di esempio, allenatrice già abilitata e pulsanti per entrare come alunno. Il flag è in `localStorage.pg_dev`; si esce con il tasto "Esci" nel banner viola.
+
+- `#/design` → design system di riferimento (funziona solo con `?dev`; link nel banner viola).
+
+## Accessibilità (vincolante, verificata da tools/e2e.py)
+- Riferimento: WCAG 2.2 AA + linee guida Apple ("OS27" interpretato così). Contrasto 4.5:1 testo / 3:1 UI, target >= 44px (`--target`), rem ovunque (Dynamic Type), `prefers-reduced-motion`, `prefers-contrast`, `:focus-visible`.
+- Pulsanti con sola icona: sempre `aria-label`. Pannelli: `role=dialog`, Esc, ritorno del focus. Mai solo colore per gli stati.
+- Niente font esterni (privacy): stack di sistema.
 
 ## Modello dati (Firestore)
 - `students/{code}`:

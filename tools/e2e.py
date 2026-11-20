@@ -34,13 +34,9 @@ async def main():
         assert await pg.locator(".stat b >> nth=0").inner_text() == "10", "numero di alunni nella Home"
         assert await pg.locator("#hNext + * .trs li, section:has(#hNext) .trs li").count() == 3, "tre prossimi allenamenti"
         assert await pg.locator("nav.bnav a[aria-current=page]").inner_text() == "Oggi"
-        # barra in basso: se iOS accorcia la pagina (app dalla Home), --vgap la riporta giù della stessa misura
-        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--vgap').trim()") == "0px", "nel browser nessuna correzione"
-        y0 = (await pg.locator(".dock").bounding_box())["y"]
-        await pg.evaluate("document.documentElement.style.setProperty('--vgap', '62px')")
-        y1 = (await pg.locator(".dock").bounding_box())["y"]
-        await pg.evaluate("document.documentElement.style.setProperty('--vgap', '0px')")
-        assert abs((y1 - y0) - 62) < 1, ("la barra deve scendere di --vgap", y0, y1)
+        # barra in basso attaccata al fondo (in stile iOS: 12-30px sopra il bordo)
+        gapb = await pg.evaluate("innerHeight - document.querySelector('.dock').getBoundingClientRect().bottom")
+        assert 8 <= gapb <= 30, ("barra in basso staccata dal fondo", gapb)
         await pg.click("nav.bnav >> text=Alunni"); await pg.wait_for_timeout(400)
         assert pg.url.endswith("#/coach/alunni")
         await font16("elenco")
@@ -115,7 +111,7 @@ async def main():
         await pg.click("label.chk:has-text('Toe loop')")
         assert await pg.locator("#sheet button[type=submit]").inner_text() == "Aggiungi (1)"
         await pg.click("button[type=submit]"); await pg.wait_for_timeout(200)
-        assert "Intermedio" in await pg.locator("header small").inner_text(), "livello dell'alunno nella testata"
+        assert "Intermedio" in await pg.locator("header .eyebrow").inner_text(), "livello dell'alunno nella testata"
         await pg.click("button.st-ic >> nth=0"); await pg.wait_for_timeout(200)
         st = pg.locator("button.st-ic >> nth=0")
         assert "doing" in await st.get_attribute("class") and "In corso" in await st.get_attribute("aria-label")
@@ -210,13 +206,20 @@ async def main():
             .map(e => { const t = ((e.type === 'checkbox' || e.type === 'radio') && e.closest('label')) || e; return [e, t.getBoundingClientRect()]; })
             .filter(([e, r]) => r.width > 0 && (r.height < 43.5 || r.width < 43.5))
             .map(([e, r]) => e.className + ' ' + (e.textContent || '').trim().slice(0, 20) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height))"""
+        # stesso schema in ogni pagina: titolo alla stessa altezza, barra in basso identica e nello stesso punto
+        POS = """() => { const n = document.querySelector('nav.bnav').getBoundingClientRect(), h = document.querySelector('main h1').getBoundingClientRect();
+            return [Math.round(n.x), Math.round(n.width), Math.round(innerHeight - n.bottom), Math.round(h.top + scrollY), !!document.querySelector('.dock .fab')]; }"""
+        poss = {}
         for view in ["", "/calendario", "/alunni"]:
             await pg.goto(B + "#/coach" + view); await pg.wait_for_timeout(400)
             small = await pg.evaluate(MIN); assert not small, (view, small)
+            poss[view] = await pg.evaluate(POS)
         await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
         for tab in ["Profilo", "Progressi", "Scheda", "Invito"]:
             await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200)
             small = await pg.evaluate(MIN); assert not small, (tab, small)
+            poss[tab] = await pg.evaluate(POS)
+        assert len({tuple(v) for v in poss.values()}) == 1, ("pagine dell'allenatrice non allineate", poss)
         assert await pg.locator("nav.tabs a[aria-current=page]").count() == 1
         for el in await pg.locator("button.icon, a.icon").all():
             assert await el.get_attribute("aria-label"), "icona senza aria-label"
@@ -229,10 +232,13 @@ async def main():
         await pg.keyboard.press("Escape"); await pg.wait_for_timeout(200)
         assert await pg.locator("[role=dialog]").count() == 0, "Esc deve chiudere il pannello"
         assert await pg.evaluate("document.activeElement && document.activeElement.dataset.act") == "c-settings", "il focus deve tornare al pulsante"
+        poss = {}
         for view in ["", "#/progressi", "#/profilo"]:
             await pg.goto(B + view); await pg.wait_for_timeout(300)
             small = await pg.evaluate(MIN); assert not small, ("alunno " + view, small)
             assert await pg.locator("nav.bnav a[aria-current=page]").count() == 1
+            poss[view] = await pg.evaluate(POS)
+        assert len({tuple(v) for v in poss.values()}) == 1, ("pagine dell'alunno non allineate", poss)
 
         # testo grande (200% e data-text=large): niente scroll orizzontale né testo tagliato
         OVER = """() => { const d = document.documentElement;
@@ -360,7 +366,7 @@ async def main():
         await p2.tap("nav.tabs >> text=Progressi"); await p2.wait_for_timeout(500)
         ul = p2.locator("ul.prog:has(li + li) >> nth=0")
         row = ul.locator("li >> nth=0")
-        await row.evaluate("e => { const r = e.getBoundingClientRect(); window.scrollBy(0, r.top + r.height / 2 - (innerHeight - 30)); }")
+        await row.evaluate("e => { const r = e.getBoundingClientRect(); const d = document.querySelector('.dock'); const edge = d ? d.getBoundingClientRect().top : innerHeight; window.scrollBy(0, r.top + r.height / 2 - (edge - 30)); }")
         await p2.wait_for_timeout(200)
         names, sy = await ul.locator("li b").all_inner_texts(), await p2.evaluate("scrollY")
         r = await row.bounding_box()

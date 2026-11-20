@@ -74,7 +74,8 @@ export function initDrag(root, { onDrop, onEnd }) {
   function tick() {
     if (!drag) return;
     if (!drag.moved) { raf = requestAnimationFrame(tick); return; }
-    const y = drag.lastY, h = window.innerHeight;
+    const dock = document.querySelector(".dock"); // il bordo basso utile è sopra la barra in basso
+    const y = drag.lastY, h = dock ? dock.getBoundingClientRect().top : window.innerHeight;
     const v = y < EDGE ? -Math.ceil((EDGE - y) / 6) : y > h - EDGE ? Math.ceil((y - (h - EDGE)) / 6) : 0;
     if (v) { window.scrollBy(0, v); update(); }
     raf = requestAnimationFrame(tick);

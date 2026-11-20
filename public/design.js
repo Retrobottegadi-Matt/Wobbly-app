@@ -145,6 +145,13 @@ export function renderDesign($root) {
   <div class="card lilac"><code>.card.lilac</code></div>
   <div class="card sage"><code>.card.sage</code></div>
   <div class="card sky"><code>.card.sky</code></div>
+  <h2>Schema delle pagine</h2>
+  <p class="muted small">Ogni pagina: riga sopra il titolo sempre presente (<code>head()</code>), sezioni con titolo fuori dalla carta (<code>sect()</code>),
+    stati vuoti con <code>empty()</code>, barra in basso uguale ovunque: allenatrice con pulsante + (azione principale della pagina), alunno senza.</p>
+  <div class="card"><div class="top"><div class="grow"><p class="eyebrow">Riga sopra · data o contesto</p><p style="margin:0;font-size:var(--fs-h1);font-weight:800;letter-spacing:-.025em;line-height:1.1">Titolo</p></div>
+    <button class="icon" type="button" aria-label="Impostazioni">${icon("settings")}</button></div></div>
+  <div class="card"><div class="empty">${icon("calendar")}<b>Titolo dello stato vuoto <code>.empty</code></b><p>Cosa manca e come aggiungerlo.</p>
+    <button class="btn ghost wide" type="button">${icon("plus")} Azione facoltativa</button></div></div>
   <div class="feat" role="group" aria-label="Esempio"><span class="sun" aria-hidden="true">${icon("calendar")}</span><span class="feat-k">.feat</span><b class="feat-t">Carta in evidenza</b><span class="feat-s">Blu con grana e sole giallo</span></div>
   <div class="card"><div class="sec-h"><h2>Titolo sezione <code>.sec-h</code></h2><span class="pill">3/5</span></div>
     <code>.pill</code><div class="bar" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso 60%"><span style="width:60%"></span></div><code>.bar</code></div>

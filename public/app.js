@@ -339,7 +339,7 @@ function renderCoachLogin(u) {
   paint(`${demoBanner()}
   <div class="hero">${logo()}<h1>Area allenatrice</h1>
     <p>Questo telefono non è ancora abilitato. Non servono email né password.</p></div>
-  ${be.demo ? `<div class="card"><button class="btn wide" data-act="c-demo">Entra (demo)</button></div>` : ""}
+  ${be.demo ? `<div class="card"><button class="btn wide" data-act="c-demo">Entra (demo)</button></div>` : `
   <form class="card" id="trForm">
     <h2 class="h3">Hai già l'app su un altro telefono?</h2>
     <p class="muted small" id="trHelp">Sul vecchio telefono apri Impostazioni → “Aggiungi un dispositivo” e scrivi qui il codice (vale 15 minuti).</p>
@@ -347,15 +347,16 @@ function renderCoachLogin(u) {
     <input id="trIn" class="code-in" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" maxlength="20" aria-describedby="trHelp">
     <button class="btn wide" type="submit">Abilita questo telefono</button>
   </form>
-  ${uid ? `<div class="card">
-    <h2 class="h3">Prima configurazione</h2>
-    <p class="muted small">Solo la prima volta: chi ha creato il progetto Firebase aggiunge questo ID nella raccolta <b>coaches</b> (vedi guida).</p>
+  ${uid ? `<details class="card setup">
+    <summary class="h3">Primo telefono (solo la prima volta)</summary>
+    <p class="muted small">Chi ha creato il progetto Firebase aggiunge questo ID nella raccolta <b>coaches</b> (vedi guida). Dopo non serve più.</p>
     <div class="bigcode small-code">${esc(uid)}</div>
     <button class="btn ghost wide" data-act="c-copy-id" data-id="${esc(uid)}">${icon("link")} Copia ID</button>
-  </div>` : `<p class="err">${u && u.error ? "Connessione non riuscita. Riprova." : ""}</p>`}
+  </details>` : `<p class="err">${u && u.error ? "Connessione non riuscita. Riprova." : ""}</p>`}`}
   <p class="foot"><a href="#">${icon("back")} Torna alla schermata alunno</a></p>
   <p class="foot"><button class="linkbtn" data-act="a11y">${icon("a11y")} Accessibilità</button></p>`);
-  document.getElementById("trForm").onsubmit = async (e) => {
+  const trForm = document.getElementById("trForm");
+  if (trForm) trForm.onsubmit = async (e) => {
     e.preventDefault();
     const t = normCode(document.getElementById("trIn").value);
     if (t.length !== CODE_LEN) return toast("Il codice ha 12 caratteri");

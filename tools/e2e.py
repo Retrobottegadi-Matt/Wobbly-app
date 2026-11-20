@@ -242,9 +242,16 @@ async def main():
         await pg.evaluate("localStorage.setItem('pg_ds_prefs', JSON.stringify({vars: {'--pink': '#ff0000'}}))")
         await pg.reload(); await pg.wait_for_timeout(500)
         assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#ff0000", "override attivo in dev"
+        # fuori da dev l'app usa Firebase vero: qui la rete verso gstatic può mancare, quindi lo blocchiamo
+        # e ignoriamo solo quegli errori di caricamento (il test riguarda gli stili, non il database)
+        n_err = len(errs)
+        await pg.route("https://www.gstatic.com/**", lambda r: r.abort())
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
         assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f4a6c8", "gli override colore dev non arrivano agli utenti"
+
+        errs[n_err:] = [e for e in errs[n_err:] if "firebasejs" not in e and "net::ERR_FAILED" not in e]
+        await pg.unroute("https://www.gstatic.com/**")
 
         # trascinamento con il dito (eventi touch reali via CDP): la pagina non deve scorrere
         ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)

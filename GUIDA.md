@@ -53,7 +53,7 @@ Il piano gratuito Spark non chiede carta di credito e non può generare costi.
 
 ### 3. Abilitare il telefono dell'allenatrice (una volta sola)
 1. L'allenatrice apre `https://TUONOME.github.io/pattinaggio/#/coach` sul suo telefono e lo **aggiunge alla schermata Home**.
-2. Dall'icona sulla Home apre l'app: compare "Prima configurazione" con un **ID**. Premi *Copia ID* e mandalo a chi gestisce Firebase.
+2. Dall'icona sulla Home apre l'app: tocca **Primo telefono (solo la prima volta)**: compare un **ID**. Premi *Copia ID* e mandalo a chi gestisce Firebase.
 3. Su Firebase, in **Firestore → Dati → + Avvia raccolta**: ID raccolta `coaches`. Come ID documento incolla l'ID copiato; aggiungi un campo qualsiasi, per esempio `nome` = `allenatrice`. Salva.
 4. Sul telefono di lei ricarica l'app: ora vede la lista degli alunni.
 

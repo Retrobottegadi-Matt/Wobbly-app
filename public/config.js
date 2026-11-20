@@ -9,12 +9,12 @@
 
 export const CONFIG = {
   firebase: {
-    apiKey: "INSERISCI_API_KEY",
-    authDomain: "INSERISCI.firebaseapp.com",
-    projectId: "INSERISCI",
-    storageBucket: "INSERISCI.appspot.com",
-    messagingSenderId: "000000000000",
-    appId: "INSERISCI_APP_ID",
+    apiKey: "AIzaSyBK0sNpAbtkYqmjiXNODgSO1nuaDWKS4qc",
+    authDomain: "wobbly-app-101.firebaseapp.com",
+    projectId: "wobbly-app-101",
+    storageBucket: "wobbly-app-101.firebasestorage.app",
+    messagingSenderId: "951391738763",
+    appId: "1:951391738763:web:e45d3aaa679fd3aeb52d8e",
   },
   appName: "Pattinaggio",
 };

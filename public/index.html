@@ -24,17 +24,21 @@
   // Si misura lo spazio mancante e la barra in basso, i pannelli e gli avvisi lo recuperano (--vgap).
   (function () {
     function gap() {
-      var g = 0, standalone = navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+      // solo iPhone/iPad dalla Home (navigator.standalone esiste solo su iOS): su Android la differenza è normale
+      var a = document.activeElement;
+      if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return; // tastiera aperta: non misurare
+      var g = 0, top = 0, standalone = navigator.standalone === true;
       if (standalone && document.body) {
         var p = document.createElement("div");
         p.style.cssText = "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
         document.body.appendChild(p);
-        var top = parseFloat(getComputedStyle(p).paddingTop) || 0; p.remove();
+        top = parseFloat(getComputedStyle(p).paddingTop) || 0; p.remove();
         var full = innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
         // solo se la pagina parte da sotto l'orologio (top > 0) e manca davvero un pezzo in fondo
         if (top > 0) g = Math.max(0, Math.min(full - innerHeight, 120));
       }
       document.documentElement.style.setProperty("--vgap", g + "px");
+      window.__vgapInfo = standalone ? "schermo " + screen.width + "×" + screen.height + " · pagina " + innerHeight + " · alto " + top + " · correzione " + g : "";
     }
     addEventListener("DOMContentLoaded", gap); addEventListener("resize", gap); addEventListener("orientationchange", function () { setTimeout(gap, 300); });
   })();

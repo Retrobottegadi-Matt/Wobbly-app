@@ -781,6 +781,7 @@ const ACTIONS = {
       <input type="file" accept=".json,application/json" id="impIn" hidden tabindex="-1">
       ${be.dev ? `<h3 class="cat">Sviluppo</h3><ul class="menu">${mi("dev-reseed", "refresh", "Rigenera alunni di esempio")}</ul>` : ""}
       <button type="button" class="btn danger wide del" data-act="c-remove-dev">${icon("logout")} Disabilita questo telefono</button>
+      ${window.__vgapInfo ? `<p class="muted small diag">Schermo: ${esc(window.__vgapInfo)}</p>` : ""}
       </div>` });
     document.getElementById("impIn").onchange = importBackup;
   },

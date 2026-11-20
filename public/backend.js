@@ -66,6 +66,13 @@ async function firebaseBackend(cfg) {
         }
       });
     },
+    // telefono già abilitato come allenatrice? Senza creare accessi nuovi: guarda solo se c'è già una sessione salvata
+    async isCoachDevice() {
+      await auth.authStateReady();
+      const u = auth.currentUser;
+      if (!u) return false;
+      try { return (await fs.getDoc(fs.doc(db, "coaches", u.uid))).exists(); } catch { return false; }
+    },
     async createTransfer() {
       const t = newCode();
       await fs.setDoc(fs.doc(db, "transfers", t), { by: auth.currentUser.uid, at: fs.serverTimestamp() });
@@ -179,6 +186,7 @@ function demoBackend(KEY, dev) {
       aSubs.add(f); f(coach); return () => aSubs.delete(f);
     },
     async demoEnable() { setCoach({ uid: "demo" }); },
+    async isCoachDevice() { return !dev && !!coach; },
     async createTransfer() { return "DEMOTRASFER1"; },
     async redeemTransfer() { setCoach({ uid: "demo" }); },
     async removeDevice() { setCoach(null); },

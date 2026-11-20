@@ -10,7 +10,8 @@ Lingua dell'interfaccia e dei testi: **italiano**. L'utente (Matt) è un alunno 
 - L'**allenatrice vede tutti** gli alunni; ogni **alunno vede solo la propria scheda**.
 - **Invito via WhatsApp o email**, ma i contatti **non** devono comparire né essere salvati nell'app. Si usa un codice invito.
 - Progressi: elementi tecnici con **stato + note + data**. Scheda: **esercizi da fare durante il pattinaggio libero**, che **l'alunno spunta**.
-- L'utente ha detto che "l'applicazione iniziale va bene" e che voleva solo ridurre la dipendenza da servizi esterni. Non stravolgere la UI.
+- L'utente ha detto che "l'applicazione iniziale va bene" e che voleva solo ridurre la dipendenza da servizi esterni.
+- Novembre 2026: l'utente ha chiesto UX e UI migliori. Ha scelto lo stile "pastelli rifiniti" (toni tenui, bordi sottili, un accento per volta), una Home per l'allenatrice (prossimi allenamenti + numeri riassuntivi), gruppi di alunni (per filtrare l'elenco e collegare gli allenamenti), date degli allenamenti per gruppo e un profilo alunno (nome, livello, gruppo, descrizione facoltativa) compilato dall'allenatrice.
 
 ## Decisioni prese (e perché)
 - **Firebase (piano Spark) solo come database Firestore** e **GitHub Pages per pubblicare l'app**.
@@ -35,11 +36,12 @@ public/            ← cartella da pubblicare (GitHub Pages)
   a11y.js          preferenze di accessibilità degli utenti (chiave pg_a11y): testo più grande, contrasto, animazioni
   design.js        pagina #/design (solo ?dev): token, contrasti calcolati, componenti, modifica colori dal vivo
   samples.js       10 alunni di esempio deterministici (seed fisso) per la modalità dev
+  sched.js         gruppi e allenamenti: date locali (mai toISOString), schedFor() = allenamenti futuri di un alunno, sameSched()
   catalog.js       catalogo per livello (base/intermedio/avanzato) → categoria; normItem() rende validi anche i dati vecchi (indicativo, da adattare)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v12)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v13)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -50,7 +52,8 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 
 ## Rotte
 - `/` → schermata alunno (codice in `localStorage.pg_my_code`; `?c=CODE` lo imposta)
-- `#/coach` → elenco alunni · `#/coach/{code}/{progressi|scheda|invito}` → dettaglio
+- `#/coach` → Home (numeri riassuntivi, prossimi allenamenti, gruppi) · `#/coach/alunni` → elenco con filtro per gruppo e ricerca · `#/coach/calendario` → allenamenti e gestione gruppi. Barra di navigazione in basso (`.bnav`) su queste tre.
+- `#/coach/{code}/{profilo|progressi|scheda|invito}` → dettaglio alunno (predefinita: progressi). Un codice è riconosciuto da `isCode()` (12 caratteri maiuscoli/cifre).
 - `?dev` → **modalità sviluppo**: backend locale `pg_dev_v1`, anche con Firebase configurato. Contiene 10 alunni di esempio, allenatrice già abilitata e pulsanti per entrare come alunno. Il flag è in `localStorage.pg_dev`; si esce con il tasto "Esci" nel banner viola.
 
 - `#/design` → design system di riferimento (funziona solo con `?dev`; link nel banner viola).
@@ -79,6 +82,12 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
   - `{ name, level: base|intermedio|avanzato, createdAt, progress: [{id, level, cat, name, status: todo|doing|done, date: "YYYY-MM-DD", note}], plan: [{id, title, detail}], checks: {exerciseId: timestampMs}, checksAt }`
   - `level` può mancare nei dati creati prima dei livelli: `normItem()` lo ricava dal catalogo (altrimenti "base").
   - L'allenatrice aggiorna gli array interi (`progress`, `plan`); l'alunno scrive solo `checks.{id}` e `checksAt`.
+  - `group` (id del gruppo o ""), `bio` (descrizione facoltativa, la vede anche l'alunno), `sched` (copia degli allenamenti futuri che lo riguardano: `[{id, date, time, place, note, gname}]`).
+- `meta/coach` (solo allenatrice): `{ groups: [{id, name}], trainings: [{id, date: "YYYY-MM-DD", time, group: id|"" (tutti), place, note}] }`.
+  - Dopo ogni modifica di gruppi/allenamenti o del gruppo di un alunno, `syncSched()` riscrive `sched` solo negli alunni dove cambia, con `updateMany` (writeBatch). Si chiama solo dopo un'azione dell'allenatrice, mai da uno snapshot.
+  - Se la lettura di `meta` è negata (regole vecchie), l'area allenatrice funziona lo stesso e mostra un avviso.
+  - Gli allenamenti passati da più di 60 giorni vengono tolti al salvataggio successivo.
+  - Backup versione 2: contiene anche `meta`; il ripristino accetta anche la versione 1.
 - `coaches/{uid}`: `{ via: transferCode, at }`
 - `transfers/{code}`: `{ by: uid, at: serverTimestamp }`
 
@@ -86,12 +95,14 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - `students`: per `list`, `create` e `delete` serve `isCoach()`. Il `get` è permesso all'allenatrice e a chiunque abbia un ID di 12 caratteri. Nell'`update` l'alunno può modificare solo `checks` e `checksAt`, con `checks` di tipo map e al massimo 100 voci.
 - `coaches/{uid}`: lettura e cancellazione solo dal proprio uid. La creazione richiede un `transfers/{via}` esistente e creato da meno di 15 minuti.
 - `transfers`: la creazione è riservata all'allenatrice e richiede `at == request.time`.
+- `meta/{d}`: lettura e scrittura solo con `isCoach()`.
 - Tutto il resto è negato.
 
 ## Stato
 - ✅ Testato in modalità demo e dev (Playwright, viewport 390×844): creazione alunno, progressi, scheda, spunte, invito, rigenera codice, backup e ripristino, trasferimento (in demo), modalità dev.
 - `config.js` è collegato al progetto Firebase `wobbly-app-101` (app su `retrobottegadi-matt.github.io`).
-- ⚠️ **Mai testato contro un progetto Firebase reale**. Da verificare:
+- Verificato via REST sul progetto vero: accesso anonimo attivo, `list` di `students` negato, `get` con codice permesso. L'abilitazione del primo telefono funziona (attenzione: raccolta `coaches` minuscola).
+- ⚠️ Ancora da verificare sul progetto reale:
   1. Le regole con l'emulatore Firestore o con il Rules Playground: soprattutto `duration.value(15, 'm')` sul transfer e `request.resource.data.at == request.time` con `serverTimestamp()`.
   2. L'accesso anonimo sul dominio github.io (aggiungere il dominio agli "Authorized domains").
   3. `persistentLocalCache` e il comportamento offline: snapshot `fromCache` con documento inesistente → l'app non cancella il codice salvato.

@@ -29,7 +29,13 @@ async def main():
         # il service worker deve prendere il controllo (un errore nel suo fetch romperebbe l'app installata)
         await pg.reload(); await pg.wait_for_timeout(700)
         assert await pg.evaluate("!!navigator.serviceWorker.controller"), "service worker non attivo"
+        # Home (dashboard): numeri riassuntivi e prossimi allenamenti
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(500)
+        assert await pg.locator(".stat b >> nth=0").inner_text() == "10", "numero di alunni nella Home"
+        assert await pg.locator("#hNext + * .trs li, section:has(#hNext) .trs li").count() == 3, "tre prossimi allenamenti"
+        assert await pg.locator("nav.bnav a[aria-current=page]").inner_text() == "Home"
+        await pg.click("nav.bnav >> text=Alunni"); await pg.wait_for_timeout(400)
+        assert pg.url.endswith("#/coach/alunni")
         await font16("elenco")
         assert await pg.locator(".students li").count() == 10, "attesi 10 alunni di esempio"
         assert await pg.locator("#app.enter").count() == 1, "entrata animata al cambio di schermata"
@@ -45,6 +51,51 @@ async def main():
         assert "Nessun alunno corrisponde" in await pg.locator("#stuList").inner_text()
         await pg.fill("#stuSearch", ""); await pg.wait_for_timeout(100)
         assert await pg.locator(".students li").count() == 10
+
+        # gruppi: filtro dell'elenco (il focus resta sul filtro), combinato con la ricerca
+        dev = lambda: pg.evaluate("JSON.parse(localStorage.getItem('pg_dev_v1'))")
+        d = await dev(); gid = {g["name"]: g["id"] for g in d["meta"]["groups"]}
+        n_ag = sum(1 for st in d["students"].values() if st.get("group") == gid["Agonisti"])
+        await pg.click("[data-act=c-gf]:has-text('Agonisti')"); await pg.wait_for_timeout(150)
+        assert await pg.locator(".students li").count() == n_ag and n_ag > 0
+        assert await pg.evaluate("document.activeElement.textContent") == "Agonisti", "il focus resta sul filtro"
+        assert await pg.locator("[data-act=c-gf][aria-pressed=true]").inner_text() == "Agonisti"
+        await pg.click("[data-act=c-gf]:has-text('Tutti')"); await pg.wait_for_timeout(150)
+        assert await pg.locator(".students li").count() == 10
+
+        # allenamenti: uno per un gruppo, uno per tutti; ogni alunno vede solo i suoi
+        await pg.click("nav.bnav >> text=Calendario"); await pg.wait_for_timeout(300)
+        for note, grp in [("PROVA-PR", "Principianti"), ("PROVA-TUTTI", None)]:
+            await pg.click(".fab[data-act=c-new-tr]"); await pg.wait_for_timeout(150); await font16("allenamento")
+            await pg.fill("input[name=time]", "16:15")
+            if grp: await pg.select_option("select[name=group]", label=grp)
+            await pg.fill("input[name=note]", note); await pg.click("text=Salva"); await pg.wait_for_timeout(250)
+        assert await pg.locator(".trs li:has-text('PROVA-PR')").count() == 1
+        d = await dev()
+        pr = next(c for c, st in d["students"].items() if st.get("group") == gid["Principianti"])
+        ag = next(c for c, st in d["students"].items() if st.get("group") == gid["Agonisti"])
+        assert any(t["note"] == "PROVA-PR" for t in d["students"][pr]["sched"])
+        assert not any(t["note"] == "PROVA-PR" for t in d["students"][ag]["sched"])
+        assert all(any(t["note"] == "PROVA-TUTTI" for t in st["sched"]) for st in d["students"].values()), "allenamento per tutti"
+        # profilo: descrizione e gruppo scelti dall'allenatrice
+        await pg.goto(B + f"#/coach/{ag}/profilo"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-profile]"); await pg.wait_for_timeout(150); await font16("profilo")
+        await pg.fill("textarea[name=bio]", "Descrizione di prova")
+        await pg.select_option("select[name=group]", label="Principianti"); await pg.click("text=Salva"); await pg.wait_for_timeout(250)
+        assert "Principianti" in await pg.locator(".profile").inner_text()
+        await pg.evaluate(f"localStorage.setItem('pg_my_code','{ag}')")
+        await pg.goto(B); await pg.wait_for_timeout(400)
+        txt = await pg.locator("main").inner_text()
+        assert "Descrizione di prova" in txt and "PROVA-PR" in txt and "PROVA-TUTTI" in txt, "l'alunno vede descrizione e allenamenti del nuovo gruppo"
+        # eliminare un gruppo: gli alunni restano senza gruppo e i suoi allenamenti spariscono anche dalle loro schede
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-edit-group]:has-text('Principianti')"); await pg.wait_for_timeout(150)
+        await pg.click("text=Elimina gruppo"); await pg.wait_for_timeout(300)
+        d = await dev()
+        assert not any(st.get("group") == gid["Principianti"] for st in d["students"].values())
+        assert not any(t["note"] == "PROVA-PR" for st in d["students"].values() for t in st["sched"])
+        assert await pg.locator(".trs li:has-text('PROVA-PR')").count() == 0
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
 
         # crea alunno, aggiungi elementi e esercizi
         await pg.click("[data-act=c-new]"); await pg.wait_for_timeout(100); await font16("nuovo alunno")
@@ -117,7 +168,7 @@ async def main():
         assert await pg.locator("#app.enter").count() == 0, "niente entrata animata a ogni aggiornamento"
 
         # backup / ripristino
-        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-settings]")
         async with pg.expect_download() as dl:
             await pg.click("text=Esporta backup")
@@ -150,10 +201,11 @@ async def main():
             .map(e => { const t = ((e.type === 'checkbox' || e.type === 'radio') && e.closest('label')) || e; return [e, t.getBoundingClientRect()]; })
             .filter(([e, r]) => r.width > 0 && (r.height < 43.5 || r.width < 43.5))
             .map(([e, r]) => e.className + ' ' + (e.textContent || '').trim().slice(0, 20) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height))"""
-        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(400)
-        small = await pg.evaluate(MIN); assert not small, ("elenco", small)
+        for view in ["", "/calendario", "/alunni"]:
+            await pg.goto(B + "#/coach" + view); await pg.wait_for_timeout(400)
+            small = await pg.evaluate(MIN); assert not small, (view, small)
         await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
-        for tab in ["Progressi", "Scheda", "Invito"]:
+        for tab in ["Profilo", "Progressi", "Scheda", "Invito"]:
             await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200)
             small = await pg.evaluate(MIN); assert not small, (tab, small)
         assert await pg.locator("nav.tabs a[aria-current=page]").count() == 1
@@ -185,9 +237,10 @@ async def main():
                 else: await pg.evaluate("document.documentElement.style.fontSize='200%'")
                 r = await pg.evaluate(OVER); assert not r["page"] and not r["bad"], (label, mode, r)
             await pg.evaluate(A11Y_OFF)
-        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300); await reflow("elenco")
+        for view in ["", "/calendario", "/alunni"]:
+            await pg.goto(B + "#/coach" + view); await pg.wait_for_timeout(300); await reflow(view or "home")
         await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
-        for tab in ["Progressi", "Scheda", "Invito"]:
+        for tab in ["Profilo", "Progressi", "Scheda", "Invito"]:
             await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200); await reflow(tab)
         await pg.click("nav.tabs >> text=Progressi"); await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(200); await reflow("pannello elementi")
         await pg.keyboard.press("Escape")
@@ -227,7 +280,7 @@ async def main():
         await pg.emulate_media(reduced_motion="no-preference")
 
         # rigenera esempi e uscita dalla modalità dev
-        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-settings]"); await pg.click("text=Rigenera alunni di esempio"); await pg.wait_for_timeout(300)
         assert await pg.locator(".students li").count() == 10
         await pg.click("[data-act=c-settings]"); await pg.click(".mi[data-act=a11y]"); await pg.wait_for_timeout(150)
@@ -248,7 +301,7 @@ async def main():
         await pg.route("https://www.gstatic.com/**", lambda r: r.abort())
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
-        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f4a6c8", "gli override colore dev non arrivano agli utenti"
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f7c4d9", "gli override colore dev non arrivano agli utenti"
 
         errs[n_err:] = [e for e in errs[n_err:] if "firebasejs" not in e and "net::ERR_FAILED" not in e]
         await pg.unroute("https://www.gstatic.com/**")
@@ -257,7 +310,7 @@ async def main():
         ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)
         p2 = await ctx2.new_page()
         p2.on("pageerror", lambda e: errs.append(str(e)))
-        await p2.goto(B + "?dev#/coach"); await p2.wait_for_timeout(700)
+        await p2.goto(B + "?dev#/coach/alunni"); await p2.wait_for_timeout(700)
         await p2.tap(".students li a >> nth=0"); await p2.wait_for_timeout(300)
         await p2.tap("nav.tabs >> text=Scheda"); await p2.wait_for_timeout(500)
         await p2.evaluate("document.querySelector('.plan').scrollIntoView({block: 'center'})"); await p2.wait_for_timeout(200)

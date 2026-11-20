@@ -8,7 +8,10 @@ Web app per il telefono (Android e iPhone). Si installa dal browser con "Aggiung
   - **Progressi**: elementi per categoria (Base, Passi e giri, Salti, Trottole, Altro), ognuno con stato *Da iniziare / In corso / Completato*, data e note.
   - **Scheda**: esercizi per il pattinaggio libero. Vede in tempo reale cosa ha spuntato l'alunno.
   - **Invito**: codice personale e pulsanti WhatsApp / Email / Copia link.
-- **Alunno**: apre il link ricevuto, oppure inserisce il codice. Vede solo la sua scheda e spunta gli esercizi.
+  - **Profilo**: soprannome, livello, gruppo e una breve descrizione facoltativa (la vede anche l'alunno).
+- La **Home** dell'allenatrice mostra quanti alunni ci sono, la media dei progressi, quanti hanno spuntato la scheda negli ultimi 7 giorni e i prossimi allenamenti.
+- Nel **Calendario** si creano i **gruppi** (es. "Sabato mattina") e gli **allenamenti** (data, ora, luogo, note), per tutti o per un gruppo. Nell'elenco **Alunni** si filtra per gruppo.
+- **Alunno**: apre il link ricevuto, oppure inserisce il codice. Vede solo la sua scheda, i suoi prossimi allenamenti e spunta gli esercizi.
 
 ## Cosa viene salvato (e cosa no)
 - Su Firebase (database in Europa) finiscono solo **soprannomi**, esercizi, progressi, note e spunte.
@@ -62,6 +65,7 @@ Il piano gratuito Spark non chiede carta di credito e non può generare costi.
 
 ### Aggiornamenti
 Per aggiornare l'app ricarica i file modificati su GitHub e aumenta il numero di versione in `sw.js` (es. `pattinaggio-v3`).
+Se cambia `firestore.rules`, incolla di nuovo tutto il file in **Firestore → Regole** e premi **Pubblica** (prima di pubblicare la nuova versione dell'app). Gruppi e allenamenti, per esempio, hanno bisogno della regola `meta`.
 
 ## Note
 - **iPhone**: l'allenatrice deve usare l'app dall'icona sulla Home. Safari, se un sito non viene aperto per giorni, può cancellare i dati salvati, e il telefono andrebbe riabilitato. Le app aggiunte alla Home non hanno questo problema.

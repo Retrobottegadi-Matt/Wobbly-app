@@ -1,5 +1,6 @@
 // Alunni di esempio per la modalità sviluppo (?dev). Dati inventati.
 import { lookup } from "./catalog.js";
+import { addDays } from "./sched.js";
 
 const NAMES = ["Giulia B.", "Marco", "Sofi", "Luca R.", "Emma", "Tommy", "Alice", "Nico", "Bea", "Leo"];
 const NOTES = ["", "", "Tenere la spalla ferma", "Più spinta in uscita", "Guardare avanti, non il ghiaccio",
@@ -57,4 +58,22 @@ export function sampleStudents(makeCode, makeId) {
     out[code] = { name, level: stuLevel, createdAt: now - (60 - i) * 86400000, progress, plan, checks, ...(checksAt ? { checksAt } : {}) };
   });
   return out;
+}
+
+// gruppi e allenamenti di esempio, con date relative a oggi (sempre "prossimi")
+export function sampleMeta(makeId) {
+  const groups = [["Agonisti"], ["Sabato mattina"], ["Principianti"]].map(([name]) => ({ id: makeId(), name }));
+  const [ag, sab, pr] = groups.map((g) => g.id);
+  const T = (d, time, group, place = "", note = "") => ({ id: makeId(), date: addDays(d), time, group, place, note });
+  return {
+    groups,
+    trainings: [
+      T(-3, "18:00", ag, "Palaghiaccio"),
+      T(1, "18:00", ag, "Palaghiaccio", "Portare i pattini da salto"),
+      T(2, "09:00", sab, "Palaghiaccio"),
+      T(4, "17:00", "", "Palaghiaccio", "Prova dei costumi per il saggio"),
+      T(5, "17:30", pr, "Pista piccola"),
+      T(9, "09:00", sab, "Palaghiaccio"),
+    ],
+  };
 }

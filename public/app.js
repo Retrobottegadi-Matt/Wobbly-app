@@ -5,6 +5,7 @@ import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
 import { initDrag, isDragging } from "./drag.js";
 import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
+import { localDate, addDays, parseDate, emptyMeta, normMeta, sortTrainings, groupName, schedFor, sameSched } from "./sched.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
 
@@ -17,12 +18,12 @@ const AV = ["--yellow", "--pink", "--lilac", "--sage", "--sky"];
 
 let be;
 let unsub = [];
-const S = { coach: null, students: [], student: null, reorder: false, q: "" };
+const S = { coach: null, students: [], student: null, reorder: false, q: "", gf: "", meta: emptyMeta(), metaErr: false };
 
 // ---------------------------------------------------------- utilità
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDate();
 const fmtDate = (d) => (d ? d.split("-").reverse().join("/") : "");
 function fmtWhen(ts) {
   if (!ts) return "";
@@ -33,6 +34,16 @@ function fmtWhen(ts) {
   if (d.toDateString() === y.toDateString()) return `ieri ${hm}`;
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" });
 }
+// "sab 23 nov" (con "Oggi"/"Domani" quando serve)
+function fmtDay(d, long = false) {
+  const dt = parseDate(d);
+  if (!dt) return "";
+  const rel = d === today() ? "Oggi" : d === addDays(1) ? "Domani" : "";
+  const txt = dt.toLocaleDateString("it-IT", long ? { weekday: "long", day: "numeric", month: "long" } : { weekday: "short", day: "numeric", month: "short" });
+  return rel ? `${rel} · ${txt}` : txt;
+}
+const dayNum = (d) => (parseDate(d) || new Date()).getDate();
+const monShort = (d) => (parseDate(d) || new Date()).toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
 // Avviso: un'unica regione "status" sempre presente (VoiceOver annuncia in modo affidabile solo le
 // regioni che esistono già). Ogni nuovo avviso sostituisce il precedente, niente avvisi sovrapposti.
 let $toast = null, toastTimer = 0, toastSet = 0;
@@ -98,6 +109,9 @@ const logo = (sm) => `<div class="logo${sm ? " sm" : ""}" aria-hidden="true">${i
 // il riscontro animato (.just) va solo sull'elemento appena toccato.
 let pendingFocus = null, flashSel = null, animateNext = false;
 function paint(html) {
+  // se arriva un secondo ridisegno di fila (es. alunni e allenamenti aggiornati insieme) il focus resta dov'era
+  const prev = !pendingFocus && $root.contains(document.activeElement) ? selOf(document.activeElement) : null;
+  if (prev) pendingFocus = prev;
   $root.innerHTML = html;
   delete $root.dataset.view;
   $root.classList.remove("enter");
@@ -150,15 +164,17 @@ async function main() {
 }
 
 let lastCode = null;
+const isCode = (x) => /^[A-Z0-9]{12}$/.test(x || "");
 function route() {
   clearSubs();
   closeSheet();
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (parts[1] !== lastCode) { S.reorder = false; lastCode = parts[1]; }
-  if (parts[0] !== "coach") S.q = "";
+  const code = parts[0] === "coach" && isCode(parts[1]) ? parts[1] : null;
+  if (code !== lastCode) { S.reorder = false; lastCode = code; }
+  if (parts[0] !== "coach") { S.q = ""; S.gf = ""; }
   animateNext = true;
   if (parts[0] === "design" && be.dev) return renderDesign($root);
-  if (parts[0] === "coach") routeCoach(parts[1], parts[2] || "progressi");
+  if (parts[0] === "coach") routeCoach(parts[1] || "home", parts[2] || "progressi");
   else routeStudent();
 }
 const loading = () => { $root.innerHTML = `<div class="center" role="status" aria-label="Caricamento"><div class="spinner"></div></div>`; };
@@ -215,9 +231,14 @@ function renderStudent() {
   const s = S.student;
   const plan = s.plan || [];
   const done = checksDone(s);
+  const next = (s.sched || []).filter((t) => t.date >= today()).slice(0, 4);
   paint(`${demoBanner()}
   <header class="top"><div class="grow"><small>Ciao${lvlOf(s) ? ` · livello ${LEVEL_LABEL[lvlOf(s)].toLowerCase()}` : ""}</small><h1>${esc(s.name)}</h1></div>
     <button class="icon" data-act="s-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
+  ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : ""}
+  ${next.length ? `<section class="card" aria-labelledby="hNext">
+    <div class="sec-h"><h2 id="hNext">Prossimi allenamenti</h2></div>
+    <ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul></section>` : ""}
 
   <section class="card" aria-labelledby="hScheda">
     <div class="sec-h"><h2 id="hScheda">La mia scheda</h2><span class="pill" aria-label="${done} su ${plan.length} fatti">${done}/${plan.length}</span></div>
@@ -314,24 +335,36 @@ const reorderBtn = (tab, on) => `<button class="btn ghost sm" data-act="c-reorde
 const lvlOf = (s) => normLevel(s.level);
 
 // ======================================================== ALLENATRICE
-function routeCoach(code, tab) {
-  let stu = null;
+function routeCoach(view, tab) {
+  let stu = null, met = null;
   loading();
-  unsub.push(() => stu && stu());
+  unsub.push(() => { stu && stu(); met && met(); });
   unsub.push(be.onCoachAuth((u) => {
     S.coach = u;
     if (stu) { stu(); stu = null; }
+    if (met) { met(); met = null; }
     if (!u || !u.isCoach) return renderCoachLogin(u);
     loading();
+    let gotS = false, gotM = false;
+    const draw = () => { if (gotS && gotM) renderCoach(view, tab); };
     stu = be.watchStudents((list) => {
       S.students = list.sort((a, b) => a.name.localeCompare(b.name, "it"));
-      code ? renderCoachStudent(code, tab) : renderCoachList();
+      gotS = true; draw();
     }, (e) => {
       console.error(e);
       $root.innerHTML = `<div class="center"><p>Accesso negato o errore di rete.</p>
         <button class="btn" onclick="location.reload()">Riprova</button></div>`;
     });
+    // gruppi e allenamenti: se la regola del database non è ancora aggiornata, il resto funziona lo stesso
+    met = be.watchMeta((m) => { S.meta = normMeta(m); S.metaErr = false; gotM = true; draw(); },
+      (e) => { console.warn(e); S.meta = emptyMeta(); S.metaErr = true; gotM = true; draw(); });
   }));
+}
+function renderCoach(view, tab) {
+  if (isCode(view)) return renderCoachStudent(view, tab);
+  if (view === "alunni") return renderCoachList();
+  if (view === "calendario") return renderCoachCal();
+  return renderCoachHome();
 }
 
 function renderCoachLogin(u) {
@@ -365,22 +398,83 @@ function renderCoachLogin(u) {
   };
 }
 
-const norm = (t) => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+// ---------------------------------------------------------- parti comuni dell'area allenatrice
+const coachTop = (title, sub) => `<header class="top"><div class="grow"><small>${sub}</small><h1>${title}</h1></div>
+    <button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button></header>`;
+// barra in basso: Home / Alunni / Calendario
+const bnav = (on) => `<nav class="bnav" aria-label="Sezioni">${[["", "home", "Home"], ["alunni", "users", "Alunni"], ["calendario", "calendar", "Calendario"]]
+  .map(([k, ic, l]) => `<a href="#/coach${k ? `/${k}` : ""}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></a>`).join("")}</nav>`;
+const metaWarn = () => S.metaErr ? `<div class="card warn" role="note"><b>Gruppi e allenamenti non disponibili.</b>
+  <p class="small">Va aggiornata la regola di sicurezza del database (Firestore → Regole): vedi la guida.</p></div>` : "";
+const upcoming = () => sortTrainings(S.meta.trainings.filter((t) => t.date >= today()));
+const whoOf = (t) => (t.group ? groupName(S.meta, t.group) || "Gruppo eliminato" : "Tutti");
+const inGroup = (id) => S.students.filter((s) => (s.group || "") === id).length;
+const nAlunni = (n) => (n === 1 ? "1 alunno" : `${n} alunni`);
+
+// riga di un allenamento; con act diventa un pulsante che apre la modifica
+function trRow(t, who, act) {
+  const inner = `<span class="date" aria-hidden="true"><b>${dayNum(t.date)}</b><small>${monShort(t.date)}</small></span>
+    <span class="txt"><b>${fmtDay(t.date)}${t.time ? ` · ${esc(t.time)}` : ""}</b>
+      <small>${esc(who)}${t.place ? ` · ${esc(t.place)}` : ""}</small>${t.note ? `<small class="note">${esc(t.note)}</small>` : ""}</span>`;
+  return act ? `<li><button class="tr" data-act="${act}" data-id="${t.id}">${inner}<span class="sr">Tocca per modificare</span>${icon("chevron", "chev")}</button></li>`
+    : `<li><div class="tr">${inner}</div></li>`;
+}
+
+// ---------------------------------------------------------- Home (dashboard)
+function renderCoachHome() {
+  const list = S.students, n = list.length;
+  const avg = n ? Math.round(list.reduce((a, s) => a + pct(s), 0) / n) : 0;
+  const since = Date.now() - 7 * 86400000;
+  const active = list.filter((s) => (s.checksAt || 0) >= since && checksDone(s) > 0).length;
+  const next = upcoming().slice(0, 3);
+  const g = S.meta.groups, none = inGroup("");
+  paint(`${demoBanner()}
+  ${coachTop("Ciao!", "Allenatrice")}
+  ${metaWarn()}
+  <section aria-labelledby="hNum"><h2 class="sr" id="hNum">In sintesi</h2>
+    <ul class="stats">
+      <li class="stat"><b>${n}</b><span>${n === 1 ? "alunno" : "alunni"}</span></li>
+      <li class="stat"><b>${n ? `${avg}%` : "–"}</b><span>progressi completati, in media</span></li>
+      <li class="stat"><b>${active}<small>/${n}</small></b><span>schede spuntate negli ultimi 7 giorni</span></li>
+    </ul></section>
+  <section class="card" aria-labelledby="hNext">
+    <div class="sec-h"><h2 id="hNext">Prossimi allenamenti</h2>${next.length ? `<a class="more" href="#/coach/calendario">Tutti</a>` : ""}</div>
+    ${next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>` : `<p class="muted">Nessun allenamento in programma.</p>`}
+    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}
+  </section>
+  <section class="card" aria-labelledby="hGr">
+    <div class="sec-h"><h2 id="hGr">Gruppi</h2></div>
+    ${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-open-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}
+      ${none ? `<li><button class="mi" data-act="c-open-group" data-id="none">${icon("user")}<span>Senza gruppo</span><small class="cnt">${nAlunni(none)}</small>${icon("chevron", "chev")}</button></li>` : ""}</ul>`
+      : `<p class="muted">Nessun gruppo. Li crei dal Calendario: servono a filtrare gli alunni e a programmare allenamenti solo per alcuni.</p>`}
+  </section>
+  ${bnav("")}`);
+}
+
+// ---------------------------------------------------------- Alunni (elenco con gruppi e ricerca)
+const norm = (t) => String(t).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const SEARCH_MIN = 6; // la ricerca compare da 6 alunni in su
+const byGroup = (s) => !S.gf || (S.gf === "none" ? !s.group : s.group === S.gf);
+const shownStudents = () => { const q = norm(S.q); return S.students.filter((s) => byGroup(s) && (!q || norm(s.name).includes(q))); };
+
+function gfChips() {
+  if (!S.meta.groups.length) return "";
+  const opts = [["", "Tutti"], ...S.meta.groups.map((g) => [g.id, g.name]), ...(inGroup("") ? [["none", "Senza gruppo"]] : [])];
+  return opts.map(([k, l]) => `<button class="chip f" data-act="c-gf" data-id="${k || "all"}" aria-pressed="${S.gf === k}">${esc(l)}</button>`).join("");
+}
 
 function studentRows() {
-  const list = S.students;
-  if (!list.length) return `<div class="card"><p class="muted">Nessun alunno. Tocca “Nuovo alunno” per crearne uno e mandargli l'invito.</p></div>`;
-  const q = norm(S.q);
-  const shown = q ? list.filter((s) => norm(s.name).includes(q)) : list;
-  if (!shown.length) return `<div class="card"><p class="muted">Nessun alunno corrisponde a “${esc(S.q)}”.</p></div>`;
+  if (!S.students.length) return `<div class="card"><p class="muted">Nessun alunno. Tocca “Nuovo alunno” per crearne uno e mandargli l'invito.</p></div>`;
+  const shown = shownStudents();
+  if (!shown.length) return `<div class="card"><p class="muted">${S.q ? `Nessun alunno corrisponde a “${esc(S.q)}”.` : "Nessun alunno in questo gruppo."}</p></div>`;
   return `<ul class="students">${shown.map((s) => {
-      const done = checksDone(s), tot = (s.plan || []).length;
+      const done = checksDone(s), tot = (s.plan || []).length, gn = groupName(S.meta, s.group);
       return `<li><a href="#/coach/${s.code}" class="card stu">
         <span class="av" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
         <span class="stu-main"><span class="row"><b>${esc(s.name)}</b><span class="pill">${pct(s)}%</span></span>
         ${progressBar(s)}
-        <small class="muted">${lvlOf(s) ? `${LEVEL_LABEL[lvlOf(s)]} · ` : ""}Scheda: ${done}/${tot} spuntati${s.checksAt && done ? ` · ${fmtWhen(s.checksAt)}` : ""}</small></span>
+        <small class="muted">${[lvlOf(s) ? LEVEL_LABEL[lvlOf(s)] : "", gn ? esc(gn) : ""].filter(Boolean).join(" · ")}</small>
+        <small class="muted">Scheda: ${done}/${tot} spuntati${s.checksAt && done ? ` · ${fmtWhen(s.checksAt)}` : ""}</small></span>
       </a></li>`;
     }).join("")}</ul>`;
 }
@@ -391,47 +485,85 @@ function announceCount() {
   countTimer = setTimeout(() => {
     const el = document.getElementById("stuCount");
     if (!el) return;
-    const q = norm(S.q), n = q ? S.students.filter((s) => norm(s.name).includes(q)).length : S.students.length;
-    el.textContent = !q ? "" : n === 0 ? "Nessun alunno trovato" : n === 1 ? "1 alunno trovato" : `${n} alunni trovati`;
+    const n = shownStudents().length;
+    el.textContent = !S.q && !S.gf ? "" : n === 0 ? "Nessun alunno trovato" : n === 1 ? "1 alunno trovato" : `${n} alunni trovati`;
   }, 400); // aspetta una pausa nella digitazione, così VoiceOver non legge ogni tasto
+}
+// aggiorna solo filtri e righe: il campo di ricerca non perde testo e focus
+function refreshList() {
+  $root.classList.remove("enter"); // le righe filtrate non rifanno l'animazione d'entrata
+  const gf = document.getElementById("gfBox");
+  if (gf) gf.innerHTML = gfChips();
+  document.getElementById("stuList").innerHTML = studentRows();
+  const c = document.getElementById("stuTot");
+  if (c) c.textContent = S.students.length;
 }
 
 function renderCoachList() {
-  // già sull'elenco (es. dati aggiornati mentre si scrive nella ricerca): aggiorna solo le righe,
-  // così il campo non perde testo e focus
-  const box = document.getElementById("stuList");
-  if (box && $root.dataset.view === "list" && !animateNext) { $root.classList.remove("enter"); box.innerHTML = studentRows(); return; }
+  if (document.getElementById("stuList") && $root.dataset.view === "list" && !animateNext) return refreshList();
   paint(`${demoBanner()}
-  <header class="top"><div class="grow"><small>Allenatrice</small><h1>I miei alunni</h1></div>
-    <button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
+  ${coachTop(`Alunni <span class="pill" id="stuTot">${S.students.length}</span>`, "Allenatrice")}
+  ${S.meta.groups.length ? `<div class="chips gf" id="gfBox" role="group" aria-label="Filtra per gruppo">${gfChips()}</div>` : ""}
   ${S.students.length >= SEARCH_MIN ? `<div class="search" role="search">
     <label for="stuSearch" class="sr">Cerca alunno</label>${icon("search")}
     <input id="stuSearch" type="search" placeholder="Cerca alunno" autocomplete="off" autocorrect="off" spellcheck="false"
-      enterkeyhint="search" value="${esc(S.q)}" aria-describedby="stuCount"></div>
-    <p id="stuCount" class="sr" aria-live="polite"></p>` : ""}
+      enterkeyhint="search" value="${esc(S.q)}" aria-describedby="stuCount"></div>` : ""}
+  <p id="stuCount" class="sr" aria-live="polite"></p>
   <div id="stuList">${studentRows()}</div>
-  <button class="fab" data-act="c-new">${icon("plus")} Nuovo alunno</button>`);
+  <button class="fab" data-act="c-new">${icon("plus")} Nuovo alunno</button>
+  ${bnav("alunni")}`);
   $root.dataset.view = "list";
   const inp = document.getElementById("stuSearch");
   if (inp) {
-    inp.oninput = () => {
-      S.q = inp.value;
-      $root.classList.remove("enter"); // le righe filtrate non rifanno l'animazione d'entrata
-      document.getElementById("stuList").innerHTML = studentRows();
-      announceCount();
-    };
+    inp.oninput = () => { S.q = inp.value; refreshList(); announceCount(); };
     inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } };
   }
+}
+
+// ---------------------------------------------------------- Calendario (allenamenti e gruppi)
+function renderCoachCal() {
+  const up = upcoming(), past = sortTrainings(S.meta.trainings.filter((t) => t.date < today())).reverse().slice(0, 20);
+  const g = S.meta.groups;
+  paint(`${demoBanner()}
+  ${coachTop("Calendario", "Allenatrice")}
+  ${metaWarn()}
+  <section class="card" aria-labelledby="hUp">
+    <div class="sec-h"><h2 id="hUp">Prossimi allenamenti</h2></div>
+    ${up.length ? `<ul class="trs">${up.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
+      : `<p class="muted">Nessun allenamento in programma. Ogni alunno vede nella sua scheda quelli per tutti e quelli del suo gruppo.</p>`}
+    ${past.length ? `<details class="past"><summary>Allenamenti passati (${past.length})</summary>
+      <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}
+  </section>
+  <section class="card" aria-labelledby="hGroups">
+    <div class="sec-h"><h2 id="hGroups">Gruppi</h2></div>
+    <p class="muted small">Servono a filtrare l'elenco alunni e a programmare allenamenti solo per alcuni.</p>
+    ${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>` : ""}
+    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}
+  </section>
+  ${S.metaErr ? "" : `<button class="fab" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}
+  ${bnav("calendario")}`);
 }
 
 function renderCoachStudent(code, tab) {
   // niente ridisegno a metà trascinamento: si fa appena l'elemento viene lasciato
   if (isDragging()) { S.pendingRender = () => renderCoachStudent(code, tab); return; }
   const s = findStudent(code);
-  if (!s) { go("#/coach"); return; }
-  const tabs = [["progressi", "Progressi"], ["scheda", "Scheda"], ["invito", "Invito"]];
+  if (!s) { go("#/coach/alunni"); return; }
+  const tabs = [["profilo", "Profilo"], ["progressi", "Progressi"], ["scheda", "Scheda"], ["invito", "Invito"]];
   let body = "";
-  if (tab === "progressi") {
+  if (tab === "profilo") {
+    const gn = groupName(S.meta, s.group), next = schedFor(S.meta, s).slice(0, 3);
+    body = `<section class="card profile" aria-labelledby="hTab">
+      <div class="prof-h"><span class="av lg" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
+        <div class="grow"><h2 id="hTab">${esc(s.name)}</h2>
+        <small>${LEVEL_LABEL[lvlOf(s) || "base"]} · ${gn ? esc(gn) : "Nessun gruppo"}</small></div></div>
+      ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : `<p class="muted">Nessuna descrizione.</p>`}
+      <button class="btn wide" data-act="c-profile">${icon("edit")} Modifica profilo</button>
+    </section>
+    <section class="card" aria-labelledby="hSn"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
+      ${next.length ? `<ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul>`
+        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`;
+  } else if (tab === "progressi") {
     const n = (s.progress || []).length, ro = S.reorder === "progressi" && n > 1;
     body = `<section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Elementi tecnici</h2>
       <div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine dentro ogni gruppo."
@@ -467,7 +599,6 @@ function renderCoachStudent(code, tab) {
     <section class="card" aria-labelledby="hGest">
       <h2 class="h3" id="hGest">Gestione</h2>
       <ul class="menu">
-        <li><button class="mi" data-act="c-rename">${icon("edit")}<span>Modifica nome e livello</span>${icon("chevron", "chev")}</button></li>
         <li><button class="mi" data-act="c-regen" aria-describedby="regenHelp">${icon("refresh")}<span>Genera un nuovo codice</span>${icon("chevron", "chev")}</button>
           <small id="regenHelp" class="mi-help">Il vecchio codice smette di funzionare: utile se è finito in mani sbagliate.</small></li>
       </ul>
@@ -475,7 +606,7 @@ function renderCoachStudent(code, tab) {
     </section>`;
   }
   paint(`${demoBanner()}
-  <header class="top"><a href="#/coach" class="icon" aria-label="Torna all'elenco alunni">${icon("back")}</a>
+  <header class="top"><a href="#/coach/alunni" class="icon" aria-label="Torna all'elenco alunni">${icon("back")}</a>
     <div class="grow"><small>Alunno${lvlOf(s) ? ` · ${LEVEL_LABEL[lvlOf(s)]}` : ""}</small><h1>${esc(s.name)}</h1></div></header>
   <nav class="tabs" aria-label="Sezioni alunno">${tabs.map(([k, l]) => `<a href="#/coach/${code}/${k}" class="${k === tab ? "on" : ""}"${k === tab ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
   ${body}`);
@@ -647,7 +778,7 @@ const ACTIONS = {
       <div class="sheet-btns"><button type="button" class="btn" data-act="close">Fatto</button></div>` });
   },
   "c-export"() {
-    const data = { app: "pattinaggio", version: 1, exportedAt: new Date().toISOString(),
+    const data = { app: "pattinaggio", version: 2, exportedAt: new Date().toISOString(), meta: S.meta,
       students: S.students.map(({ code, ...rest }) => ({ code, ...rest })) };
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
@@ -665,11 +796,14 @@ const ACTIONS = {
     openSheet({ title: "Nuovo alunno", focus: "input", body: `
       <label>Soprannome<input name="name" required maxlength="40" placeholder="Es. Giulia B." aria-describedby="nameHelp"></label>
       ${levelSeg("base")}
+      ${groupSelect(S.gf && S.gf !== "none" ? S.gf : "")}
       <p class="muted small" id="nameHelp">Usa solo un nome o un soprannome: niente cognome, email o telefono.
       L'invito lo mandi tu da WhatsApp o email, l'app non salva contatti.</p>
       ${sheetBtns("Crea")}`,
     onSubmit: async (fd) => {
-      const code = await be.createStudent(fd.get("name").trim(), normLevel(fd.get("level")) || "base");
+      const group = validGroup(fd.get("group"));
+      const code = await be.createStudent(fd.get("name").trim(), normLevel(fd.get("level")) || "base",
+        { group, bio: "", sched: schedFor(S.meta, { group }) });
       go(`#/coach/${code}/invito`);
     } });
   },
@@ -796,12 +930,37 @@ const ACTIONS = {
     const s = cur();
     try { await navigator.share({ title: "Scheda pattinaggio", text: inviteMsg(s) }); } catch {}
   },
-  "c-rename"() {
+  // filtro per gruppo nell'elenco: aggiorna solo filtri e righe, il focus resta sul filtro toccato
+  "c-gf"(el) {
+    const id = el.dataset.id;
+    S.gf = id === "all" ? "" : id;
+    refreshList(); announceCount();
+    const b = $root.querySelector(`[data-act="c-gf"][data-id="${id}"]`);
+    if (b) restoreFocus(b);
+  },
+  "c-open-group"(el) { S.gf = el.dataset.id; S.q = ""; go("#/coach/alunni"); },
+  "c-new-tr"() { trainingSheet(null); },
+  "c-edit-tr"(el) { trainingSheet(S.meta.trainings.find((t) => t.id === el.dataset.id)); },
+  "c-new-group"() { groupSheet(null); },
+  "c-edit-group"(el) { groupSheet(S.meta.groups.find((g) => g.id === el.dataset.id)); },
+  "c-profile"() {
     const s = cur();
-    openSheet({ title: "Nome e livello", focus: "input",
-      body: `<label>Soprannome<input name="name" required maxlength="40" value="${esc(s.name)}"></label>
-        ${levelSeg(lvlOf(s) || "base")}${sheetBtns("Salva")}`,
-      onSubmit: (fd) => be.updateStudent(s.code, { name: fd.get("name").trim(), level: normLevel(fd.get("level")) || "base" }) });
+    openSheet({ title: "Profilo", body: `
+      <label>Soprannome<input name="name" required maxlength="40" value="${esc(s.name)}"></label>
+      ${levelSeg(lvlOf(s) || "base")}
+      ${groupSelect(s.group || "")}
+      <label>Descrizione (facoltativa)<textarea name="bio" rows="3" maxlength="200" aria-describedby="bioHelp"
+        placeholder="Es. Punta al test di livello a primavera">${esc(s.bio)}</textarea></label>
+      <p class="muted small" id="bioHelp">La vede anche l'alunno. Niente cognomi, contatti o informazioni sulla salute.</p>
+      ${sheetBtns("Salva")}`,
+    onSubmit: async (fd) => {
+      const s2 = cur(), group = validGroup(fd.get("group"));
+      const patch = { name: fd.get("name").trim(), level: normLevel(fd.get("level")) || "base", group, bio: fd.get("bio").trim() };
+      const sched = schedFor(S.meta, { ...s2, group });
+      if (!sameSched(sched, s2.sched)) patch.sched = sched;
+      await be.updateStudent(s2.code, patch);
+      toast("Profilo salvato");
+    } });
   },
   async "c-regen"() {
     const s = cur();
@@ -814,7 +973,7 @@ const ACTIONS = {
     const s = cur();
     if (!confirm(`Eliminare ${s.name} e tutti i suoi dati? Non si può annullare.`)) return;
     await be.deleteStudent(s.code);
-    go("#/coach");
+    go("#/coach/alunni");
   },
 };
 
@@ -826,8 +985,17 @@ async function importBackup(e) {
     if (data.app !== "pattinaggio" || !Array.isArray(data.students)) throw new Error("formato");
     const existing = new Set(S.students.map((s) => s.code));
     const toAdd = data.students.filter((s) => s.code && !existing.has(s.code));
-    if (!confirm(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora. Ripristinarli?`)) return;
-    for (const { code, ...rest } of toAdd) await be.restoreStudent(code, rest);
+    // gruppi e allenamenti (backup dalla versione 2): solo se qui non ce ne sono ancora
+    const bm = normMeta(data.meta), useMeta = !S.metaErr && (bm.groups.length || bm.trainings.length) && !S.meta.groups.length && !S.meta.trainings.length;
+    if (!confirm(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""} Ripristinarli?`)) return;
+    const meta = useMeta ? bm : S.meta;
+    if (useMeta) { await be.saveMeta(meta); S.meta = meta; }
+    const okGroup = (g) => (meta.groups.some((x) => x.id === g) ? g : "");
+    for (const { code, ...rest } of toAdd) {
+      const st = { ...rest, group: okGroup(rest.group) };
+      await be.restoreStudent(code, { ...st, sched: schedFor(meta, st) });
+    }
+    if (useMeta) await syncSched(meta); // alunni già presenti che erano nei gruppi del backup
     closeSheet();
     toast(toAdd.length === 1 ? "1 alunno ripristinato" : `${toAdd.length} alunni ripristinati`);
   } catch (err) {
@@ -840,6 +1008,87 @@ function inviteMsg(s) {
   return `Ciao ${s.name}! ⛸️ Ecco la tua scheda di pattinaggio:\n${inviteLink(s.code)}\n\n` +
     `Se ti chiede un codice: ${fmtCode(s.code)}\n` +
     `Consiglio: aprila e aggiungila alla schermata Home del telefono.`;
+}
+
+// ---------------------------------------------------------- gruppi e allenamenti
+const validGroup = (g) => (S.meta.groups.some((x) => x.id === g) ? g : "");
+const groupSelect = (curG) => S.meta.groups.length ? `<label>Gruppo<select name="group">
+  <option value="">Nessun gruppo</option>${S.meta.groups.map((g) => `<option value="${g.id}" ${g.id === curG ? "selected" : ""}>${esc(g.name)}</option>`).join("")}
+  </select></label>` : "";
+
+// aggiorna la copia degli allenamenti nel documento di ogni alunno (solo dove cambia, in un'unica scrittura).
+// extra: modifiche da applicare insieme, { codice: { group: "" } }.
+// Si chiama solo dopo un'azione dell'allenatrice, mai da un aggiornamento dei dati (niente cicli).
+async function syncSched(meta, extra = {}) {
+  const list = [];
+  for (const s of S.students) {
+    const patch = { ...(extra[s.code] || {}) };
+    const sched = schedFor(meta, { ...s, ...patch });
+    if (!sameSched(sched, s.sched)) patch.sched = sched;
+    if (Object.keys(patch).length) list.push([s.code, patch]);
+  }
+  if (list.length) await be.updateMany(list);
+  return list.length;
+}
+async function saveMeta(meta, extra) {
+  await be.saveMeta(meta);
+  S.meta = meta;
+  return syncSched(meta, extra);
+}
+// gli allenamenti passati da più di 60 giorni si tolgono, così il documento resta piccolo
+const pruneOld = (list) => list.filter((t) => t.date >= addDays(-60));
+
+function trainingSheet(t) {
+  if (t === undefined) return;
+  openSheet({ title: t ? "Modifica allenamento" : "Nuovo allenamento", body: `
+    <div class="two"><label>Data<input type="date" name="date" required value="${esc(t ? t.date : addDays(1))}"></label>
+      <label>Ora<input type="time" name="time" value="${esc(t ? t.time : "")}"></label></div>
+    <label>Per chi<select name="group"><option value="">Tutti gli alunni</option>
+      ${S.meta.groups.map((g) => `<option value="${g.id}" ${t && t.group === g.id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select></label>
+    <label>Luogo (facoltativo)<input name="place" maxlength="60" value="${esc(t && t.place)}" placeholder="Es. Palaghiaccio"></label>
+    <label>Note (facoltative)<input name="note" maxlength="120" value="${esc(t && t.note)}" placeholder="Es. Portare i pattini da salto"></label>
+    <p class="muted small">Gli alunni del gruppo vedono data, ora, luogo e note nella loro scheda.</p>
+    ${sheetBtns("Salva")}
+    ${t ? delBtn("Elimina allenamento") : ""}`,
+  onSubmit: async (fd, sub) => {
+    const all = S.meta.trainings;
+    if (sub && sub.name === "del") {
+      if (!confirm("Eliminare questo allenamento?")) return false;
+      await saveMeta({ ...S.meta, trainings: all.filter((x) => x.id !== t.id) });
+      return toast("Allenamento eliminato");
+    }
+    const date = fd.get("date");
+    if (!parseDate(date)) { toast("Scegli una data"); return false; }
+    const item = { id: t ? t.id : newId(), date, time: fd.get("time") || "", group: validGroup(fd.get("group")),
+      place: fd.get("place").trim(), note: fd.get("note").trim() };
+    await saveMeta({ ...S.meta, trainings: pruneOld(t ? all.map((x) => (x.id === t.id ? item : x)) : [...all, item]) });
+    toast(t ? "Allenamento aggiornato" : "Allenamento aggiunto");
+  } });
+}
+
+function groupSheet(g) {
+  if (g === undefined) return;
+  const n = g ? inGroup(g.id) : 0;
+  openSheet({ title: g ? "Modifica gruppo" : "Nuovo gruppo", focus: g ? "title" : "input", body: `
+    <label>Nome del gruppo<input name="name" required maxlength="30" value="${esc(g && g.name)}" placeholder="Es. Sabato mattina"></label>
+    ${g ? `<p class="muted small">${nAlunni(n)} in questo gruppo. Il gruppo di un alunno si sceglie nel suo Profilo.</p>`
+      : `<p class="muted small">Dopo, scegli il gruppo nel Profilo di ogni alunno.</p>`}
+    ${sheetBtns("Salva")}
+    ${g ? delBtn("Elimina gruppo") : ""}`,
+  onSubmit: async (fd, sub) => {
+    if (sub && sub.name === "del") {
+      if (!confirm(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`)) return false;
+      const extra = Object.fromEntries(S.students.filter((s) => s.group === g.id).map((s) => [s.code, { group: "" }]));
+      if (S.gf === g.id) S.gf = "";
+      await saveMeta({ groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
+      return toast("Gruppo eliminato");
+    }
+    const name = fd.get("name").trim();
+    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) { toast("Esiste già un gruppo con questo nome"); return false; }
+    const groups = g ? S.meta.groups.map((x) => (x.id === g.id ? { ...x, name } : x)) : [...S.meta.groups, { id: newId(), name }];
+    await saveMeta({ ...S.meta, groups });
+    toast(g ? "Gruppo rinominato" : "Gruppo creato");
+  } });
 }
 
 function exerciseSheet(x) {

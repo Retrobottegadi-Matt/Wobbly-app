@@ -1,5 +1,6 @@
 // Livello dati: Firebase (reale) oppure localStorage (demo / sviluppo).
-import { sampleStudents } from "./samples.js";
+import { sampleStudents, sampleMeta } from "./samples.js";
+import { schedFor } from "./sched.js";
 const ALPH = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // niente 0/O, 1/I/L
 export const CODE_LEN = 12;
 
@@ -76,6 +77,19 @@ async function firebaseBackend(cfg) {
       try { await fs.deleteDoc(fs.doc(db, "transfers", t)); } catch {}
     },
     removeDevice: () => fs.deleteDoc(fs.doc(db, "coaches", auth.currentUser.uid)),
+    // gruppi e allenamenti: un solo documento, letto e scritto solo dall'allenatrice
+    watchMeta(cb, err) {
+      return fs.onSnapshot(fs.doc(db, "meta", "coach"), (d) => cb(d.exists() ? d.data() : null), err);
+    },
+    saveMeta: (m) => fs.setDoc(fs.doc(db, "meta", "coach"), m),
+    // più alunni in un'unica scrittura atomica (max 500 per batch)
+    async updateMany(list) {
+      for (let i = 0; i < list.length; i += 450) {
+        const b = fs.writeBatch(db);
+        list.slice(i, i + 450).forEach(([code, patch]) => b.update(ref(code), patch));
+        await b.commit();
+      }
+    },
     restoreStudent: (code, data) => fs.setDoc(ref(code), data),
     watchStudents(cb, err) {
       return fs.onSnapshot(col, (s) => cb(s.docs.map((d) => ({ code: d.id, ...d.data() }))), err);
@@ -85,9 +99,9 @@ async function firebaseBackend(cfg) {
         (d) => cb(d.exists() ? { code: d.id, ...d.data() } : null, { fromCache: d.metadata.fromCache }),
         err);
     },
-    async createStudent(name, level = "base") {
+    async createStudent(name, level = "base", extra = {}) {
       const code = newCode();
-      await fs.setDoc(ref(code), { name, level, progress: [], plan: [], checks: {}, createdAt: Date.now() });
+      await fs.setDoc(ref(code), { name, level, ...extra, progress: [], plan: [], checks: {}, createdAt: Date.now() });
       return code;
     },
     updateStudent: (code, patch) => fs.updateDoc(ref(code), patch),
@@ -125,13 +139,25 @@ function demoBackend(KEY, dev) {
   window.addEventListener("storage", (e) => { if (e.key === KEY) { data = load(); emit(); } });
   const sub = (f) => { subs.add(f); f(); return () => subs.delete(f); };
 
+  // esempi: gruppi e allenamenti (date relative a oggi), alunni distribuiti nei gruppi
+  const seedMeta = () => {
+    data.meta = sampleMeta(newId);
+    Object.values(data.students).forEach((st, i) => {
+      if (st.group === undefined) st.group = i % 4 === 3 ? "" : data.meta.groups[i % 4].id;
+      if (st.bio === undefined) st.bio = ["Punta al test di livello a primavera.", "", "Gareggia nella categoria esordienti.", ""][i % 4];
+      st.sched = schedFor(data.meta, st);
+    });
+  };
   const seed = () => {
     data = { students: sampleStudents(newCode, newId) };
+    if (dev) seedMeta();
     localStorage.setItem(KEY, JSON.stringify(data));
   };
   if (!Object.keys(data.students).length) {
     seed();
     if (dev) localStorage.setItem(KEY + "_coach", JSON.stringify({ uid: "dev" }));
+  } else if (dev && !data.meta) {
+    seedMeta(); localStorage.setItem(KEY, JSON.stringify(data)); // dati di sviluppo creati prima dei gruppi
   }
 
   let coach = JSON.parse(localStorage.getItem(KEY + "_coach") || "null");
@@ -156,6 +182,13 @@ function demoBackend(KEY, dev) {
     async createTransfer() { return "DEMOTRASFER1"; },
     async redeemTransfer() { setCoach({ uid: "demo" }); },
     async removeDevice() { setCoach(null); },
+    // come Firestore: avvisa solo quando gruppi o allenamenti cambiano davvero
+    watchMeta(cb) {
+      let last;
+      return sub(() => { const j = JSON.stringify(data.meta || null); if (j !== last) { last = j; cb(data.meta ? clone(data.meta) : null); } });
+    },
+    async saveMeta(m) { data.meta = clone(m); save(); },
+    async updateMany(list) { list.forEach(([code, patch]) => { if (S(code)) Object.assign(S(code), clone(patch)); }); save(); },
     async restoreStudent(code, d) { data.students[code] = clone(d); save(); },
     watchStudents(cb) {
       return sub(() => cb(Object.entries(data.students).map(([code, s]) => ({ code, ...clone(s) }))));
@@ -163,9 +196,9 @@ function demoBackend(KEY, dev) {
     watchStudent(code, cb) {
       return sub(() => { const s = S(code); cb(s ? { code, ...clone(s) } : null, { fromCache: false }); });
     },
-    async createStudent(name, level = "base") {
+    async createStudent(name, level = "base", extra = {}) {
       const code = newCode();
-      data.students[code] = { name, level, progress: [], plan: [], checks: {}, createdAt: Date.now() };
+      data.students[code] = { name, level, ...clone(extra), progress: [], plan: [], checks: {}, createdAt: Date.now() };
       save();
       return code;
     },

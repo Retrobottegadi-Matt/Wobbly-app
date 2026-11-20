@@ -38,6 +38,11 @@ service cloud.firestore {
              > request.time - duration.value(15, 'm');
     }
 
+    // gruppi e allenamenti: solo l'allenatrice (gli alunni ricevono una copia nel proprio documento)
+    match /meta/{d} {
+      allow read, write: if isCoach();
+    }
+
     match /transfers/{t} {
       allow create: if isCoach() && t.size() == 12
         && request.resource.data.by == request.auth.uid

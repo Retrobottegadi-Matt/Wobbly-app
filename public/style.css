@@ -235,7 +235,7 @@ h4.cat { margin-top: .7rem; }
   color: var(--on-pastel); border-radius: var(--r); padding: 1rem; margin: .5rem 0; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr)); gap: 0 .5rem; }
 
-#sheet { position: fixed; inset: 0; z-index: 10; }
+#sheet { position: fixed; inset: 0 0 calc(0px - var(--vgap, 0px)) 0; z-index: 10; }
 .sheet-bg { position: absolute; inset: 0; background: rgba(29,27,25,.45); }
 .sheet-panel { position: absolute; left: 0; right: 0; bottom: 0; max-width: 40rem; margin: 0 auto; background: var(--bg);
   border-radius: var(--r-lg) var(--r-lg) 0 0; padding: 1.25rem 1rem calc(env(safe-area-inset-bottom) + 1rem); max-height: 88vh;
@@ -324,7 +324,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 
 /* ---- barra flottante in basso (come la tab bar di iOS): navigazione + azione principale ---- */
-.dock { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + .6rem); z-index: 8; display: flex; justify-content: center;
+.dock { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + .6rem - var(--vgap, 0px)); z-index: 8; display: flex; justify-content: center;
   align-items: center; gap: .6rem; padding: 0 1rem; pointer-events: none; }
 .dock > * { pointer-events: auto; }
 .bnav { flex: 0 1 22rem; min-width: 0; display: flex; gap: .15rem; padding: .3rem; border-radius: var(--r-pill);

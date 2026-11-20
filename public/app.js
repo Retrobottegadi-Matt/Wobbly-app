@@ -186,7 +186,13 @@ function routeStudent(view) {
   if (!code) {
     // telefono dell'allenatrice: dall'icona sulla Home si apre l'app senza passare dalla schermata del codice
     if (localStorage.getItem(LS_ROLE) === "coach" && !be.dev) { location.replace("#/coach"); return; }
-    return renderCodeEntry();
+    renderCodeEntry();
+    // telefono dell'allenatrice abilitato prima che l'app se lo ricordasse: lo riconosce e va all'area allenatrice
+    be.isCoachDevice().then((yes) => {
+      if (!yes || location.hash.replace(/^#\/?/, "") || localStorage.getItem(LS_CODE)) return;
+      localStorage.setItem(LS_ROLE, "coach"); location.replace("#/coach");
+    }).catch(() => {});
+    return;
   }
   loading();
   unsub.push(be.watchStudent(code, (s, meta) => {
@@ -546,16 +552,16 @@ function renderCoachCal() {
   const up = upcoming(), past = sortTrainings(S.meta.trainings.filter((t) => t.date < today())).reverse().slice(0, 20);
   const g = S.meta.groups;
   paint(`${demoBanner()}
-  ${coachTop("Calendario", "Allenamenti e gruppi")}
+  ${coachTop("Calendario")}
   ${metaWarn()}
   ${sect("hUp", "Prossimi allenamenti",
     `${up.length ? `<ul class="trs">${up.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
-      : `<p><b>Nessun allenamento in programma</b></p><p class="muted small">Tocca + in basso. Ogni alunno vede quelli per tutti e quelli del suo gruppo.</p>`}
+      : `<p><b>Nessun allenamento in programma</b></p><p class="muted small">Tocca + per aggiungerne uno. Ogni alunno vede quelli per tutti e quelli del suo gruppo.</p>`}
     ${past.length ? `<details class="past"><summary>Passati (${past.length})</summary>
       <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}`)}
   ${sect("hGroups", "Gruppi",
     `${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>`
-      : `<p class="muted small">Servono a filtrare gli alunni e a programmare allenamenti solo per alcuni.</p>`}
+      : `<p class="muted small">Dividi gli alunni in gruppi per trovarli prima e programmare allenamenti solo per loro.</p>`}
     ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card")}
   ${bnav("calendario", S.metaErr ? "" : fab("c-new-tr", "Nuovo allenamento"))}`);
 }

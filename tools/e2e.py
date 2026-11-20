@@ -34,6 +34,13 @@ async def main():
         assert await pg.locator(".stat b >> nth=0").inner_text() == "10", "numero di alunni nella Home"
         assert await pg.locator("#hNext + * .trs li, section:has(#hNext) .trs li").count() == 3, "tre prossimi allenamenti"
         assert await pg.locator("nav.bnav a[aria-current=page]").inner_text() == "Oggi"
+        # barra in basso: se iOS accorcia la pagina (app dalla Home), --vgap la riporta giù della stessa misura
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--vgap').trim()") == "0px", "nel browser nessuna correzione"
+        y0 = (await pg.locator(".dock").bounding_box())["y"]
+        await pg.evaluate("document.documentElement.style.setProperty('--vgap', '62px')")
+        y1 = (await pg.locator(".dock").bounding_box())["y"]
+        await pg.evaluate("document.documentElement.style.setProperty('--vgap', '0px')")
+        assert abs((y1 - y0) - 62) < 1, ("la barra deve scendere di --vgap", y0, y1)
         await pg.click("nav.bnav >> text=Alunni"); await pg.wait_for_timeout(400)
         assert pg.url.endswith("#/coach/alunni")
         await font16("elenco")

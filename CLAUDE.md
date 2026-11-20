@@ -39,7 +39,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v11)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v12)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -90,6 +90,7 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 
 ## Stato
 - ✅ Testato in modalità demo e dev (Playwright, viewport 390×844): creazione alunno, progressi, scheda, spunte, invito, rigenera codice, backup e ripristino, trasferimento (in demo), modalità dev.
+- `config.js` è collegato al progetto Firebase `wobbly-app-101` (app su `retrobottegadi-matt.github.io`).
 - ⚠️ **Mai testato contro un progetto Firebase reale**. Da verificare:
   1. Le regole con l'emulatore Firestore o con il Rules Playground: soprattutto `duration.value(15, 'm')` sul transfer e `request.resource.data.at == request.time` con `serverTimestamp()`.
   2. L'accesso anonimo sul dominio github.io (aggiungere il dominio agli "Authorized domains").

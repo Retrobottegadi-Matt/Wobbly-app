@@ -12,6 +12,7 @@ Lingua dell'interfaccia e dei testi: **italiano**. L'utente (Matt) è un alunno 
 - Progressi: elementi tecnici con **stato + note + data**. Scheda: **esercizi da fare durante il pattinaggio libero**, che **l'alunno spunta**.
 - L'utente ha detto che "l'applicazione iniziale va bene" e che voleva solo ridurre la dipendenza da servizi esterni.
 - Novembre 2026: l'utente vuole un'app "semplice e intuitiva, con le informazioni di OS27" (linee guida Apple attuali) e testi curati: brevi, diretti, in italiano naturale.
+- 20 novembre 2026: l'utente ha mandato tre immagini di riferimento (illustrazione a grana blu/giallo/pesca, poster "Wild Flower" blu cobalto e crema, app didattica con carte colorate, numeri grossi e barra nera a capsula). Lo stile v10 le traduce senza illustrazioni né font esterni; sostituisce i "pastelli rifiniti".
 - Novembre 2026: l'utente ha chiesto UX e UI migliori. Ha scelto lo stile "pastelli rifiniti" (toni tenui, bordi sottili, un accento per volta), una Home per l'allenatrice (prossimi allenamenti + numeri riassuntivi), gruppi di alunni (per filtrare l'elenco e collegare gli allenamenti), date degli allenamenti per gruppo e un profilo alunno (nome, livello, gruppo, descrizione facoltativa) compilato dall'allenatrice.
 
 ## Decisioni prese (e perché)
@@ -41,8 +42,8 @@ public/            ← cartella da pubblicare (GitHub Pages)
   catalog.js       catalogo per livello (base/intermedio/avanzato) → categoria; normItem() rende validi anche i dati vecchi (indicativo, da adattare)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
-  style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v15)
+  style.css        design system a token CSS (:root), v10: crema caldo, blu cobalto (--blue, carta in evidenza .feat con grana --grain e "sole" giallo), pastelli caldi (giallo/pesca in --pink/pervinca in --lilac/salvia/azzurro/arancio), barra in basso scura (--nav-*); tema chiaro e scuro "notte blu"; animazioni in fondo al file
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v16)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -69,7 +70,8 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - Pannelli: `openSheet({ title, body, onSubmit, focus })`. `focus: "title"` per modifica/informazione (niente tastiera o selettore data che si aprono da soli), `"input"` per i moduli di creazione. Ogni pannello ha la X "Chiudi"; "Elimina" sta sempre su una riga separata sotto Salva.
 - Dopo un ridisegno, `paint()` riporta il focus sul pulsante appena toccato (spunte, stato, riordino).
 - Tema: Automatico (segue il telefono) / Chiaro / Scuro, in Impostazioni → Accessibilità (`pg_a11y.theme`, attributo `data-theme`). I due blocchi di token scuri in `style.css` (`[data-theme=dark]` e `prefers-color-scheme: dark`) devono restare identici.
-- Sui pastelli il testo usa sempre `--on-pastel` (scuro fisso), mai `--ink`, che nel tema scuro diventa chiaro. Niente colori esadecimali fuori dai blocchi di token.
+- Sui pastelli il testo usa sempre `--on-pastel` (scuro fisso), mai `--ink`, che nel tema scuro diventa chiaro. Sul blu `--on-blue`; nella carta `.feat` il testo resta sul blu (sole e alone nell'angolo, coperti da `padding-right`), con contrasto elevato la grana sparisce.
+- Schermata Oggi (alunno e allenatrice): il primo allenamento futuro è la carta blu `.feat` (`feature()` in app.js), gli altri sotto in "Poi in calendario". Niente colori esadecimali fuori dai blocchi di token.
 - Contrasto elevato: ogni tema definisce `--muted-n/-hc`, `--line-n/-hc`, `--line-strong-n/-hc`; le regole di contrasto scelgono solo la variante `-hc`.
 - Animazioni: entrate solo al cambio di schermata (`.enter`, messa da `paint()` dopo `route()`), riscontro solo sull'elemento toccato (`.just`), durata ≤ 250 ms, niente transform su `main` (romperebbe `.fab`). Con riduzione movimento durata e ritardi vanno a 0.
 - Ricerca nell'elenco alunni (da 6 alunni in su): senza accenti né maiuscole; quando arrivano dati nuovi si aggiorna solo `#stuList`, così il campo non perde testo e focus.

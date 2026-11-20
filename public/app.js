@@ -270,9 +270,10 @@ function renderStudent(view = "oggi") {
         <small class="mi-help" id="logoutHelp">Per rientrare ti servirà di nuovo il codice dell'invito.</small></li></ul>`, "", "plain")}`;
   } else {
     const plan = s.plan || [], done = checksDone(s);
-    const next = (s.sched || []).filter((t) => t.date >= today()).slice(0, 3);
+    const up = (s.sched || []).filter((t) => t.date >= today()), first = up[0], next = up.slice(1, 3);
     body = `${head(`Ciao, ${esc(s.name)}`, longToday())}
-    ${next.length ? sect("hNext", next.length === 1 ? "Prossimo allenamento" : "Prossimi allenamenti",
+    ${first ? feature(first, first.gname || "Tutti", "", "Il tuo prossimo allenamento") : ""}
+    ${next.length ? sect("hNext", "Poi in calendario",
       `<ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul>`) : ""}
     ${sect("hScheda", "La tua scheda", plan.length
       ? `<ul class="checks">${plan.map((x) => checkRow(x, s.checks && s.checks[x.id], "student")).join("")}</ul>
@@ -450,25 +451,37 @@ function trRow(t, who, act) {
     : `<li><div class="tr">${inner}</div></li>`;
 }
 
+// carta in evidenza (blu con il "sole"): il prossimo allenamento in cima alla schermata Oggi
+function feature(t, who, act, label) {
+  const inner = `<span class="sun" aria-hidden="true">${icon("calendar")}</span>
+    <span class="feat-k">${label}</span>
+    <b class="feat-t">${fmtDay(t.date)}</b>
+    <span class="feat-s">${[t.time, who, t.place].filter(Boolean).map(esc).join(" · ")}</span>
+    ${t.note ? `<span class="feat-s note">${esc(t.note)}</span>` : ""}`;
+  return act ? `<button class="feat" data-act="${act}" data-id="${t.id}">${inner}<span class="sr">Tocca per modificare</span><span class="feat-go" aria-hidden="true">${icon("arrow")}</span></button>`
+    : `<div class="feat" role="group" aria-label="${label}">${inner}</div>`;
+}
+
 // ---------------------------------------------------------- Home (dashboard)
 function renderCoachHome() {
   const list = S.students, n = list.length;
   const avg = n ? Math.round(list.reduce((a, s) => a + pct(s), 0) / n) : 0;
   const since = Date.now() - 7 * 86400000;
   const active = list.filter((s) => (s.checksAt || 0) >= since && checksDone(s) > 0).length;
-  const next = upcoming().slice(0, 3);
+  const up = upcoming(), first = up[0], next = up.slice(1, 4);
   const g = S.meta.groups, none = inGroup("");
   paint(`${demoBanner()}
   ${coachTop("Oggi", longToday())}
   ${metaWarn()}
   <section aria-labelledby="hNum"><h2 class="sr" id="hNum">In sintesi</h2>
     <ul class="stats">
-      <li class="stat"><span>Alunni</span><b>${n}</b></li>
-      <li class="stat"><span>Media progressi</span><b>${n ? `${avg}%` : "–"}</b></li>
-      <li class="stat"><span>Attivi in 7 giorni</span><b>${active}<small> su ${n}</small></b></li>
+      <li class="stat"><span>${icon("users")}Alunni</span><b>${n}</b></li>
+      <li class="stat"><span>${icon("chart")}Media progressi</span><b>${n ? `${avg}%` : "–"}</b></li>
+      <li class="stat"><span>${icon("clock")}Attivi in 7 giorni</span><b>${active}<small> su ${n}</small></b></li>
     </ul></section>
-  ${sect("hNext", "Prossimi allenamenti",
-    `${next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>` : `<p class="muted">Nessun allenamento in programma.</p>`}
+  ${first ? feature(first, whoOf(first), S.metaErr ? "" : "c-edit-tr", "Prossimo allenamento") : ""}
+  ${sect("hNext", first ? "Poi in calendario" : "Prossimi allenamenti",
+    `${next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>` : `<p class="muted">${first ? "Nient'altro in programma." : "Nessun allenamento in programma."}</p>`}
     ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}`,
     next.length ? `<a class="more" href="#/coach/calendario">Vedi tutti</a>` : "")}
   ${sect("hGr", "Gruppi", g.length

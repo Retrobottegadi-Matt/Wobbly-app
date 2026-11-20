@@ -37,8 +37,8 @@
   /* spaziatura e target */
   --gap: 12px; --target: 2.75rem; /* 44px a 16px */
   /* tipografia */
-  --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --fs-display: 2rem; --fs-h1: 1.75rem; --fs-h2: 1.25rem; --fs-body: 1rem; --fs-small: .875rem;
+  --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif; /* SF Pro su iPhone */
+  --fs-display: 2.125rem; --fs-h1: 2.125rem; --fs-h2: 1.25rem; --fs-body: 1.0625rem; --fs-small: .875rem; /* come iOS: titolo grande 34, corpo 17 */
   /* movimento */
   --dur: .2s;
 }
@@ -95,8 +95,9 @@ html { font-size: 100%; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.45; }
 body { font-size: var(--fs-body); }
 main { max-width: 40rem; margin: 0 auto; padding: calc(env(safe-area-inset-top) + .75rem) 1rem 10rem; }
-h1 { font-size: var(--fs-h1); line-height: 1.1; margin: 0; font-weight: 750; letter-spacing: -.025em; }
-h2 { font-size: var(--fs-h2); margin: 0; font-weight: 700; letter-spacing: -.015em; }
+h1 { font-size: var(--fs-h1); line-height: 1.12; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+h2 { font-size: var(--fs-h2); margin: 0; font-weight: 700; letter-spacing: -.01em; }
+.eyebrow { margin: 0 0 .15rem; color: var(--muted); font-size: .9375rem; font-weight: 600; }
 h3 { font-size: 1rem; margin: 0 0 .5rem; font-weight: 700; }
 a { color: var(--ink); text-underline-offset: 3px; }
 small { display: block; color: var(--muted); font-size: var(--fs-small); }
@@ -120,7 +121,7 @@ small { display: block; color: var(--muted); font-size: var(--fs-small); }
 .logo { display: grid; place-items: center; width: 5.5rem; height: 5.5rem; margin: 0 auto .75rem; background: var(--yellow);
   color: var(--on-pastel); border-radius: 50%; }
 .logo .ic { width: 3rem; height: 3rem; }
-.top { display: flex; align-items: center; gap: var(--gap); justify-content: space-between; margin: .4rem 0 1rem; }
+.top { display: flex; align-items: flex-end; gap: var(--gap); justify-content: space-between; margin: .6rem 0 1.25rem; }
 .grow { flex: 1; min-width: 0; }
 .card { display: block; background: var(--surface); border-radius: var(--r); padding: 1.1rem; margin-bottom: var(--gap);
   box-shadow: var(--shadow); border: 1px solid var(--line); color: inherit; text-decoration: none; }
@@ -322,26 +323,44 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .chip:nth-child(4n+3) { background: var(--lilac); } .chip:nth-child(4n+4) { background: var(--sage); }
 
 
-/* ---- barra di navigazione in basso (area allenatrice) ---- */
-.bnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; justify-content: center; gap: .25rem;
-  background: var(--surface); border-top: 1px solid var(--line); padding: .3rem .5rem calc(env(safe-area-inset-bottom) + .3rem); }
+/* ---- barra flottante in basso (come la tab bar di iOS): navigazione + azione principale ---- */
+.dock { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + .6rem); z-index: 8; display: flex; justify-content: center;
+  align-items: center; gap: .6rem; padding: 0 1rem; pointer-events: none; }
+.dock > * { pointer-events: auto; }
+.bnav { flex: 0 1 22rem; min-width: 0; display: flex; gap: .15rem; padding: .3rem; border-radius: var(--r-pill);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(29,27,25,.14), 0 1px 3px rgba(29,27,25,.08); }
 @supports (background: color-mix(in srgb, red 50%, transparent)) and ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .bnav { background: color-mix(in srgb, var(--surface) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); } }
-.bnav a { flex: 1 1 0; max-width: 8rem; min-width: 0; display: grid; justify-items: center; align-content: center; gap: .1rem; min-height: 3.25rem;
-  color: var(--muted); text-decoration: none; font-size: .75rem; font-weight: 600; border-radius: var(--r-sm); overflow-wrap: anywhere; text-align: center; }
-.bnav a .ic { width: 3rem; height: 1.8rem; padding: .2rem 0; border-radius: var(--r-pill); }
-.bnav a.on { color: var(--ink); font-weight: 750; }
-.bnav a.on .ic { background: var(--lilac); color: var(--on-pastel); }
+  .bnav, .dock .fab { -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); }
+  .bnav { background: color-mix(in srgb, var(--surface) 80%, transparent); } }
+.bnav a { flex: 1 1 0; min-width: 0; display: grid; justify-items: center; align-content: center; gap: .1rem; min-height: 3.1rem; padding: .15rem .25rem;
+  color: var(--muted); text-decoration: none; font-size: .6875rem; font-weight: 600; border-radius: var(--r-pill); overflow-wrap: anywhere; text-align: center; }
+.bnav a .ic { width: 1.5rem; height: 1.5rem; }
+.bnav a.on { background: var(--lilac); color: var(--on-pastel); font-weight: 700; }
+.dock .fab { position: static; flex: none; width: 3.75rem; height: 3.75rem; min-height: 0; padding: 0; justify-content: center; border-radius: 50%;
+  box-shadow: 0 10px 30px rgba(29,27,25,.22), 0 1px 3px rgba(29,27,25,.1); }
+.dock .fab .ic { width: 1.6rem; height: 1.6rem; stroke-width: 2.4; }
+
+/* ---- sezioni con titolo fuori dalla carta (liste raggruppate di iOS) ---- */
+.sect { margin-bottom: 1.4rem; }
+.sec-h.out { margin: 0 .2rem .5rem; align-items: baseline; }
+.sect > .card { margin-bottom: 0; }
+.sect > .plain .menu li:last-child { margin-bottom: 0; }
+.mi.danger-row { color: var(--danger-ink); }
+.empty p { margin: 0 0 .25rem; }
+.sum-card .big-pct { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .6rem; }
+.sum-card .big-pct b { font-size: 2.25rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+.sum-card .big-pct span { color: var(--muted); font-size: var(--fs-small); font-weight: 600; }
+.sum-card .bar { margin: .7rem 0 .1rem; }
 
 /* ---- dashboard, allenamenti, profilo ---- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(6.5rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--gap); }
-.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: .8rem .85rem;
-  overflow-wrap: anywhere; hyphens: auto; }
-.stat b { display: block; font-size: 1.65rem; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; }
-.stat b small { display: inline; font-size: 1rem; font-weight: 600; }
-.stat > span { display: block; font-size: var(--fs-small); color: var(--muted); margin-top: .2rem; line-height: 1.3; }
-.stat::before { content: ""; display: block; width: .55rem; height: .55rem; border-radius: 50%; margin-bottom: .45rem; background: var(--lilac); }
-.stat:nth-child(2)::before { background: var(--sage); } .stat:nth-child(3)::before { background: var(--yellow); }
+.stat { display: flex; flex-direction: column; justify-content: space-between; gap: .35rem; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--shadow); padding: .75rem .85rem .8rem; overflow-wrap: break-word; }
+.stat > span { display: flex; align-items: center; gap: .4rem; font-size: .8125rem; font-weight: 600; color: var(--muted); line-height: 1.25; }
+.stat > span::before { content: ""; flex: none; width: .5rem; height: .5rem; border-radius: 50%; background: var(--lilac); }
+.stat:nth-child(2) > span::before { background: var(--sage); } .stat:nth-child(3) > span::before { background: var(--yellow); }
+.stat b { display: block; font-size: 1.75rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+.stat b small { display: inline; font-size: .9375rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
 .more { display: inline-flex; align-items: center; min-height: var(--target); padding: 0 .25rem; font-weight: 600; font-size: var(--fs-small); }
 .trs li + li { border-top: 1px solid var(--line); }
 .tr { appearance: none; width: 100%; display: flex; gap: .8rem; align-items: center; min-height: var(--target); padding: .6rem 0;
@@ -368,7 +387,6 @@ button.tr { cursor: pointer; }
 .chip.f, .chip.f:nth-child(n) { background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); font-weight: 600; }
 .chip.f[aria-pressed="true"] { background: var(--ink); color: var(--ink-on); border-color: var(--ink); }
 .top h1 { overflow-wrap: anywhere; hyphens: auto; }
-.top h1 .pill { font-size: .9rem; margin-left: .2rem; }
 
 /* ---- pagina #/design (solo modalità ?dev) ---- */
 .ds h2 { margin: 1.6rem 0 .5rem; } .ds h2:first-of-type { margin-top: 0; }
@@ -446,3 +464,11 @@ li.just > .rowbtn { animation: flash .5s ease-out; }
 
 /* focus riportato dopo un tocco: niente anello (resta per la tastiera, vedi restoreFocus in app.js) */
 [data-quiet]:focus-visible, [data-quiet]:focus { outline: none; }
+
+/* testo molto grande (200%, Dynamic Type): i pulsanti e le righe vanno a capo invece di uscire */
+.btn { flex-wrap: wrap; overflow-wrap: anywhere; }
+.mi:has(.cnt) > span { flex: 1 1 6rem; }
+/* come la tab bar di iOS: con testo enorme la barra non cresce all'infinito (le etichette restano leggibili e intere) */
+.bnav a { font-size: min(.6875rem, 13px); grid-template-columns: minmax(0, 1fr); }
+.bnav a > span { min-width: 0; overflow-wrap: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bnav a .ic { width: min(1.5rem, 28px); height: min(1.5rem, 28px); }

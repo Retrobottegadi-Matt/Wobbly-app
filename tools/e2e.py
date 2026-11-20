@@ -278,7 +278,7 @@ async def main():
         await pg.uncheck("[data-pref=contrast]")
         await pg.click("label.seg-opt:has([name=dsTheme][value=auto])")
         await pg.emulate_media(color_scheme="dark"); await pg.wait_for_timeout(100)
-        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == "#15130f", "automatico segue il telefono"
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == "#12132b", "automatico segue il telefono"
         await pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
         await pg.click("label.seg-opt:has([name=dsTheme][value=auto])")
         assert await pg.locator("#dsContrast td.ko").count() == 0, "automatico in scuro"
@@ -313,7 +313,7 @@ async def main():
         await pg.route("https://www.gstatic.com/**", lambda r: r.abort())
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
-        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f7c4d9", "gli override colore dev non arrivano agli utenti"
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f9b48c", "gli override colore dev non arrivano agli utenti"
 
         errs[n_err:] = [e for e in errs[n_err:] if "firebasejs" not in e and "net::ERR_FAILED" not in e]
         await pg.unroute("https://www.gstatic.com/**")

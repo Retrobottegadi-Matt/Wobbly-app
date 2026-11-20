@@ -6,19 +6,23 @@ import { loadA11y, saveA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 
 const LS_PREFS = "pg_ds_prefs"; // solo override di colori e raggi (modalità dev)
 const COLORS = ["--bg", "--surface", "--surface-2", "--ink", "--ink-on", "--muted", "--line", "--line-strong",
-  "--yellow", "--pink", "--lilac", "--sage", "--sky", "--on-pastel", "--danger-bg", "--danger-ink", "--ok-ink", "--focus"];
+  "--yellow", "--pink", "--lilac", "--sage", "--sky", "--orange", "--on-pastel", "--blue", "--blue-2", "--on-blue",
+  "--nav-bg", "--nav-ink", "--nav-on", "--nav-on-ink", "--danger-bg", "--danger-ink", "--ok-ink", "--focus"];
 
 // coppie (testo, sfondo, soglia WCAG): 4.5 per testo normale, 3 per elementi UI / testo grande
 const PAIRS = [
   ["--ink", "--bg", 4.5, "Testo su sfondo"], ["--ink", "--surface", 4.5, "Testo su carta"],
-  ["--on-pastel", "--yellow", 4.5, "Testo su giallo"], ["--on-pastel", "--pink", 4.5, "Testo su rosa"],
-  ["--on-pastel", "--lilac", 4.5, "Testo su lilla"], ["--on-pastel", "--sage", 4.5, "Testo su salvia"],
+  ["--on-pastel", "--yellow", 4.5, "Testo su giallo"], ["--on-pastel", "--pink", 4.5, "Testo su pesca"],
+  ["--on-pastel", "--lilac", 4.5, "Testo su pervinca"], ["--on-pastel", "--sage", 4.5, "Testo su salvia"],
   ["--on-pastel", "--sky", 4.5, "Testo su azzurro"], ["--on-pastel-inv", "--on-pastel", 4.5, "Spunta sulla riga fatta"],
   ["--muted", "--bg", 4.5, "Testo secondario su sfondo"], ["--ok-ink", "--surface", 4.5, "Testo positivo"],
   ["--line-strong", "--surface", 3, "Bordo dei campi su carta"], ["--focus", "--surface", 3, "Focus su carta"],
   ["--muted", "--surface", 4.5, "Testo secondario su carta"], ["--ink-on", "--ink", 4.5, "Bottone primario"],
   ["--danger-ink", "--danger-bg", 4.5, "Bottone elimina"], ["--line-strong", "--bg", 3, "Bordo dei campi"],
   ["--focus", "--bg", 3, "Anello di focus"], ["--ink", "--surface-2", 4.5, "Testo su riquadro"],
+  ["--on-pastel", "--orange", 4.5, "Testo su arancio"], ["--on-blue", "--blue", 4.5, "Testo sulla carta blu"],
+  ["--on-blue", "--blue-2", 4.5, "Testo sulla carta blu (fondo)"], ["--nav-ink", "--nav-bg", 4.5, "Barra in basso"],
+  ["--nav-on-ink", "--nav-on", 4.5, "Barra in basso, sezione attiva"], ["--blue", "--on-blue", 3, "Freccia della carta blu"],
 ];
 
 const rgbOf = (cssVar) => {
@@ -141,6 +145,7 @@ export function renderDesign($root) {
   <div class="card lilac"><code>.card.lilac</code></div>
   <div class="card sage"><code>.card.sage</code></div>
   <div class="card sky"><code>.card.sky</code></div>
+  <div class="feat" role="group" aria-label="Esempio"><span class="sun" aria-hidden="true">${icon("calendar")}</span><span class="feat-k">.feat</span><b class="feat-t">Carta in evidenza</b><span class="feat-s">Blu con grana e sole giallo</span></div>
   <div class="card"><div class="sec-h"><h2>Titolo sezione <code>.sec-h</code></h2><span class="pill">3/5</span></div>
     <code>.pill</code><div class="bar" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso 60%"><span style="width:60%"></span></div><code>.bar</code></div>
 

@@ -33,7 +33,7 @@ async def main():
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(500)
         assert await pg.locator(".stat b >> nth=0").inner_text() == "10", "numero di alunni nella Home"
         assert await pg.locator("#hNext + * .trs li, section:has(#hNext) .trs li").count() == 3, "tre prossimi allenamenti"
-        assert await pg.locator("nav.bnav a[aria-current=page]").inner_text() == "Home"
+        assert await pg.locator("nav.bnav a[aria-current=page]").inner_text() == "Oggi"
         await pg.click("nav.bnav >> text=Alunni"); await pg.wait_for_timeout(400)
         assert pg.url.endswith("#/coach/alunni")
         await font16("elenco")
@@ -86,7 +86,9 @@ async def main():
         await pg.evaluate(f"localStorage.setItem('pg_my_code','{ag}')")
         await pg.goto(B); await pg.wait_for_timeout(400)
         txt = await pg.locator("main").inner_text()
-        assert "Descrizione di prova" in txt and "PROVA-PR" in txt and "PROVA-TUTTI" in txt, "l'alunno vede descrizione e allenamenti del nuovo gruppo"
+        assert "PROVA-PR" in txt and "PROVA-TUTTI" in txt, "l'alunno vede gli allenamenti del nuovo gruppo"
+        await pg.click("nav.bnav >> text=Profilo"); await pg.wait_for_timeout(300)
+        assert "Descrizione di prova" in await pg.locator("main").inner_text(), "l'alunno vede la descrizione nel Profilo"
         # eliminare un gruppo: gli alunni restano senza gruppo e i suoi allenamenti spariscono anche dalle loro schede
         await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-edit-group]:has-text('Principianti')"); await pg.wait_for_timeout(150)
@@ -220,8 +222,10 @@ async def main():
         await pg.keyboard.press("Escape"); await pg.wait_for_timeout(200)
         assert await pg.locator("[role=dialog]").count() == 0, "Esc deve chiudere il pannello"
         assert await pg.evaluate("document.activeElement && document.activeElement.dataset.act") == "c-settings", "il focus deve tornare al pulsante"
-        await pg.goto(B); await pg.wait_for_timeout(300)
-        small = await pg.evaluate(MIN); assert not small, ("alunno", small)
+        for view in ["", "#/progressi", "#/profilo"]:
+            await pg.goto(B + view); await pg.wait_for_timeout(300)
+            small = await pg.evaluate(MIN); assert not small, ("alunno " + view, small)
+            assert await pg.locator("nav.bnav a[aria-current=page]").count() == 1
 
         # testo grande (200% e data-text=large): niente scroll orizzontale né testo tagliato
         OVER = """() => { const d = document.documentElement;
@@ -246,7 +250,8 @@ async def main():
         await pg.keyboard.press("Escape")
         await pg.click("[data-act=c-edit-prog] >> nth=0"); await pg.wait_for_timeout(200); await reflow("pannello modifica")
         await pg.keyboard.press("Escape")
-        await pg.goto(B); await pg.wait_for_timeout(300); await reflow("alunno")
+        for view in ["", "#/progressi", "#/profilo"]:
+            await pg.goto(B + view); await pg.wait_for_timeout(300); await reflow("alunno " + view)
 
         # pagina design system (#/design, solo dev)
         await pg.goto(B + "#/design"); await pg.wait_for_timeout(400)

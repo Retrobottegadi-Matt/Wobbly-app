@@ -12,6 +12,7 @@ applyA11y(); // prima di tutto, così la prima schermata ha già testo e contras
 const $root = document.getElementById("app");
 const $sheet = document.getElementById("sheet");
 const LS_CODE = "pg_my_code";
+const LS_ROLE = "pg_role"; // "coach" su un telefono abilitato: l'app si apre direttamente nell'area allenatrice
 const STATUS = { todo: "Da iniziare", doing: "In corso", done: "Completato" };
 const NEXT = { todo: "doing", doing: "done", done: "todo" };
 const AV = ["--yellow", "--pink", "--lilac", "--sage", "--sky"];
@@ -175,14 +176,18 @@ function route() {
   animateNext = true;
   if (parts[0] === "design" && be.dev) return renderDesign($root);
   if (parts[0] === "coach") routeCoach(parts[1] || "home", parts[2] || "progressi");
-  else routeStudent();
+  else routeStudent(["progressi", "profilo"].includes(parts[0]) ? parts[0] : "oggi");
 }
 const loading = () => { $root.innerHTML = `<div class="center" role="status" aria-label="Caricamento"><div class="spinner"></div></div>`; };
 
 // ======================================================== ALUNNO
-function routeStudent() {
+function routeStudent(view) {
   const code = localStorage.getItem(LS_CODE);
-  if (!code) return renderCodeEntry();
+  if (!code) {
+    // telefono dell'allenatrice: dall'icona sulla Home si apre l'app senza passare dalla schermata del codice
+    if (localStorage.getItem(LS_ROLE) === "coach" && !be.dev) { location.replace("#/coach"); return; }
+    return renderCodeEntry();
+  }
   loading();
   unsub.push(be.watchStudent(code, (s, meta) => {
     if (!s) {
@@ -191,7 +196,7 @@ function routeStudent() {
       return renderCodeEntry("Codice non valido o non più attivo. Chiedi un nuovo invito alla tua allenatrice.");
     }
     S.student = s;
-    renderStudent();
+    renderStudent(view);
   }, (e) => {
     if (e && e.code === "permission-denied") localStorage.removeItem(LS_CODE);
     renderCodeEntry("Codice non valido. Controllalo e riprova.");
@@ -227,31 +232,49 @@ function renderCodeEntry(msg = "") {
   };
 }
 
-function renderStudent() {
+// ---------------------------------------------------------- parti comuni (stile iOS: titolo grande, sezioni, barra flottante)
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const longToday = () => cap(new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" }));
+// titolo grande con riga sopra (data o contesto) e un pulsante a destra
+const head = (title, eyebrow = "", right = "") => `<header class="top"><div class="grow">${eyebrow ? `<p class="eyebrow">${eyebrow}</p>` : ""}<h1>${title}</h1></div>${right}</header>`;
+// sezione con titolo fuori dalla carta (come le liste raggruppate di iOS)
+const sect = (id, title, body, right = "", cls = "card") => `<section class="sect" aria-labelledby="${id}">
+  <div class="sec-h out"><h2 id="${id}">${title}</h2>${right}</div><div class="${cls}">${body}</div></section>`;
+// barra flottante in basso; action = pulsante tondo accanto (azione principale della schermata)
+const tabbar = (items, on, action = "") => `<div class="dock"><nav class="bnav" aria-label="Sezioni">${items
+  .map(([href, ic, l, k]) => `<a href="${href}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></a>`).join("")}</nav>${action}</div>`;
+const STUDENT_TABS = [["#/", "home", "Oggi", "oggi"], ["#/progressi", "chart", "Progressi", "progressi"], ["#/profilo", "user", "Profilo", "profilo"]];
+
+function renderStudent(view = "oggi") {
   const s = S.student;
-  const plan = s.plan || [];
-  const done = checksDone(s);
-  const next = (s.sched || []).filter((t) => t.date >= today()).slice(0, 4);
-  paint(`${demoBanner()}
-  <header class="top"><div class="grow"><small>Ciao${lvlOf(s) ? ` · livello ${LEVEL_LABEL[lvlOf(s)].toLowerCase()}` : ""}</small><h1>${esc(s.name)}</h1></div>
-    <button class="icon" data-act="s-settings" aria-label="Impostazioni">${icon("settings")}</button></header>
-  ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : ""}
-  ${next.length ? `<section class="card" aria-labelledby="hNext">
-    <div class="sec-h"><h2 id="hNext">Prossimi allenamenti</h2></div>
-    <ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul></section>` : ""}
-
-  <section class="card" aria-labelledby="hScheda">
-    <div class="sec-h"><h2 id="hScheda">La mia scheda</h2><span class="pill" aria-label="${done} su ${plan.length} fatti">${done}/${plan.length}</span></div>
-    ${plan.length ? `<ul class="checks">${plan.map((x) => checkRow(x, s.checks && s.checks[x.id], "student")).join("")}</ul>`
-      : `<p class="muted">La tua allenatrice non ha ancora preparato la scheda.</p>`}
-    ${done ? `<button class="btn ghost wide" data-act="s-reset">${icon("refresh")} Nuova sessione (togli le spunte)</button>` : ""}
-  </section>
-
-  <section class="card" aria-labelledby="hProg">
-    <div class="sec-h"><h2 id="hProg">I miei progressi</h2><span class="pill" aria-label="${pct(s)} per cento completato">${pct(s)}%</span></div>
-    ${progressBar(s)}
-    ${progressList(s.progress, "student")}
-  </section>`);
+  let body = "";
+  if (view === "progressi") {
+    const items = (s.progress || []).length, dn = (s.progress || []).filter((x) => x.status === "done").length;
+    body = `${head("Progressi", `Livello ${LEVEL_LABEL[lvlOf(s) || "base"].toLowerCase()}`)}
+    <div class="card sum-card"><div class="big-pct"><b>${pct(s)}%</b><span>${items ? `${dn} di ${items} elementi completati` : "Ancora nessun elemento"}</span></div>${progressBar(s)}</div>
+    ${items ? `<div class="card" aria-label="Elementi">${progressList(s.progress, "student")}</div>` : ""}`;
+  } else if (view === "profilo") {
+    body = `${head("Profilo")}
+    <div class="card profile"><div class="prof-h"><span class="av lg" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
+      <div class="grow"><h2>${esc(s.name)}</h2><small>Livello ${LEVEL_LABEL[lvlOf(s) || "base"].toLowerCase()}</small></div></div>
+      ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : ""}</div>
+    ${sect("hSet", "Impostazioni", `<ul class="menu">
+      <li><button type="button" class="mi" data-act="a11y">${icon("a11y")}<span>Accessibilità</span>${icon("chevron", "chev")}</button></li>
+      <li><button type="button" class="mi danger-row" data-act="s-logout" aria-describedby="logoutHelp">${icon("logout")}<span>Scollega questo telefono</span></button>
+        <small class="mi-help" id="logoutHelp">Per rientrare ti servirà di nuovo il codice dell'invito.</small></li></ul>`, "", "plain")}`;
+  } else {
+    const plan = s.plan || [], done = checksDone(s);
+    const next = (s.sched || []).filter((t) => t.date >= today()).slice(0, 3);
+    body = `${head(`Ciao, ${esc(s.name)}`, longToday())}
+    ${next.length ? sect("hNext", next.length === 1 ? "Prossimo allenamento" : "Prossimi allenamenti",
+      `<ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul>`) : ""}
+    ${sect("hScheda", "La tua scheda", plan.length
+      ? `<ul class="checks">${plan.map((x) => checkRow(x, s.checks && s.checks[x.id], "student")).join("")}</ul>
+        ${done ? `<button class="btn ghost wide" data-act="s-reset">${icon("refresh")} Ricomincia la scheda</button>` : ""}`
+      : `<p class="muted">La tua allenatrice non ha ancora preparato la scheda.</p>`,
+      plan.length ? `<span class="pill" aria-label="${done} su ${plan.length} fatti">${done} di ${plan.length}</span>` : "")}`;
+  }
+  paint(`${demoBanner()}${body}${tabbar(STUDENT_TABS, view)}`);
 }
 
 // mode: "student" (spunta), "coach" (apre la modifica), "reorder" (solo lettura + frecce)
@@ -343,7 +366,8 @@ function routeCoach(view, tab) {
     S.coach = u;
     if (stu) { stu(); stu = null; }
     if (met) { met(); met = null; }
-    if (!u || !u.isCoach) return renderCoachLogin(u);
+    if (!u || !u.isCoach) { if (u && !u.error && !be.dev) localStorage.removeItem(LS_ROLE); return renderCoachLogin(u); }
+    if (!be.dev) localStorage.setItem(LS_ROLE, "coach");
     loading();
     let gotS = false, gotM = false;
     const draw = () => { if (gotS && gotM) renderCoach(view, tab); };
@@ -399,11 +423,11 @@ function renderCoachLogin(u) {
 }
 
 // ---------------------------------------------------------- parti comuni dell'area allenatrice
-const coachTop = (title, sub) => `<header class="top"><div class="grow"><small>${sub}</small><h1>${title}</h1></div>
-    <button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button></header>`;
-// barra in basso: Home / Alunni / Calendario
-const bnav = (on) => `<nav class="bnav" aria-label="Sezioni">${[["", "home", "Home"], ["alunni", "users", "Alunni"], ["calendario", "calendar", "Calendario"]]
-  .map(([k, ic, l]) => `<a href="#/coach${k ? `/${k}` : ""}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></a>`).join("")}</nav>`;
+const coachTop = (title, eyebrow) => head(title, eyebrow, `<button class="icon" data-act="c-settings" aria-label="Impostazioni">${icon("settings")}</button>`);
+// barra flottante: Oggi / Alunni / Calendario (+ azione principale della schermata)
+const COACH_TABS = [["#/coach", "home", "Oggi", ""], ["#/coach/alunni", "users", "Alunni", "alunni"], ["#/coach/calendario", "calendar", "Calendario", "calendario"]];
+const bnav = (on, action = "") => tabbar(COACH_TABS, on, action);
+const fab = (act, label) => `<button class="fab" data-act="${act}" aria-label="${label}">${icon("plus")}</button>`;
 const metaWarn = () => S.metaErr ? `<div class="card warn" role="note"><b>Gruppi e allenamenti non disponibili.</b>
   <p class="small">Va aggiornata la regola di sicurezza del database (Firestore → Regole): vedi la guida.</p></div>` : "";
 const upcoming = () => sortTrainings(S.meta.trainings.filter((t) => t.date >= today()));
@@ -429,25 +453,23 @@ function renderCoachHome() {
   const next = upcoming().slice(0, 3);
   const g = S.meta.groups, none = inGroup("");
   paint(`${demoBanner()}
-  ${coachTop("Ciao!", "Allenatrice")}
+  ${coachTop("Oggi", longToday())}
   ${metaWarn()}
   <section aria-labelledby="hNum"><h2 class="sr" id="hNum">In sintesi</h2>
     <ul class="stats">
-      <li class="stat"><b>${n}</b><span>${n === 1 ? "alunno" : "alunni"}</span></li>
-      <li class="stat"><b>${n ? `${avg}%` : "–"}</b><span>progressi completati, in media</span></li>
-      <li class="stat"><b>${active}<small>/${n}</small></b><span>schede spuntate negli ultimi 7 giorni</span></li>
+      <li class="stat"><span>Alunni</span><b>${n}</b></li>
+      <li class="stat"><span>Media progressi</span><b>${n ? `${avg}%` : "–"}</b></li>
+      <li class="stat"><span>Attivi in 7 giorni</span><b>${active}<small> su ${n}</small></b></li>
     </ul></section>
-  <section class="card" aria-labelledby="hNext">
-    <div class="sec-h"><h2 id="hNext">Prossimi allenamenti</h2>${next.length ? `<a class="more" href="#/coach/calendario">Tutti</a>` : ""}</div>
-    ${next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>` : `<p class="muted">Nessun allenamento in programma.</p>`}
-    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}
-  </section>
-  <section class="card" aria-labelledby="hGr">
-    <div class="sec-h"><h2 id="hGr">Gruppi</h2></div>
-    ${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-open-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}
+  ${sect("hNext", "Prossimi allenamenti",
+    `${next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>` : `<p class="muted">Nessun allenamento in programma.</p>`}
+    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}`,
+    next.length ? `<a class="more" href="#/coach/calendario">Vedi tutti</a>` : "")}
+  ${sect("hGr", "Gruppi", g.length
+    ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-open-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}
       ${none ? `<li><button class="mi" data-act="c-open-group" data-id="none">${icon("user")}<span>Senza gruppo</span><small class="cnt">${nAlunni(none)}</small>${icon("chevron", "chev")}</button></li>` : ""}</ul>`
-      : `<p class="muted">Nessun gruppo. Li crei dal Calendario: servono a filtrare gli alunni e a programmare allenamenti solo per alcuni.</p>`}
-  </section>
+    : `<p class="muted">Raggruppa gli alunni per trovarli prima e programmare allenamenti solo per loro.</p>
+      ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card")}
   ${bnav("")}`);
 }
 
@@ -464,7 +486,7 @@ function gfChips() {
 }
 
 function studentRows() {
-  if (!S.students.length) return `<div class="card"><p class="muted">Nessun alunno. Tocca “Nuovo alunno” per crearne uno e mandargli l'invito.</p></div>`;
+  if (!S.students.length) return `<div class="card empty"><p><b>Ancora nessun alunno</b></p><p class="muted">Tocca + in basso per aggiungerne uno e mandargli l'invito.</p></div>`;
   const shown = shownStudents();
   if (!shown.length) return `<div class="card"><p class="muted">${S.q ? `Nessun alunno corrisponde a “${esc(S.q)}”.` : "Nessun alunno in questo gruppo."}</p></div>`;
   return `<ul class="students">${shown.map((s) => {
@@ -496,13 +518,13 @@ function refreshList() {
   if (gf) gf.innerHTML = gfChips();
   document.getElementById("stuList").innerHTML = studentRows();
   const c = document.getElementById("stuTot");
-  if (c) c.textContent = S.students.length;
+  if (c) c.textContent = nAlunni(S.students.length);
 }
 
 function renderCoachList() {
   if (document.getElementById("stuList") && $root.dataset.view === "list" && !animateNext) return refreshList();
   paint(`${demoBanner()}
-  ${coachTop(`Alunni <span class="pill" id="stuTot">${S.students.length}</span>`, "Allenatrice")}
+  ${coachTop("Alunni", `<span id="stuTot">${nAlunni(S.students.length)}</span>`)}
   ${S.meta.groups.length ? `<div class="chips gf" id="gfBox" role="group" aria-label="Filtra per gruppo">${gfChips()}</div>` : ""}
   ${S.students.length >= SEARCH_MIN ? `<div class="search" role="search">
     <label for="stuSearch" class="sr">Cerca alunno</label>${icon("search")}
@@ -510,8 +532,7 @@ function renderCoachList() {
       enterkeyhint="search" value="${esc(S.q)}" aria-describedby="stuCount"></div>` : ""}
   <p id="stuCount" class="sr" aria-live="polite"></p>
   <div id="stuList">${studentRows()}</div>
-  <button class="fab" data-act="c-new">${icon("plus")} Nuovo alunno</button>
-  ${bnav("alunni")}`);
+  ${bnav("alunni", fab("c-new", "Nuovo alunno"))}`);
   $root.dataset.view = "list";
   const inp = document.getElementById("stuSearch");
   if (inp) {
@@ -525,23 +546,18 @@ function renderCoachCal() {
   const up = upcoming(), past = sortTrainings(S.meta.trainings.filter((t) => t.date < today())).reverse().slice(0, 20);
   const g = S.meta.groups;
   paint(`${demoBanner()}
-  ${coachTop("Calendario", "Allenatrice")}
+  ${coachTop("Calendario", "Allenamenti e gruppi")}
   ${metaWarn()}
-  <section class="card" aria-labelledby="hUp">
-    <div class="sec-h"><h2 id="hUp">Prossimi allenamenti</h2></div>
-    ${up.length ? `<ul class="trs">${up.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
-      : `<p class="muted">Nessun allenamento in programma. Ogni alunno vede nella sua scheda quelli per tutti e quelli del suo gruppo.</p>`}
-    ${past.length ? `<details class="past"><summary>Allenamenti passati (${past.length})</summary>
-      <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}
-  </section>
-  <section class="card" aria-labelledby="hGroups">
-    <div class="sec-h"><h2 id="hGroups">Gruppi</h2></div>
-    <p class="muted small">Servono a filtrare l'elenco alunni e a programmare allenamenti solo per alcuni.</p>
-    ${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>` : ""}
-    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}
-  </section>
-  ${S.metaErr ? "" : `<button class="fab" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}
-  ${bnav("calendario")}`);
+  ${sect("hUp", "Prossimi allenamenti",
+    `${up.length ? `<ul class="trs">${up.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
+      : `<p><b>Nessun allenamento in programma</b></p><p class="muted small">Tocca + in basso. Ogni alunno vede quelli per tutti e quelli del suo gruppo.</p>`}
+    ${past.length ? `<details class="past"><summary>Passati (${past.length})</summary>
+      <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}`)}
+  ${sect("hGroups", "Gruppi",
+    `${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>`
+      : `<p class="muted small">Servono a filtrare gli alunni e a programmare allenamenti solo per alcuni.</p>`}
+    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card")}
+  ${bnav("calendario", S.metaErr ? "" : fab("c-new-tr", "Nuovo allenamento"))}`);
 }
 
 function renderCoachStudent(code, tab) {
@@ -721,18 +737,12 @@ const ACTIONS = {
     await be.setCheck(s.code, id, s.checks && s.checks[id] ? null : Date.now());
   },
   async "s-reset"() {
-    if (confirm("Togliere tutte le spunte per iniziare una nuova sessione?")) await be.resetChecks(S.student.code);
-  },
-  "s-settings"() {
-    openSheet({ title: "Impostazioni", body: `<ul class="menu">
-        <li><button type="button" class="mi" data-act="a11y">${icon("a11y")}<span>Accessibilità</span>${icon("chevron", "chev")}</button></li>
-      </ul>
-      <button type="button" class="btn danger wide del" data-act="s-logout">${icon("logout")} Scollega questo telefono</button>
-      <p class="muted small">Ti servirà di nuovo il codice dell'invito per rientrare.</p>` });
+    if (confirm("Vuoi togliere tutte le spunte e ricominciare la scheda?")) await be.resetChecks(S.student.code);
   },
   "s-logout"() {
     if (!confirm("Scollegare questo telefono? Ti servirà di nuovo il codice per rientrare.")) return;
     localStorage.removeItem(LS_CODE);
+    location.hash = "";
     route();
   },
 
@@ -789,6 +799,7 @@ const ACTIONS = {
   async "c-remove-dev"() {
     if (!confirm("Disabilitare questo telefono? Per riabilitarlo servirà un codice da un altro dispositivo abilitato.")) return;
     await be.removeDevice();
+    localStorage.removeItem(LS_ROLE);
     route();
   },
 

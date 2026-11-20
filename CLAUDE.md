@@ -11,6 +11,7 @@ Lingua dell'interfaccia e dei testi: **italiano**. L'utente (Matt) è un alunno 
 - **Invito via WhatsApp o email**, ma i contatti **non** devono comparire né essere salvati nell'app. Si usa un codice invito.
 - Progressi: elementi tecnici con **stato + note + data**. Scheda: **esercizi da fare durante il pattinaggio libero**, che **l'alunno spunta**.
 - L'utente ha detto che "l'applicazione iniziale va bene" e che voleva solo ridurre la dipendenza da servizi esterni.
+- Novembre 2026: l'utente vuole un'app "semplice e intuitiva, con le informazioni di OS27" (linee guida Apple attuali) e testi curati: brevi, diretti, in italiano naturale.
 - Novembre 2026: l'utente ha chiesto UX e UI migliori. Ha scelto lo stile "pastelli rifiniti" (toni tenui, bordi sottili, un accento per volta), una Home per l'allenatrice (prossimi allenamenti + numeri riassuntivi), gruppi di alunni (per filtrare l'elenco e collegare gli allenamenti), date degli allenamenti per gruppo e un profilo alunno (nome, livello, gruppo, descrizione facoltativa) compilato dall'allenatrice.
 
 ## Decisioni prese (e perché)
@@ -41,7 +42,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root): crema, pastelli (giallo/rosa/lilla/salvia/azzurro), bottone primario a pillola; tema chiaro e scuro; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v13)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v14)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -51,8 +52,10 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 ```
 
 ## Rotte
-- `/` → schermata alunno (codice in `localStorage.pg_my_code`; `?c=CODE` lo imposta)
-- `#/coach` → Home (numeri riassuntivi, prossimi allenamenti, gruppi) · `#/coach/alunni` → elenco con filtro per gruppo e ricerca · `#/coach/calendario` → allenamenti e gestione gruppi. Barra di navigazione in basso (`.bnav`) su queste tre.
+- `/` → alunno, scheda **Oggi** (prossimi allenamenti + scheda da spuntare) · `#/progressi` · `#/profilo` (dati, descrizione, Accessibilità, Scollega). Codice in `localStorage.pg_my_code`; `?c=CODE` lo imposta.
+- Telefono dell'allenatrice ricordato: `localStorage.pg_role = "coach"` (messo quando il dispositivo risulta abilitato, tolto con "Disabilita questo telefono" o se non è più abilitato). Se non c'è un codice alunno, `/` porta subito a `#/coach` (l'icona sulla Home apre sempre `start_url`).
+- `#/coach` → Home (numeri riassuntivi, prossimi allenamenti, gruppi) · `#/coach/alunni` → elenco con filtro per gruppo e ricerca · `#/coach/calendario` → allenamenti e gestione gruppi. Sezioni allenatrice: **Oggi / Alunni / Calendario**.
+- Navigazione in stile iOS (Liquid Glass): barra flottante a capsula in basso (`tabbar()` → `.dock > .bnav`) per alunno e allenatrice, con l'azione principale come pulsante tondo accanto (`fab()`, con `aria-label`). Titoli grandi (`head()`, 34px) con riga sopra (data o contesto), sezioni con titolo fuori dalla carta (`sect()`). Carattere di sistema (SF Pro), niente ui-rounded. Le etichette della barra non crescono oltre 13px (come iOS).
 - `#/coach/{code}/{profilo|progressi|scheda|invito}` → dettaglio alunno (predefinita: progressi). Un codice è riconosciuto da `isCode()` (12 caratteri maiuscoli/cifre).
 - `?dev` → **modalità sviluppo**: backend locale `pg_dev_v1`, anche con Firebase configurato. Contiene 10 alunni di esempio, allenatrice già abilitata e pulsanti per entrare come alunno. Il flag è in `localStorage.pg_dev`; si esce con il tasto "Esci" nel banner viola.
 

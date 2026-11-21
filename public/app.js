@@ -242,7 +242,11 @@ function renderCodeEntry(msg = "") {
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const longToday = () => cap(new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" }));
 // titolo grande con riga sopra (data o contesto) e un pulsante a destra
-const head = (title, eyebrow = "", right = "") => `<header class="top"><div class="grow">${eyebrow ? `<p class="eyebrow">${eyebrow}</p>` : ""}<h1>${title}</h1></div>${right}</header>`;
+// la riga sopra c'è sempre (anche vuota), così il titolo sta alla stessa altezza in tutte le pagine
+const head = (title, eyebrow = "", right = "", left = "") => `<header class="top${left ? " back" : ""}">${left}<div class="grow"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1></div>${right}</header>`;
+// stato vuoto: un solo modello per tutte le pagine
+const empty = (ic, title, text, btn = "") => `<div class="empty">${icon(ic)}<b>${title}</b>${text ? `<p>${text}</p>` : ""}${btn}</div>`;
+const NO_GROUPS = "Dividi gli alunni in gruppi per trovarli prima e programmare allenamenti solo per loro.";
 // sezione con titolo fuori dalla carta (come le liste raggruppate di iOS)
 const sect = (id, title, body, right = "", cls = "card") => `<section class="sect" aria-labelledby="${id}">
   <div class="sec-h out"><h2 id="${id}">${title}</h2>${right}</div><div class="${cls}">${body}</div></section>`;
@@ -257,10 +261,10 @@ function renderStudent(view = "oggi") {
   if (view === "progressi") {
     const items = (s.progress || []).length, dn = (s.progress || []).filter((x) => x.status === "done").length;
     body = `${head("Progressi", `Livello ${LEVEL_LABEL[lvlOf(s) || "base"].toLowerCase()}`)}
-    <div class="card sum-card"><div class="big-pct"><b>${pct(s)}%</b><span>${items ? `${dn} di ${items} elementi completati` : "Ancora nessun elemento"}</span></div>${progressBar(s)}</div>
-    ${items ? `<div class="card" aria-label="Elementi">${progressList(s.progress, "student")}</div>` : ""}`;
+    ${!items ? `<div class="card">${empty("chart", "Ancora nessun elemento", "Qui vedrai gli elementi tecnici e a che punto sei.")}</div>` : `<div class="card sum-card"><div class="big-pct"><b>${pct(s)}%</b><span>${items ? `${dn} di ${items} elementi completati` : "Ancora nessun elemento"}</span></div>${progressBar(s)}</div>
+    <div class="card" aria-label="Elementi">${progressList(s.progress, "student")}</div>`}`;
   } else if (view === "profilo") {
-    body = `${head("Profilo")}
+    body = `${head("Profilo", "Dati e impostazioni")}
     <div class="card profile"><div class="prof-h"><span class="av lg" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
       <div class="grow"><h2>${esc(s.name)}</h2><small>Livello ${LEVEL_LABEL[lvlOf(s) || "base"].toLowerCase()}</small></div></div>
       ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : ""}</div>
@@ -278,7 +282,7 @@ function renderStudent(view = "oggi") {
     ${sect("hScheda", "La tua scheda", plan.length
       ? `<ul class="checks">${plan.map((x) => checkRow(x, s.checks && s.checks[x.id], "student")).join("")}</ul>
         ${done ? `<button class="btn ghost wide" data-act="s-reset">${icon("refresh")} Ricomincia la scheda</button>` : ""}`
-      : `<p class="muted">La tua allenatrice non ha ancora preparato la scheda.</p>`,
+      : empty("skate", "Scheda in arrivo", "La tua allenatrice non l'ha ancora preparata."),
       plan.length ? `<span class="pill" aria-label="${done} su ${plan.length} fatti">${done} di ${plan.length}</span>` : "")}`;
   }
   paint(`${demoBanner()}${body}${tabbar(STUDENT_TABS, view)}`);
@@ -434,7 +438,7 @@ const coachTop = (title, eyebrow) => head(title, eyebrow, `<button class="icon" 
 // barra flottante: Oggi / Alunni / Calendario (+ azione principale della schermata)
 const COACH_TABS = [["#/coach", "home", "Oggi", ""], ["#/coach/alunni", "users", "Alunni", "alunni"], ["#/coach/calendario", "calendar", "Calendario", "calendario"]];
 const bnav = (on, action = "") => tabbar(COACH_TABS, on, action);
-const fab = (act, label) => `<button class="fab" data-act="${act}" aria-label="${label}">${icon("plus")}</button>`;
+const fab = (act, label, ic = "plus") => `<button class="fab" data-act="${act}" aria-label="${label}">${icon(ic)}</button>`;
 const metaWarn = () => S.metaErr ? `<div class="card warn" role="note"><b>Gruppi e allenamenti non disponibili.</b>
   <p class="small">Va aggiornata la regola di sicurezza del database (Firestore → Regole): vedi la guida.</p></div>` : "";
 const upcoming = () => sortTrainings(S.meta.trainings.filter((t) => t.date >= today()));
@@ -449,6 +453,16 @@ function trRow(t, who, act) {
       <small>${esc(who)}${t.place ? ` · ${esc(t.place)}` : ""}</small>${t.note ? `<small class="note">${esc(t.note)}</small>` : ""}</span>`;
   return act ? `<li><button class="tr" data-act="${act}" data-id="${t.id}">${inner}<span class="sr">Tocca per modificare</span>${icon("chevron", "chev")}</button></li>`
     : `<li><div class="tr">${inner}</div></li>`;
+}
+
+// riga di diagnosi (solo iPhone dalla Home): dice se la correzione dell'altezza è attiva
+function screenInfo() {
+  const p = document.createElement("div");
+  p.style.cssText = "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top)";
+  document.body.appendChild(p);
+  const top = parseFloat(getComputedStyle(p).paddingTop) || 0; p.remove();
+  const sa = matchMedia("(display-mode: standalone)").matches ? "sì" : "no";
+  return `${screen.width}×${screen.height} · pagina ${innerHeight} · alto ${top} · documento ${document.documentElement.scrollHeight} · min ${getComputedStyle(document.documentElement).minHeight} · Home ${sa}`;
 }
 
 // carta in evidenza (blu con il "sole"): il prossimo allenamento in cima alla schermata Oggi
@@ -480,16 +494,15 @@ function renderCoachHome() {
       <li class="stat"><span>${icon("clock")}Attivi in 7 giorni</span><b>${active}<small> su ${n}</small></b></li>
     </ul></section>
   ${first ? feature(first, whoOf(first), S.metaErr ? "" : "c-edit-tr", "Prossimo allenamento") : ""}
-  ${sect("hNext", first ? "Poi in calendario" : "Prossimi allenamenti",
-    `${next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>` : `<p class="muted">${first ? "Nient'altro in programma." : "Nessun allenamento in programma."}</p>`}
-    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-tr">${icon("plus")} Nuovo allenamento</button>`}`,
+  ${first && !next.length ? "" : sect("hNext", first ? "Poi in calendario" : "Prossimi allenamenti",
+    next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
+      : empty("calendar", "Nessun allenamento in programma", "Tocca + per aggiungerne uno."),
     next.length ? `<a class="more" href="#/coach/calendario">Vedi tutti</a>` : "")}
   ${sect("hGr", "Gruppi", g.length
     ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-open-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}
       ${none ? `<li><button class="mi" data-act="c-open-group" data-id="none">${icon("user")}<span>Senza gruppo</span><small class="cnt">${nAlunni(none)}</small>${icon("chevron", "chev")}</button></li>` : ""}</ul>`
-    : `<p class="muted">Raggruppa gli alunni per trovarli prima e programmare allenamenti solo per loro.</p>
-      ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card")}
-  ${bnav("")}`);
+    : empty("group", "Ancora nessun gruppo", NO_GROUPS, S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`), "", g.length ? "plain" : "card")}
+  ${bnav("", S.metaErr ? "" : fab("c-new-tr", "Nuovo allenamento"))}`);
 }
 
 // ---------------------------------------------------------- Alunni (elenco con gruppi e ricerca)
@@ -505,7 +518,7 @@ function gfChips() {
 }
 
 function studentRows() {
-  if (!S.students.length) return `<div class="card empty"><p><b>Ancora nessun alunno</b></p><p class="muted">Tocca + in basso per aggiungerne uno e mandargli l'invito.</p></div>`;
+  if (!S.students.length) return `<div class="card">${empty("users", "Ancora nessun alunno", "Tocca + per aggiungerne uno e mandargli l'invito.")}</div>`;
   const shown = shownStudents();
   if (!shown.length) return `<div class="card"><p class="muted">${S.q ? `Nessun alunno corrisponde a “${esc(S.q)}”.` : "Nessun alunno in questo gruppo."}</p></div>`;
   return `<ul class="students">${shown.map((s) => {
@@ -565,16 +578,16 @@ function renderCoachCal() {
   const up = upcoming(), past = sortTrainings(S.meta.trainings.filter((t) => t.date < today())).reverse().slice(0, 20);
   const g = S.meta.groups;
   paint(`${demoBanner()}
-  ${coachTop("Calendario")}
+  ${coachTop("Calendario", up.length ? `${up.length} in programma` : "Niente in programma")}
   ${metaWarn()}
   ${sect("hUp", "Prossimi allenamenti",
     `${up.length ? `<ul class="trs">${up.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
-      : `<p><b>Nessun allenamento in programma</b></p><p class="muted small">Tocca + per aggiungerne uno. Ogni alunno vede quelli per tutti e quelli del suo gruppo.</p>`}
+      : empty("calendar", "Nessun allenamento in programma", "Tocca + per aggiungerne uno. Ogni alunno vede quelli per tutti e quelli del suo gruppo.")}
     ${past.length ? `<details class="past"><summary>Passati (${past.length})</summary>
       <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}`)}
   ${sect("hGroups", "Gruppi",
     `${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>`
-      : `<p class="muted small">Dividi gli alunni in gruppi per trovarli prima e programmare allenamenti solo per loro.</p>`}
+      : empty("group", "Ancora nessun gruppo", NO_GROUPS)}
     ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card")}
   ${bnav("calendario", S.metaErr ? "" : fab("c-new-tr", "Nuovo allenamento"))}`);
 }
@@ -593,32 +606,33 @@ function renderCoachStudent(code, tab) {
         <div class="grow"><h2 id="hTab">${esc(s.name)}</h2>
         <small>${LEVEL_LABEL[lvlOf(s) || "base"]} · ${gn ? esc(gn) : "Nessun gruppo"}</small></div></div>
       ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : `<p class="muted">Nessuna descrizione.</p>`}
-      <button class="btn wide" data-act="c-profile">${icon("edit")} Modifica profilo</button>
     </section>
     <section class="card" aria-labelledby="hSn"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
       ${next.length ? `<ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul>`
         : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`;
   } else if (tab === "progressi") {
     const n = (s.progress || []).length, ro = S.reorder === "progressi" && n > 1;
-    body = `<section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Elementi tecnici</h2>
+    const dn = (s.progress || []).filter((x) => x.status === "done").length;
+    body = !n ? `<section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Elementi tecnici</h2>
+      ${empty("chart", "Ancora nessun elemento", "Tocca + per aggiungere i primi elementi tecnici.")}</section>`
+      : `<div class="card sum-card"><div class="big-pct"><b>${pct(s)}%</b><span>${dn} di ${n} elementi completati</span></div>${progressBar(s)}</div>
+      <section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Elementi tecnici</h2>
       <div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine dentro ogni gruppo."
         : "Tocca il cerchio a destra per cambiare lo stato, l'elemento per modificarlo. Tieni premuto per spostarlo."}</p>
         ${n > 1 ? reorderBtn("progressi", ro) : ""}</div>
-      <div class="sum"><span class="pill" aria-label="${pct(s)} per cento completato">${pct(s)}%</span>${progressBar(s)}</div>
       ${progressList(s.progress, ro ? "reorder" : "coach")}
-      ${ro ? "" : `<button class="btn wide" data-act="c-add-prog">${icon("plus")} Aggiungi elementi</button>`}</section>`;
+</section>`;
   } else if (tab === "scheda") {
     const plan = s.plan || [];
     const ro = S.reorder === "scheda" && plan.length > 1;
     body = `<section class="card" aria-labelledby="hTab"><h2 class="sr" id="hTab">Esercizi della scheda</h2>
-      <div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine."
+      ${!plan.length ? "" : `<div class="sec-h"><p class="muted small">${ro ? "Usa le frecce per cambiare l'ordine."
         : `Esercizi da fare durante il pattinaggio libero. L'alunno li spunta dal suo telefono.${plan.length > 1 ? " Tieni premuto un esercizio per spostarlo." : ""}`}</p>
-        ${plan.length > 1 ? reorderBtn("scheda", ro) : ""}</div>
+        ${plan.length > 1 ? reorderBtn("scheda", ro) : ""}</div>`}
       ${plan.length ? `<ul class="plan ${ro ? "reo" : ""}" data-drag="plan">${plan.map((x, i) => ro ? `<li data-id="${x.id}">
           ${checkRow(x, s.checks && s.checks[x.id], "reorder")}
-          <div class="ops" data-nodrag>${arrows("plan", x.id, x.title, i, plan.length)}</div></li>` : checkRow(x, s.checks && s.checks[x.id], "coach")).join("")}</ul>` : `<p class="muted">Scheda vuota.</p>`}
-      ${ro ? "" : `<button class="btn wide" data-act="c-add-ex">${icon("plus")} Aggiungi esercizio</button>
-      ${checksDone(s) ? `<button class="btn ghost wide" data-act="c-reset" data-code="${s.code}">${icon("refresh")} Togli tutte le spunte</button>` : ""}`}
+          <div class="ops" data-nodrag>${arrows("plan", x.id, x.title, i, plan.length)}</div></li>` : checkRow(x, s.checks && s.checks[x.id], "coach")).join("")}</ul>` : empty("skate", "Scheda vuota", "Tocca + per aggiungere gli esercizi da fare durante il pattinaggio libero.")}
+      ${ro ? "" : `${checksDone(s) ? `<button class="btn ghost wide" data-act="c-reset" data-code="${s.code}">${icon("refresh")} Togli tutte le spunte</button>` : ""}`}
     </section>`;
   } else {
     body = `<section class="card invite" aria-labelledby="hTab"><h2 class="sr" id="hTab">Invito</h2>
@@ -640,11 +654,14 @@ function renderCoachStudent(code, tab) {
       <button class="btn danger wide" data-act="c-del">${icon("trash")} Elimina alunno</button>
     </section>`;
   }
+  const act = { profilo: ["c-profile", "Modifica profilo", "edit"], progressi: ["c-add-prog", "Aggiungi elementi", "plus"],
+    scheda: ["c-add-ex", "Aggiungi esercizio", "plus"], invito: ["c-copy", "Copia link dell'invito", "link"] }[tab];
   paint(`${demoBanner()}
-  <header class="top"><a href="#/coach/alunni" class="icon" aria-label="Torna all'elenco alunni">${icon("back")}</a>
-    <div class="grow"><small>Alunno${lvlOf(s) ? ` · ${LEVEL_LABEL[lvlOf(s)]}` : ""}</small><h1>${esc(s.name)}</h1></div></header>
+  ${head(esc(s.name), `Alunno${lvlOf(s) ? ` · ${LEVEL_LABEL[lvlOf(s)]}` : ""}`, "",
+    `<a href="#/coach/alunni" class="icon" aria-label="Torna all'elenco alunni">${icon("back")}</a>`)}
   <nav class="tabs" aria-label="Sezioni alunno">${tabs.map(([k, l]) => `<a href="#/coach/${code}/${k}" class="${k === tab ? "on" : ""}"${k === tab ? ' aria-current="page"' : ""}>${l}</a>`).join("")}</nav>
-  ${body}`);
+  ${body}
+  ${bnav("alunni", act ? fab(...act) : "")}`);
   $root.dataset.code = code;
 }
 
@@ -794,7 +811,7 @@ const ACTIONS = {
       <input type="file" accept=".json,application/json" id="impIn" hidden tabindex="-1">
       ${be.dev ? `<h3 class="cat">Sviluppo</h3><ul class="menu">${mi("dev-reseed", "refresh", "Rigenera alunni di esempio")}</ul>` : ""}
       <button type="button" class="btn danger wide del" data-act="c-remove-dev">${icon("logout")} Disabilita questo telefono</button>
-      ${window.__vgapInfo ? `<p class="muted small diag">Schermo: ${esc(window.__vgapInfo)}</p>` : ""}
+      ${navigator.standalone === true ? `<p class="muted small diag">Schermo: ${esc(screenInfo())}</p>` : ""}
       </div>` });
     document.getElementById("impIn").onchange = importBackup;
   },

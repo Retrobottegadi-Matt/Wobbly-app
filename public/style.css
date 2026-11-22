@@ -525,3 +525,10 @@ button.feat { cursor: pointer; }
 .empty .btn { margin-top: .6rem; }
 .top .icon { flex: none; }
 .top.back { align-items: flex-end; }
+
+/* ---- lezioni private: righe con pulsanti (richieste, conferme, disdette) ---- */
+.reqs li { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; padding: .15rem 0; }
+.reqs li > .tr { flex: 1 1 12rem; min-width: 0; }
+.row-btns { display: flex; flex-wrap: wrap; gap: .4rem; margin-left: auto; }
+.reqs .btn.sm { margin-top: 0; }
+.sect .reqs + .btn { margin-top: .75rem; }

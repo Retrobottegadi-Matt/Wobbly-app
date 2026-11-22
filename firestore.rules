@@ -6,7 +6,8 @@ rules_version = '2';
 //  - Solo i dispositivi dell'allenatrice possono elencare, creare, modificare
 //    ed eliminare gli alunni.
 //  - Un alunno può leggere SOLO il documento il cui ID è il suo codice
-//    (12 caratteri casuali, non indovinabile) e può modificare SOLO le spunte.
+//    (12 caratteri casuali, non indovinabile) e può modificare SOLO le spunte
+//    e le proprie richieste di lezione privata.
 //  - Un nuovo dispositivo dell'allenatrice si abilita con un codice di
 //    trasferimento creato da un dispositivo già abilitato (vale 15 minuti).
 service cloud.firestore {
@@ -20,10 +21,16 @@ service cloud.firestore {
     match /students/{code} {
       allow list, create, delete: if isCoach();
       allow get: if isCoach() || code.size() == 12;
+      // l'alunno può cambiare solo le spunte e, se ha le lezioni private attive (priv), le sue richieste di lezione (reqs)
       allow update: if isCoach() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checks', 'checksAt'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checks', 'checksAt', 'reqs'])
         && request.resource.data.checks is map
         && request.resource.data.checks.size() <= 100
+        && (!('reqs' in request.resource.data.diff(resource.data).affectedKeys()) || (
+          request.resource.data.reqs is map
+          && request.resource.data.reqs.size() <= 20
+          && resource.data.get('priv', false) == true
+        ))
       );
     }
 

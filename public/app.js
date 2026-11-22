@@ -5,7 +5,8 @@ import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
 import { initDrag, isDragging } from "./drag.js";
 import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
-import { localDate, addDays, parseDate, emptyMeta, normMeta, sortTrainings, groupName, schedFor, sameSched } from "./sched.js";
+import { localDate, addDays, parseDate, emptyMeta, normMeta, sortTrainings, groupName, schedFor, sameSched,
+  openFor, lessonsFor, sameSlots, canCancel, CANCEL_HOURS } from "./sched.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
 
@@ -255,6 +256,33 @@ const tabbar = (items, on, action = "") => `<div class="dock"><nav class="bnav" 
   .map(([href, ic, l, k]) => `<a href="${href}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}<span>${l}</span></a>`).join("")}</nav>${action}</div>`;
 const STUDENT_TABS = [["#/", "home", "Oggi", "oggi"], ["#/progressi", "chart", "Progressi", "progressi"], ["#/profilo", "user", "Profilo", "profilo"]];
 
+// allenamenti del gruppo + lezioni private prenotate, in ordine di data (le lezioni si aprono per vederle o disdirle)
+function studentAgenda(s) {
+  const t0 = today();
+  return [...(s.sched || []).map((t) => ({ t, who: t.gname || "Tutti", act: "" })),
+    ...(s.lessons || []).map((t) => ({ t, who: lessonWho(s, t), act: "s-lesson" }))]
+    .filter((x) => x.t.date >= t0).sort((a, b) => (a.t.date + (a.t.time || "")).localeCompare(b.t.date + (b.t.time || "")));
+}
+const lessonWho = (s, t) => (s.reqs && s.reqs[t.id] && s.reqs[t.id].cancel ? "Lezione privata · disdetta inviata" : "Lezione privata");
+// richieste dell'alunno ancora da mostrare: in attesa o non confermate (con i dati dell'orario, presi da open o da quanto salvato)
+function myReqs(s) {
+  return Object.entries(s.reqs || {}).filter(([, r]) => r && !r.cancel && r.st !== "ok")
+    .map(([id, r]) => ({ id, r, t: (s.open || []).find((o) => o.id === id) || r.slot || null }))
+    .filter((x) => x.t && x.t.date >= today())
+    .sort((a, b) => (a.t.date + a.t.time).localeCompare(b.t.date + b.t.time));
+}
+function privBox(s) {
+  const reqs = myReqs(s), free = (s.open || []).filter((o) => !(s.reqs || {})[o.id]);
+  const rows = reqs.map(({ id, r, t }) => `<li><div class="tr"><span class="date" aria-hidden="true"><b>${dayNum(t.date)}</b><small>${monShort(t.date)}</small></span>
+    <span class="txt"><b>${fmtDay(t.date)}${t.time ? ` · ${esc(t.time)}` : ""}</b><small>${r.st === "no" ? "Non confermata: l'orario non è più disponibile" : "In attesa di conferma"}</small></span></div>
+    <button class="btn sm ghost" data-act="s-req-del" data-id="${id}">${r.st === "no" ? "Ok" : "Annulla"}<span class="sr"> la richiesta del ${fmtDay(t.date)}</span></button></li>`).join("");
+  const booked = (s.lessons || []).filter((t) => t.date >= today());
+  return `${booked.length ? `<ul class="trs">${booked.map((t) => trRow(t, lessonWho(s, t), "s-lesson")).join("")}</ul>` : ""}
+    ${rows ? `<ul class="trs reqs">${rows}</ul>` : ""}
+    ${free.length ? `<button class="btn ghost wide" data-act="s-ask">${icon("calendar")} Chiedi una lezione</button>`
+      : rows || booked.length ? "" : empty("calendar", "Nessun orario libero", "Quando la tua allenatrice pubblica degli orari, li trovi qui.")}`;
+}
+
 function renderStudent(view = "oggi") {
   const s = S.student;
   let body = "";
@@ -274,11 +302,12 @@ function renderStudent(view = "oggi") {
         <small class="mi-help" id="logoutHelp">Per rientrare ti servirà di nuovo il codice dell'invito.</small></li></ul>`, "", "plain")}`;
   } else {
     const plan = s.plan || [], done = checksDone(s);
-    const up = (s.sched || []).filter((t) => t.date >= today()), first = up[0], next = up.slice(1, 3);
+    const up = studentAgenda(s), first = up[0], next = up.slice(1, 3);
     body = `${head(`Ciao, ${esc(s.name)}`, longToday())}
-    ${first ? feature(first, first.gname || "Tutti", "", "Il tuo prossimo allenamento") : ""}
+    ${first ? feature(first.t, first.who, first.act, first.act ? "La tua prossima lezione" : "Il tuo prossimo allenamento") : ""}
     ${next.length ? sect("hNext", "Poi in calendario",
-      `<ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul>`) : ""}
+      `<ul class="trs">${next.map((x) => trRow(x.t, x.who, x.act)).join("")}</ul>`) : ""}
+    ${s.priv ? sect("hPriv", "Lezioni private", privBox(s)) : ""}
     ${sect("hScheda", "La tua scheda", plan.length
       ? `<ul class="checks">${plan.map((x) => checkRow(x, s.checks && s.checks[x.id], "student")).join("")}</ul>
         ${done ? `<button class="btn ghost wide" data-act="s-reset">${icon("refresh")} Ricomincia la scheda</button>` : ""}`
@@ -442,12 +471,35 @@ const fab = (act, label, ic = "plus") => `<button class="fab" data-act="${act}" 
 const metaWarn = () => S.metaErr ? `<div class="card warn" role="note"><b>Gruppi e allenamenti non disponibili.</b>
   <p class="small">Va aggiornata la regola di sicurezza del database (Firestore → Regole): vedi la guida.</p></div>` : "";
 const upcoming = () => sortTrainings(S.meta.trainings.filter((t) => t.date >= today()));
+const nameOf = (code) => (S.students.find((x) => x.code === code) || {}).name || "Alunno eliminato";
+const upSlots = () => sortTrainings(S.meta.slots.filter((t) => t.date >= today()));
+// Home: allenamenti e lezioni prenotate insieme
+const coachAgenda = () => [...upcoming().map((t) => ({ t, who: whoOf(t), act: "c-edit-tr" })),
+  ...upSlots().filter((t) => t.who).map((t) => ({ t, who: `Lezione privata · ${nameOf(t.who)}`, act: "c-edit-slot" }))]
+  .sort((a, b) => (a.t.date + (a.t.time || "")).localeCompare(b.t.date + (b.t.time || "")));
+// richieste e disdette degli alunni, da confermare con un tocco
+function inbox() {
+  const out = [];
+  for (const s of S.students) for (const [id, r] of Object.entries(s.reqs || {})) {
+    const t = S.meta.slots.find((x) => x.id === id);
+    if (!r || !t || t.date < today()) continue;
+    if (r.cancel && t.who === s.code) out.push({ kind: "cancel", s, t, at: r.cancel });
+    else if (!r.cancel && !r.st && !t.who) out.push({ kind: "req", s, t, at: r.at || 0 });
+  }
+  return out.sort((a, b) => (a.t.date + a.t.time).localeCompare(b.t.date + b.t.time) || a.at - b.at);
+}
+const slotWho = (t) => {
+  if (t.who) return `Prenotata · ${nameOf(t.who)}`;
+  const n = S.students.filter((s) => s.reqs && s.reqs[t.id] && !s.reqs[t.id].st && !s.reqs[t.id].cancel).length;
+  return n ? `Libero · ${n === 1 ? "1 richiesta" : `${n} richieste`}` : "Libero";
+};
 const whoOf = (t) => (t.group ? groupName(S.meta, t.group) || "Gruppo eliminato" : "Tutti");
 const inGroup = (id) => S.students.filter((s) => (s.group || "") === id).length;
 const nAlunni = (n) => (n === 1 ? "1 alunno" : `${n} alunni`);
 
 // riga di un allenamento; con act diventa un pulsante che apre la modifica
 function trRow(t, who, act) {
+  if (t.dur) who = `${who} · ${t.dur} min`; // lezioni private: durata nella seconda riga
   const inner = `<span class="date" aria-hidden="true"><b>${dayNum(t.date)}</b><small>${monShort(t.date)}</small></span>
     <span class="txt"><b>${fmtDay(t.date)}${t.time ? ` · ${esc(t.time)}` : ""}</b>
       <small>${esc(who)}${t.place ? ` · ${esc(t.place)}` : ""}</small>${t.note ? `<small class="note">${esc(t.note)}</small>` : ""}</span>`;
@@ -476,13 +528,23 @@ function feature(t, who, act, label) {
     : `<div class="feat" role="group" aria-label="${label}">${inner}</div>`;
 }
 
+function inboxRow({ kind, s, t }) {
+  const when = `${fmtDay(t.date)}${t.time ? ` · ${esc(t.time)}` : ""}`;
+  return `<li><div class="tr"><span class="date" aria-hidden="true"><b>${dayNum(t.date)}</b><small>${monShort(t.date)}</small></span>
+    <span class="txt"><b>${esc(s.name)}</b><small>${kind === "cancel" ? "Ha disdetto la lezione del" : "Chiede una lezione"} ${when}</small></span></div>
+    <span class="row-btns">${kind === "cancel"
+      ? `<button class="btn sm" data-act="c-lr-free" data-code="${s.code}" data-id="${t.id}">Libera l'orario<span class="sr"> del ${when}</span></button>`
+      : `<button class="btn sm" data-act="c-lr-ok" data-code="${s.code}" data-id="${t.id}">Conferma<span class="sr"> la lezione di ${esc(s.name)}</span></button>
+         <button class="btn sm ghost" data-act="c-lr-no" data-code="${s.code}" data-id="${t.id}">Rifiuta<span class="sr"> la lezione di ${esc(s.name)}</span></button>`}</span></li>`;
+}
+
 // ---------------------------------------------------------- Home (dashboard)
 function renderCoachHome() {
   const list = S.students, n = list.length;
   const avg = n ? Math.round(list.reduce((a, s) => a + pct(s), 0) / n) : 0;
   const since = Date.now() - 7 * 86400000;
   const active = list.filter((s) => (s.checksAt || 0) >= since && checksDone(s) > 0).length;
-  const up = upcoming(), first = up[0], next = up.slice(1, 4);
+  const up = coachAgenda(), first = up[0], next = up.slice(1, 4), box = S.metaErr ? [] : inbox();
   const g = S.meta.groups, none = inGroup("");
   paint(`${demoBanner()}
   ${coachTop("Oggi", longToday())}
@@ -493,9 +555,10 @@ function renderCoachHome() {
       <li class="stat"><span>${icon("chart")}Media progressi</span><b>${n ? `${avg}%` : "–"}</b></li>
       <li class="stat"><span>${icon("clock")}Attivi in 7 giorni</span><b>${active}<small> su ${n}</small></b></li>
     </ul></section>
-  ${first ? feature(first, whoOf(first), S.metaErr ? "" : "c-edit-tr", "Prossimo allenamento") : ""}
+  ${box.length ? sect("hInbox", "Da confermare", `<ul class="trs reqs">${box.map(inboxRow).join("")}</ul>`) : ""}
+  ${first ? feature(first.t, first.who, S.metaErr ? "" : first.act, first.act === "c-edit-slot" ? "Prossima lezione privata" : "Prossimo allenamento") : ""}
   ${first && !next.length ? "" : sect("hNext", first ? "Poi in calendario" : "Prossimi allenamenti",
-    next.length ? `<ul class="trs">${next.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
+    next.length ? `<ul class="trs">${next.map((x) => trRow(x.t, x.who, x.act)).join("")}</ul>`
       : empty("calendar", "Nessun allenamento in programma", "Tocca + per aggiungerne uno."),
     next.length ? `<a class="more" href="#/coach/calendario">Vedi tutti</a>` : "")}
   ${sect("hGr", "Gruppi", g.length
@@ -508,12 +571,14 @@ function renderCoachHome() {
 // ---------------------------------------------------------- Alunni (elenco con gruppi e ricerca)
 const norm = (t) => String(t).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const SEARCH_MIN = 6; // la ricerca compare da 6 alunni in su
-const byGroup = (s) => !S.gf || (S.gf === "none" ? !s.group : s.group === S.gf);
+const byGroup = (s) => !S.gf || (S.gf === "none" ? !s.group : S.gf === "priv" ? !!s.priv : s.group === S.gf);
 const shownStudents = () => { const q = norm(S.q); return S.students.filter((s) => byGroup(s) && (!q || norm(s.name).includes(q))); };
 
 function gfChips() {
-  if (!S.meta.groups.length) return "";
-  const opts = [["", "Tutti"], ...S.meta.groups.map((g) => [g.id, g.name]), ...(inGroup("") ? [["none", "Senza gruppo"]] : [])];
+  const anyPriv = S.students.some((s) => s.priv);
+  if (!S.meta.groups.length && !anyPriv) return "";
+  const opts = [["", "Tutti"], ...S.meta.groups.map((g) => [g.id, g.name]), ...(S.meta.groups.length && inGroup("") ? [["none", "Senza gruppo"]] : []),
+    ...(anyPriv ? [["priv", "Lezioni private"]] : [])];
   return opts.map(([k, l]) => `<button class="chip f" data-act="c-gf" data-id="${k || "all"}" aria-pressed="${S.gf === k}">${esc(l)}</button>`).join("");
 }
 
@@ -527,7 +592,7 @@ function studentRows() {
         <span class="av" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
         <span class="stu-main"><span class="row"><b>${esc(s.name)}</b><span class="pill">${pct(s)}%</span></span>
         ${progressBar(s)}
-        <small class="muted">${[lvlOf(s) ? LEVEL_LABEL[lvlOf(s)] : "", gn ? esc(gn) : ""].filter(Boolean).join(" · ")}</small>
+        <small class="muted">${[lvlOf(s) ? LEVEL_LABEL[lvlOf(s)] : "", gn ? esc(gn) : "", s.priv ? "Lezioni private" : ""].filter(Boolean).join(" · ")}</small>
         <small class="muted">Scheda: ${done}/${tot} spuntati${s.checksAt && done ? ` · ${fmtWhen(s.checksAt)}` : ""}</small></span>
       </a></li>`;
     }).join("")}</ul>`;
@@ -557,7 +622,7 @@ function renderCoachList() {
   if (document.getElementById("stuList") && $root.dataset.view === "list" && !animateNext) return refreshList();
   paint(`${demoBanner()}
   ${coachTop("Alunni", `<span id="stuTot">${nAlunni(S.students.length)}</span>`)}
-  ${S.meta.groups.length ? `<div class="chips gf" id="gfBox" role="group" aria-label="Filtra per gruppo">${gfChips()}</div>` : ""}
+  ${gfChips() ? `<div class="chips gf" id="gfBox" role="group" aria-label="Filtra gli alunni">${gfChips()}</div>` : ""}
   ${S.students.length >= SEARCH_MIN ? `<div class="search" role="search">
     <label for="stuSearch" class="sr">Cerca alunno</label>${icon("search")}
     <input id="stuSearch" type="search" placeholder="Cerca alunno" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -585,6 +650,10 @@ function renderCoachCal() {
       : empty("calendar", "Nessun allenamento in programma", "Tocca + per aggiungerne uno. Ogni alunno vede quelli per tutti e quelli del suo gruppo.")}
     ${past.length ? `<details class="past"><summary>Passati (${past.length})</summary>
       <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}`)}
+  ${sect("hSlots", "Lezioni private",
+    `${upSlots().length ? `<ul class="trs">${upSlots().map((t) => trRow(t, slotWho(t), "c-edit-slot")).join("")}</ul>`
+      : empty("user", "Nessun orario libero", "Pubblica gli orari in cui puoi fare lezioni private: gli alunni con le lezioni private attive li vedono e ti chiedono quello che preferiscono.")}
+    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-slot">${icon("plus")} Aggiungi orari liberi</button>`}`)}
   ${sect("hGroups", "Gruppi",
     `${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>`
       : empty("group", "Ancora nessun gruppo", NO_GROUPS)}
@@ -600,15 +669,17 @@ function renderCoachStudent(code, tab) {
   const tabs = [["profilo", "Profilo"], ["progressi", "Progressi"], ["scheda", "Scheda"], ["invito", "Invito"]];
   let body = "";
   if (tab === "profilo") {
-    const gn = groupName(S.meta, s.group), next = schedFor(S.meta, s).slice(0, 3);
+    const gn = groupName(S.meta, s.group);
+    const next = [...schedFor(S.meta, s).map((t) => [t, t.gname || "Tutti"]), ...lessonsFor(S.meta, s).map((t) => [t, "Lezione privata"])]
+      .sort((a, b) => (a[0].date + a[0].time).localeCompare(b[0].date + b[0].time)).slice(0, 3);
     body = `<section class="card profile" aria-labelledby="hTab">
       <div class="prof-h"><span class="av lg" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
         <div class="grow"><h2 id="hTab">${esc(s.name)}</h2>
-        <small>${LEVEL_LABEL[lvlOf(s) || "base"]} · ${gn ? esc(gn) : "Nessun gruppo"}</small></div></div>
+        <small>${LEVEL_LABEL[lvlOf(s) || "base"]} · ${gn ? esc(gn) : "Nessun gruppo"}${s.priv ? " · Lezioni private" : ""}</small></div></div>
       ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : `<p class="muted">Nessuna descrizione.</p>`}
     </section>
     <section class="card" aria-labelledby="hSn"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
-      ${next.length ? `<ul class="trs">${next.map((t) => trRow(t, t.gname || "Tutti")).join("")}</ul>`
+      ${next.length ? `<ul class="trs">${next.map(([t, w]) => trRow(t, w)).join("")}</ul>`
         : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`;
   } else if (tab === "progressi") {
     const n = (s.progress || []).length, ro = S.reorder === "progressi" && n > 1;
@@ -775,6 +846,48 @@ const ACTIONS = {
   async "s-reset"() {
     if (confirm("Vuoi togliere tutte le spunte e ricominciare la scheda?")) await be.resetChecks(S.student.code);
   },
+  // lezioni private (alunno)
+  "s-ask"() {
+    const st = S.student, free = (st.open || []).filter((o) => !(st.reqs || {})[o.id]);
+    openSheet({ title: "Chiedi una lezione", body: `
+      <p class="muted small">Scegli un orario: la tua allenatrice riceve la richiesta e la conferma. Fino a quel momento l'orario resta libero anche per gli altri.</p>
+      ${free.length ? `<ul class="trs">${free.map((t) => trRow(t, "Lezione privata", "s-req")).join("")}</ul>`
+        : `<p class="muted">Al momento non ci sono orari liberi.</p>`}
+      <div class="sheet-btns"><button type="button" class="btn ghost" data-act="close">Annulla</button></div>` });
+  },
+  async "s-req"(el) {
+    const st = S.student, t = (st.open || []).find((o) => o.id === el.dataset.id);
+    if (!t) return;
+    if (Object.keys(st.reqs || {}).length >= 20) return toast("Hai già troppe richieste aperte");
+    closeSheet();
+    await reqWrite(st.code, t.id, { at: Date.now(), slot: { date: t.date, time: t.time, dur: t.dur, place: t.place } });
+    toast(`Richiesta inviata: ${fmtDay(t.date)}${t.time ? ` · ${t.time}` : ""}`);
+  },
+  async "s-req-del"(el) {
+    const st = S.student, r = (st.reqs || {})[el.dataset.id];
+    if (r && !r.st && !confirm("Annullare la richiesta?")) return;
+    await reqWrite(st.code, el.dataset.id, null);
+  },
+  "s-lesson"(el) {
+    const st = S.student, t = (st.lessons || []).find((o) => o.id === el.dataset.id);
+    if (!t) return;
+    const sent = st.reqs && st.reqs[t.id] && st.reqs[t.id].cancel;
+    openSheet({ title: "Lezione privata", body: `
+      <ul class="trs">${trRow(t, "Lezione privata")}</ul>
+      ${t.note ? `<p>${esc(t.note)}</p>` : ""}
+      ${sent ? `<p class="muted">Hai disdetto questa lezione: la tua allenatrice la toglierà dal calendario.</p>`
+        : canCancel(t) ? `<p class="muted small">Puoi disdirla fino a ${CANCEL_HOURS} ore prima.</p>`
+        : `<p class="muted">Mancano meno di ${CANCEL_HOURS} ore: per disdire scrivi alla tua allenatrice.</p>`}
+      <div class="sheet-btns"><button type="button" class="btn" data-act="close">Chiudi</button></div>
+      ${!sent && canCancel(t) ? delBtn("Disdici la lezione") : ""}`,
+    onSubmit: async (fd, sub) => {
+      if (!(sub && sub.name === "del")) return;
+      if (!canCancel(t)) { toast(`Mancano meno di ${CANCEL_HOURS} ore: scrivi alla tua allenatrice`); return false; }
+      if (!confirm(`Disdire la lezione di ${fmtDay(t.date)}${t.time ? ` alle ${t.time}` : ""}?`)) return false;
+      await reqWrite(st.code, t.id, { cancel: Date.now() });
+      toast("Lezione disdetta");
+    } });
+  },
   "s-logout"() {
     if (!confirm("Scollegare questo telefono? Ti servirà di nuovo il codice per rientrare.")) return;
     localStorage.removeItem(LS_CODE);
@@ -851,7 +964,7 @@ const ACTIONS = {
     onSubmit: async (fd) => {
       const group = validGroup(fd.get("group"));
       const code = await be.createStudent(fd.get("name").trim(), normLevel(fd.get("level")) || "base",
-        { group, bio: "", sched: schedFor(S.meta, { group }) });
+        { group, bio: "", priv: false, sched: schedFor(S.meta, { group }) });
       go(`#/coach/${code}/invito`);
     } });
   },
@@ -990,6 +1103,26 @@ const ACTIONS = {
   "c-new-tr"() { trainingSheet(null); },
   "c-edit-tr"(el) { trainingSheet(S.meta.trainings.find((t) => t.id === el.dataset.id)); },
   "c-new-group"() { groupSheet(null); },
+  "c-new-slot"() { slotSheet(null); },
+  "c-edit-slot"(el) { slotSheet(S.meta.slots.find((t) => t.id === el.dataset.id)); },
+  // richieste di lezione: conferma (l'orario diventa suo, le altre richieste per lo stesso orario diventano "non confermate")
+  async "c-lr-ok"(el) {
+    const { code, id } = el.dataset, t = S.meta.slots.find((x) => x.id === id);
+    if (!t || t.who) return toast("Orario già prenotato");
+    await saveMeta({ ...S.meta, slots: S.meta.slots.map((x) => (x.id === id ? { ...x, who: code } : x)) });
+    toast(`Lezione confermata a ${nameOf(code)}`);
+  },
+  async "c-lr-no"(el) {
+    const { code, id } = el.dataset, st = S.students.find((x) => x.code === code), r = st && st.reqs && st.reqs[id];
+    if (!r) return;
+    await syncSched(S.meta, { [code]: { [`reqs.${id}`]: { ...r, st: "no" } } });
+    toast("Richiesta rifiutata");
+  },
+  async "c-lr-free"(el) {
+    const { id } = el.dataset;
+    await saveMeta({ ...S.meta, slots: S.meta.slots.map((x) => (x.id === id ? { ...x, who: "" } : x)) });
+    toast("Orario di nuovo libero");
+  },
   "c-edit-group"(el) { groupSheet(S.meta.groups.find((g) => g.id === el.dataset.id)); },
   "c-profile"() {
     const s = cur();
@@ -997,16 +1130,16 @@ const ACTIONS = {
       <label>Soprannome<input name="name" required maxlength="40" value="${esc(s.name)}"></label>
       ${levelSeg(lvlOf(s) || "base")}
       ${groupSelect(s.group || "")}
+      <ul class="menu"><li><label class="mi sw-row">${icon("user")}<span class="txt"><b>Lezioni private</b><small>Vede gli orari liberi e può chiederti una lezione.</small></span>
+        <input type="checkbox" role="switch" class="switch" name="priv" ${s.priv ? "checked" : ""}></label></li></ul>
       <label>Descrizione (facoltativa)<textarea name="bio" rows="3" maxlength="200" aria-describedby="bioHelp"
         placeholder="Es. Punta al test di livello a primavera">${esc(s.bio)}</textarea></label>
       <p class="muted small" id="bioHelp">La vede anche l'alunno. Niente cognomi, contatti o informazioni sulla salute.</p>
       ${sheetBtns("Salva")}`,
     onSubmit: async (fd) => {
       const s2 = cur(), group = validGroup(fd.get("group"));
-      const patch = { name: fd.get("name").trim(), level: normLevel(fd.get("level")) || "base", group, bio: fd.get("bio").trim() };
-      const sched = schedFor(S.meta, { ...s2, group });
-      if (!sameSched(sched, s2.sched)) patch.sched = sched;
-      await be.updateStudent(s2.code, patch);
+      const patch = { name: fd.get("name").trim(), level: normLevel(fd.get("level")) || "base", group, bio: fd.get("bio").trim(), priv: fd.get("priv") === "on" };
+      await be.updateStudent(s2.code, diffPatch(S.meta, s2, patch));
       toast("Profilo salvato");
     } });
   },
@@ -1014,6 +1147,7 @@ const ACTIONS = {
     const s = cur();
     if (!confirm(`Generare un nuovo codice per ${s.name}? Dovrai mandargli di nuovo l'invito.`)) return;
     const code = await be.regenerateCode(s.code);
+    if (S.meta.slots.some((t) => t.who === s.code)) await be.saveMeta(S.meta = { ...S.meta, slots: S.meta.slots.map((t) => (t.who === s.code ? { ...t, who: code } : t)) });
     go(`#/coach/${code}/invito`);
     toast("Nuovo codice creato");
   },
@@ -1021,6 +1155,11 @@ const ACTIONS = {
     const s = cur();
     if (!confirm(`Eliminare ${s.name} e tutti i suoi dati? Non si può annullare.`)) return;
     await be.deleteStudent(s.code);
+    if (S.meta.slots.some((t) => t.who === s.code)) { // le sue lezioni tornano orari liberi
+      const meta = { ...S.meta, slots: S.meta.slots.map((t) => (t.who === s.code ? { ...t, who: "" } : t)) };
+      S.students = S.students.filter((x) => x.code !== s.code);
+      await saveMeta(meta);
+    }
     go("#/coach/alunni");
   },
 };
@@ -1034,14 +1173,15 @@ async function importBackup(e) {
     const existing = new Set(S.students.map((s) => s.code));
     const toAdd = data.students.filter((s) => s.code && !existing.has(s.code));
     // gruppi e allenamenti (backup dalla versione 2): solo se qui non ce ne sono ancora
-    const bm = normMeta(data.meta), useMeta = !S.metaErr && (bm.groups.length || bm.trainings.length) && !S.meta.groups.length && !S.meta.trainings.length;
+    const bm = normMeta(data.meta), useMeta = !S.metaErr && (bm.groups.length || bm.trainings.length || bm.slots.length)
+      && !S.meta.groups.length && !S.meta.trainings.length && !S.meta.slots.length;
     if (!confirm(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""} Ripristinarli?`)) return;
     const meta = useMeta ? bm : S.meta;
     if (useMeta) { await be.saveMeta(meta); S.meta = meta; }
     const okGroup = (g) => (meta.groups.some((x) => x.id === g) ? g : "");
     for (const { code, ...rest } of toAdd) {
       const st = { ...rest, group: okGroup(rest.group) };
-      await be.restoreStudent(code, { ...st, sched: schedFor(meta, st) });
+      await be.restoreStudent(code, { ...st, ...copiesFor(meta, { ...st, code }) });
     }
     if (useMeta) await syncSched(meta); // alunni già presenti che erano nei gruppi del backup
     closeSheet();
@@ -1067,21 +1207,40 @@ const groupSelect = (curG) => S.meta.groups.length ? `<label>Gruppo<select name=
 // aggiorna la copia degli allenamenti nel documento di ogni alunno (solo dove cambia, in un'unica scrittura).
 // extra: modifiche da applicare insieme, { codice: { group: "" } }.
 // Si chiama solo dopo un'azione dell'allenatrice, mai da un aggiornamento dei dati (niente cicli).
-async function syncSched(meta, extra = {}) {
+// copie nel documento dell'alunno: allenamenti del gruppo, orari liberi (se ha le lezioni private), sue lezioni
+const copiesFor = (meta, s) => ({ sched: schedFor(meta, s), open: openFor(meta, s), lessons: lessonsFor(meta, s) });
+const SAME = { sched: sameSched, open: sameSlots, lessons: sameSlots };
+// modifiche da scrivere per un alunno: extra + copie cambiate + richieste da chiudere
+// (orario sparito o passato, già prenotato da lui, preso da un altro → "non confermata", disdetta già gestita)
+function diffPatch(meta, s, extra = {}) {
+  const patch = { ...extra }, v = { ...s, ...extra }, c = copiesFor(meta, v);
+  for (const k in c) if (!SAME[k](c[k], s[k])) patch[k] = c[k];
+  for (const [id, r] of Object.entries(s.reqs || {})) {
+    const key = `reqs.${id}`;
+    if (key in extra || !r) continue;
+    const t = meta.slots.find((x) => x.id === id);
+    if (!t || t.date < today()) patch[key] = null;
+    else if (r.cancel) { if (t.who !== s.code) patch[key] = null; }
+    else if (t.who === s.code) patch[key] = null;
+    else if (t.who && !r.st) patch[key] = { ...r, st: "no" };
+  }
+  return patch;
+}
+// si chiama solo dopo un'azione dell'allenatrice, mai da un aggiornamento dei dati (niente cicli);
+// con withMeta gruppi/allenamenti/orari e alunni vanno nella stessa scrittura
+async function syncSched(meta, extra = {}, withMeta = false) {
   const list = [];
   for (const s of S.students) {
-    const patch = { ...(extra[s.code] || {}) };
-    const sched = schedFor(meta, { ...s, ...patch });
-    if (!sameSched(sched, s.sched)) patch.sched = sched;
+    const patch = diffPatch(meta, s, extra[s.code] || {});
     if (Object.keys(patch).length) list.push([s.code, patch]);
   }
-  if (list.length) await be.updateMany(list);
+  if (withMeta || list.length) await be.updateMany(list, withMeta ? meta : undefined);
   return list.length;
 }
 async function saveMeta(meta, extra) {
-  await be.saveMeta(meta);
+  meta = { ...meta, slots: pruneOld(meta.slots || []) };
   S.meta = meta;
-  return syncSched(meta, extra);
+  return syncSched(meta, extra, true);
 }
 // gli allenamenti passati da più di 60 giorni si tolgono, così il documento resta piccolo
 const pruneOld = (list) => list.filter((t) => t.date >= addDays(-60));
@@ -1128,7 +1287,7 @@ function groupSheet(g) {
       if (!confirm(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`)) return false;
       const extra = Object.fromEntries(S.students.filter((s) => s.group === g.id).map((s) => [s.code, { group: "" }]));
       if (S.gf === g.id) S.gf = "";
-      await saveMeta({ groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
+      await saveMeta({ ...S.meta, groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
       return toast("Gruppo eliminato");
     }
     const name = fd.get("name").trim();
@@ -1136,6 +1295,55 @@ function groupSheet(g) {
     const groups = g ? S.meta.groups.map((x) => (x.id === g.id ? { ...x, name } : x)) : [...S.meta.groups, { id: newId(), name }];
     await saveMeta({ ...S.meta, groups });
     toast(g ? "Gruppo rinominato" : "Gruppo creato");
+  } });
+}
+
+// scrittura dell'alunno sulle lezioni private, con un messaggio chiaro se le regole del database non sono aggiornate
+async function reqWrite(code, id, val) {
+  try { await be.setReq(code, id, val); }
+  catch (e) {
+    console.warn(e);
+    toast(e && e.code === "permission-denied" ? "Non riesco a inviarla: l'allenatrice deve aggiornare le regole del database" : "Connessione non riuscita. Riprova.");
+  }
+}
+
+// orari per le lezioni private: uno o ripetuto ogni settimana; si può anche assegnare direttamente a un alunno
+function slotSheet(t) {
+  if (t === undefined) return;
+  const privs = S.students.filter((x) => x.priv || (t && x.code === t.who));
+  openSheet({ title: t ? "Orario lezione privata" : "Nuovi orari liberi", body: `
+    <div class="two"><label>Data<input type="date" name="date" required value="${esc(t ? t.date : addDays(1))}"></label>
+      <label>Ora<input type="time" name="time" required value="${esc(t ? t.time : "16:00")}"></label></div>
+    <div class="two"><label>Durata<select name="dur">${[30, 45, 60, 90].map((m) => `<option value="${m}" ${(t ? t.dur : 30) === m ? "selected" : ""}>${m} minuti</option>`).join("")}</select></label>
+      ${t ? "" : `<label>Ripeti<select name="rep"><option value="1">Solo questa volta</option>${[2, 4, 8].map((n) => `<option value="${n}">Per ${n} settimane</option>`).join("")}</select></label>`}</div>
+    <label>Prenotata da<select name="who"><option value="">Nessuno: orario libero</option>
+      ${privs.map((x) => `<option value="${x.code}" ${t && t.who === x.code ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>
+    <label>Luogo (facoltativo)<input name="place" maxlength="60" value="${esc(t ? t.place : "Palaghiaccio")}"></label>
+    <label>Note (facoltative)<input name="note" maxlength="120" value="${esc(t && t.note)}" placeholder="Es. Portare la musica"></label>
+    <p class="muted small">${privs.length ? "Gli orari liberi li vedono solo gli alunni con le lezioni private attive (si attivano nel loro Profilo)."
+      : "Nessun alunno ha ancora le lezioni private: attivale nel Profilo di chi le fa."}</p>
+    ${sheetBtns("Salva")}
+    ${t ? delBtn("Elimina orario") : ""}`,
+  onSubmit: async (fd, sub) => {
+    const all = S.meta.slots;
+    if (sub && sub.name === "del") {
+      if (!confirm(t.who ? `Eliminare la lezione di ${nameOf(t.who)}? Sparirà anche dalla sua app.` : "Eliminare questo orario?")) return false;
+      await saveMeta({ ...S.meta, slots: all.filter((x) => x.id !== t.id) });
+      return toast("Orario eliminato");
+    }
+    const date = fd.get("date"), d0 = parseDate(date);
+    if (!d0) { toast("Scegli una data"); return false; }
+    const base = { time: fd.get("time") || "", dur: Number(fd.get("dur")) || 30, place: fd.get("place").trim(), note: fd.get("note").trim(),
+      who: S.students.some((x) => x.code === fd.get("who")) ? fd.get("who") : "" };
+    if (t) {
+      await saveMeta({ ...S.meta, slots: all.map((x) => (x.id === t.id ? { ...x, ...base, date } : x)) });
+      return toast("Orario aggiornato");
+    }
+    const n = Number(fd.get("rep")) || 1;
+    const add = Array.from({ length: n }, (_, k) => ({ id: newId(), date: localDate(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 7 * k)),
+      ...base, who: k === 0 ? base.who : "" }));
+    await saveMeta({ ...S.meta, slots: [...all, ...add] });
+    toast(n === 1 ? "Orario aggiunto" : `${n} orari aggiunti`);
   } });
 }
 

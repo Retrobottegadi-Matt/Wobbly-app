@@ -102,6 +102,51 @@ async def main():
         assert await pg.locator(".trs li:has-text('PROVA-PR')").count() == 0
         await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
 
+        # lezioni private: l'allenatrice pubblica un orario, due alunni lo chiedono, lei ne conferma uno; disdetta e orario di nuovo libero
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-new-slot]"); await pg.wait_for_timeout(150); await font16("orario")
+        await pg.fill("input[name=date]", (await pg.evaluate("(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()")))
+        await pg.fill("input[name=time]", "18:45"); await pg.fill("input[name=note]", "PROVA-SLOT")
+        await pg.select_option("select[name=rep]", "2"); await pg.click("text=Salva"); await pg.wait_for_timeout(300)
+        d = await dev()
+        mine = [t for t in d["meta"]["slots"] if t["note"] == "PROVA-SLOT"]
+        assert len(mine) == 2 and all(not t["who"] for t in mine), "orario ripetuto per 2 settimane"
+        sid = sorted(mine, key=lambda t: t["date"])[0]["id"]
+        privs = [c for c, st in d["students"].items() if st.get("priv")]
+        nopriv = next(c for c, st in d["students"].items() if not st.get("priv"))
+        assert len(privs) >= 2 and all(any(o["id"] == sid for o in d["students"][c]["open"]) for c in privs), "gli alunni privati vedono l'orario"
+        assert not d["students"][nopriv].get("open"), "chi non fa lezioni private non vede gli orari"
+        pa, pb = privs[0], privs[1]
+        for c in (pa, pb):
+            await pg.evaluate(f"localStorage.setItem('pg_my_code','{c}')"); await pg.goto(B + "#/"); await pg.reload(); await pg.wait_for_timeout(400)
+            await pg.click("[data-act=s-ask]"); await pg.wait_for_timeout(150)
+            await pg.click(f"[data-act=s-req][data-id='{sid}']"); await pg.wait_for_timeout(250)
+            assert "In attesa di conferma" in await pg.locator("#hPriv + *, section:has(#hPriv)").inner_text()
+        await pg.evaluate(f"localStorage.setItem('pg_my_code','{nopriv}')"); await pg.goto(B + "#/"); await pg.reload(); await pg.wait_for_timeout(400)
+        assert await pg.locator("#hPriv").count() == 0, "niente lezioni private per chi non le ha"
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(400)
+        assert await pg.locator(f"[data-act=c-lr-ok][data-id='{sid}']").count() == 2, "due richieste per lo stesso orario"
+        await pg.click(f"[data-act=c-lr-ok][data-id='{sid}'][data-code='{pa}']"); await pg.wait_for_timeout(300)
+        d = await dev()
+        assert next(t for t in d["meta"]["slots"] if t["id"] == sid)["who"] == pa
+        assert any(t["id"] == sid for t in d["students"][pa]["lessons"]) and sid not in d["students"][pa].get("reqs", {})
+        assert d["students"][pb]["reqs"][sid]["st"] == "no", "l'altra richiesta diventa non confermata"
+        assert not any(o["id"] == sid for o in d["students"][pb]["open"])
+        await pg.evaluate(f"localStorage.setItem('pg_my_code','{pb}')"); await pg.goto(B + "#/"); await pg.reload(); await pg.wait_for_timeout(400)
+        assert "Non confermata" in await pg.locator("main").inner_text()
+        await pg.evaluate(f"localStorage.setItem('pg_my_code','{pa}')"); await pg.goto(B + "#/"); await pg.reload(); await pg.wait_for_timeout(400)
+        await pg.click(f"[data-act=s-lesson][data-id='{sid}']"); await pg.wait_for_timeout(200)
+        await pg.click("text=Disdici la lezione"); await pg.wait_for_timeout(300)
+        d = await dev(); assert d["students"][pa]["reqs"][sid].get("cancel"), "disdetta inviata"
+        await pg.goto(B + "#/coach"); await pg.wait_for_timeout(400)
+        await pg.click(f"[data-act=c-lr-free][data-id='{sid}']"); await pg.wait_for_timeout(300)
+        d = await dev()
+        assert not next(t for t in d["meta"]["slots"] if t["id"] == sid)["who"], "orario di nuovo libero"
+        assert all(t["id"] != sid for t in d["students"][pa]["lessons"]), "la lezione sparisce dall'app dell'alunno"
+        assert sid not in d["students"][pa].get("reqs", {}), "disdetta gestita"
+        await pg.evaluate(f"localStorage.setItem('pg_my_code','{ag}')")
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
+
         # crea alunno, aggiungi elementi e esercizi
         await pg.click("[data-act=c-new]"); await pg.wait_for_timeout(100); await font16("nuovo alunno")
         await pg.fill("input[name=name]", "Test"); await pg.click("label.seg-opt.lv:has-text('Intermedio')"); await pg.click("button[type=submit]")

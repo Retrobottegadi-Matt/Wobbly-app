@@ -65,6 +65,7 @@ export function sampleMeta(makeId) {
   const groups = [["Agonisti"], ["Sabato mattina"], ["Principianti"]].map(([name]) => ({ id: makeId(), name }));
   const [ag, sab, pr] = groups.map((g) => g.id);
   const T = (d, time, group, place = "", note = "") => ({ id: makeId(), date: addDays(d), time, group, place, note });
+  const L = (d, time) => ({ id: makeId(), date: addDays(d), time, dur: 30, place: "Palaghiaccio", note: "", who: "" });
   return {
     groups,
     trainings: [
@@ -74,6 +75,10 @@ export function sampleMeta(makeId) {
       T(4, "17:00", "", "Palaghiaccio", "Prova dei costumi per il saggio"),
       T(5, "17:30", pr, "Pista piccola"),
       T(9, "09:00", sab, "Palaghiaccio"),
+    ],
+    // orari per le lezioni private (who = codice dell'alunno, "" = libero)
+    slots: [
+      L(1, "16:00"), L(3, "16:30"), L(3, "17:00"), L(6, "15:30"), L(8, "16:00"),
     ],
   };
 }

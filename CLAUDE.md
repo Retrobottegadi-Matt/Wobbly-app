@@ -13,6 +13,7 @@ Lingua dell'interfaccia e dei testi: **italiano**. L'utente (Matt) è un alunno 
 - L'utente ha detto che "l'applicazione iniziale va bene" e che voleva solo ridurre la dipendenza da servizi esterni.
 - Novembre 2026: l'utente vuole un'app "semplice e intuitiva, con le informazioni di OS27" (linee guida Apple attuali) e testi curati: brevi, diretti, in italiano naturale.
 - 20 novembre 2026: l'utente ha mandato tre immagini di riferimento (illustrazione a grana blu/giallo/pesca, poster "Wild Flower" blu cobalto e crema, app didattica con carte colorate, numeri grossi e barra nera a capsula). Lo stile v10 le traduce senza illustrazioni né font esterni; sostituisce i "pastelli rifiniti".
+- 22 novembre 2026: lezioni private con prenotazione. Scelte dell'utente: **richiesta + conferma** (l'allenatrice pubblica orari liberi, l'alunno chiede, lei conferma o rifiuta), **tutti gli alunni possono fare privati** (interruttore nel Profilo, anche se sono in un gruppo), **disdetta dell'alunno fino a 24 ore prima**, **niente pacchetti/conteggio lezioni** per ora.
 - Novembre 2026: l'utente ha chiesto UX e UI migliori. Ha scelto lo stile "pastelli rifiniti" (toni tenui, bordi sottili, un accento per volta), una Home per l'allenatrice (prossimi allenamenti + numeri riassuntivi), gruppi di alunni (per filtrare l'elenco e collegare gli allenamenti), date degli allenamenti per gruppo e un profilo alunno (nome, livello, gruppo, descrizione facoltativa) compilato dall'allenatrice.
 
 ## Decisioni prese (e perché)
@@ -43,7 +44,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root), v10: crema caldo, blu cobalto (--blue, carta in evidenza .feat con grana --grain e "sole" giallo), pastelli caldi (giallo/pesca in --pink/pervinca in --lilac/salvia/azzurro/arancio), barra in basso scura (--nav-*); tema chiaro e scuro "notte blu"; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v17)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v18)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -91,7 +92,11 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
   - `level` può mancare nei dati creati prima dei livelli: `normItem()` lo ricava dal catalogo (altrimenti "base").
   - L'allenatrice aggiorna gli array interi (`progress`, `plan`); l'alunno scrive solo `checks.{id}` e `checksAt`.
   - `group` (id del gruppo o ""), `bio` (descrizione facoltativa, la vede anche l'alunno), `sched` (copia degli allenamenti futuri che lo riguardano: `[{id, date, time, place, note, gname}]`).
-- `meta/coach` (solo allenatrice): `{ groups: [{id, name}], trainings: [{id, date: "YYYY-MM-DD", time, group: id|"" (tutti), place, note}] }`.
+- `meta/coach` (solo allenatrice): `{ groups: [{id, name}], trainings: [{id, date: "YYYY-MM-DD", time, group: id|"" (tutti), place, note}], slots: [{id, date, time, dur (min), place, note, who: codice alunno | "" (libero)}] }`.
+- Lezioni private (in `students/{code}`): `priv` (bool, lo mette l'allenatrice), `open` (copia degli orari liberi futuri, solo se `priv`), `lessons` (copia delle sue lezioni prenotate), `reqs` (mappa scritta dall'alunno: `{idOrario: {at, slot:{date,time,dur,place}}}` = richiesta, `{cancel: ms}` = disdetta; l'allenatrice risponde con `st: "no"`). I codici degli alunni stanno solo in `meta.slots` (mai in documenti leggibili da altri alunni).
+  - `diffPatch()` (app.js) calcola per ogni alunno copie cambiate e richieste da chiudere: orario sparito/passato → tolta; prenotato da lui → tolta; preso da un altro → `st: "no"`; disdetta gestita → tolta. `saveMeta()` scrive meta e alunni nella stessa `writeBatch` (`updateMany(list, meta)`; nelle chiavi con il punto `null` = deleteField).
+  - Conferma (`c-lr-ok`) = mettere `who` sull'orario; tutto il resto lo fa `diffPatch`. La regola delle 24 ore è nell'app (`canCancel` in sched.js), non nel database.
+  - Home allenatrice: sezione "Da confermare" (richieste e disdette); la carta in evidenza e "Poi in calendario" includono le lezioni prenotate. Calendario: sezione "Lezioni private" + "Aggiungi orari liberi" (ripetibili per 2/4/8 settimane). Alunno: lezioni nella sua agenda e sezione "Lezioni private" in Oggi (prenotate, richieste, "Chiedi una lezione"). Elenco alunni: filtro "Lezioni private".
   - Dopo ogni modifica di gruppi/allenamenti o del gruppo di un alunno, `syncSched()` riscrive `sched` solo negli alunni dove cambia, con `updateMany` (writeBatch). Si chiama solo dopo un'azione dell'allenatrice, mai da uno snapshot.
   - Se la lettura di `meta` è negata (regole vecchie), l'area allenatrice funziona lo stesso e mostra un avviso.
   - Gli allenamenti passati da più di 60 giorni vengono tolti al salvataggio successivo.
@@ -100,7 +105,7 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - `transfers/{code}`: `{ by: uid, at: serverTimestamp }`
 
 ## Regole di sicurezza (riassunto di firestore.rules)
-- `students`: per `list`, `create` e `delete` serve `isCoach()`. Il `get` è permesso all'allenatrice e a chiunque abbia un ID di 12 caratteri. Nell'`update` l'alunno può modificare solo `checks` e `checksAt`, con `checks` di tipo map e al massimo 100 voci.
+- `students`: per `list`, `create` e `delete` serve `isCoach()`. Il `get` è permesso all'allenatrice e a chiunque abbia un ID di 12 caratteri. Nell'`update` l'alunno può modificare solo `checks`, `checksAt` e `reqs` (`checks` map ≤ 100 voci; `reqs` map ≤ 20 voci e solo se il documento ha `priv == true`).
 - `coaches/{uid}`: lettura e cancellazione solo dal proprio uid. La creazione richiede un `transfers/{via}` esistente e creato da meno di 15 minuti.
 - `transfers`: la creazione è riservata all'allenatrice e richiede `at == request.time`.
 - `meta/{d}`: lettura e scrittura solo con `isCoach()`.

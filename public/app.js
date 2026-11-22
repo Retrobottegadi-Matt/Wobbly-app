@@ -549,7 +549,7 @@ function renderCoachHome() {
   paint(`${demoBanner()}
   ${coachTop("Oggi", longToday())}
   ${metaWarn()}
-  <section aria-labelledby="hNum"><h2 class="sr" id="hNum">In sintesi</h2>
+  <section class="statbox" aria-labelledby="hNum"><h2 class="sr" id="hNum">In sintesi</h2>
     <ul class="stats">
       <li class="stat"><span>${icon("users")}Alunni</span><b>${n}</b></li>
       <li class="stat"><span>${icon("chart")}Media progressi</span><b>${n ? `${avg}%` : "–"}</b></li>

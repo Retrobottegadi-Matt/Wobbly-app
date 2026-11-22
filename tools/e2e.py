@@ -423,6 +423,24 @@ async def main():
         assert await p2.locator("#sheet").is_hidden()
         await ctx2.close()
 
+        # schermi diversi: telefono piccolo, Android medio, tablet, orizzontale; niente scorrimento di lato,
+        # numeri riassuntivi senza buchi, pannello che scorre fino a Salva anche su uno schermo basso
+        for (w, h) in [(320, 568), (360, 740), (768, 1024), (844, 390)]:
+            p3 = await b.new_page(viewport={"width": w, "height": h})
+            await p3.goto(B + "?dev#/coach"); await p3.wait_for_timeout(500)
+            for view in ["#/coach", "#/coach/alunni", "#/coach/calendario"]:
+                await p3.goto(B + view); await p3.wait_for_timeout(300)
+                assert await p3.evaluate("document.documentElement.scrollWidth <= innerWidth"), ("scorrimento di lato", w, view)
+            await p3.goto(B + "#/coach"); await p3.wait_for_timeout(300)
+            tops = await p3.evaluate("[...document.querySelectorAll('.stat')].map(e => Math.round(e.getBoundingClientRect().top))")
+            assert len(set(tops)) in (1, 3), ("numeri riassuntivi: o in fila o uno per riga", w, tops)
+            await p3.goto(B + "#/coach/calendario"); await p3.wait_for_timeout(300)
+            await p3.click("[data-act=c-new-slot]"); await p3.wait_for_timeout(300)
+            await p3.locator(".sheet-btns .btn[type=submit]").scroll_into_view_if_needed()
+            bb = await p3.locator(".sheet-btns .btn[type=submit]").bounding_box()
+            assert bb and bb["y"] >= 0 and bb["y"] + bb["height"] <= h, ("Salva fuori dallo schermo", w, h, bb)
+            await p3.close()
+
         await b.close()
         assert not errs, errs
         print("OK")

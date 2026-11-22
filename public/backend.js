@@ -1,6 +1,6 @@
 // Livello dati: Firebase (reale) oppure localStorage (demo / sviluppo).
 import { sampleStudents, sampleMeta } from "./samples.js";
-import { schedFor } from "./sched.js";
+import { schedFor, openFor, lessonsFor } from "./sched.js";
 const ALPH = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // niente 0/O, 1/I/L
 export const CODE_LEN = 12;
 
@@ -89,11 +89,16 @@ async function firebaseBackend(cfg) {
       return fs.onSnapshot(fs.doc(db, "meta", "coach"), (d) => cb(d.exists() ? d.data() : null), err);
     },
     saveMeta: (m) => fs.setDoc(fs.doc(db, "meta", "coach"), m),
-    // più alunni in un'unica scrittura atomica (max 500 per batch)
-    async updateMany(list) {
+    // più alunni in un'unica scrittura atomica (max 500 per batch); con meta, anche gruppi/allenamenti/orari
+    // nella stessa scrittura (una conferma di lezione non può restare a metà).
+    // Nelle chiavi con il punto ("reqs.id") null vuol dire "togli il campo".
+    async updateMany(list, meta) {
+      const fix = (p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v === null && k.includes(".") ? fs.deleteField() : v]));
+      if (!list.length && meta) return fs.setDoc(fs.doc(db, "meta", "coach"), meta);
       for (let i = 0; i < list.length; i += 450) {
         const b = fs.writeBatch(db);
-        list.slice(i, i + 450).forEach(([code, patch]) => b.update(ref(code), patch));
+        if (i === 0 && meta) b.set(fs.doc(db, "meta", "coach"), meta);
+        list.slice(i, i + 450).forEach(([code, patch]) => b.update(ref(code), fix(patch)));
         await b.commit();
       }
     },
@@ -129,7 +134,19 @@ async function firebaseBackend(cfg) {
       });
     },
     resetChecks: (code) => fs.updateDoc(ref(code), { checks: {}, checksAt: Date.now() }),
+    // alunno: richiesta o disdetta di una lezione privata (null = togli)
+    setReq: (code, id, val) => fs.updateDoc(ref(code), { [`reqs.${id}`]: val ? val : fs.deleteField() }),
   };
+}
+
+// come updateDoc di Firestore: le chiavi con il punto ("reqs.id") toccano un solo campo annidato, null lo toglie
+function applyPatch(o, patch) {
+  for (const [k, v] of Object.entries(patch)) {
+    if (!k.includes(".")) { o[k] = v === undefined ? v : JSON.parse(JSON.stringify(v)); continue; }
+    const [a, b] = k.split(".");
+    o[a] = o[a] || {};
+    if (v === null) delete o[a][b]; else o[a][b] = JSON.parse(JSON.stringify(v));
+  }
 }
 
 // ---------------------------------------------------------- Demo
@@ -148,12 +165,21 @@ function demoBackend(KEY, dev) {
 
   // esempi: gruppi e allenamenti (date relative a oggi), alunni distribuiti nei gruppi
   const seedMeta = () => {
-    data.meta = sampleMeta(newId);
+    const fresh = sampleMeta(newId);
+    data.meta = data.meta ? { ...data.meta, slots: fresh.slots } : fresh; // dati dev più vecchi: aggiunge solo gli orari
+    const codes = Object.keys(data.students);
     Object.values(data.students).forEach((st, i) => {
       if (st.group === undefined) st.group = i % 4 === 3 ? "" : data.meta.groups[i % 4].id;
       if (st.bio === undefined) st.bio = ["Punta al test di livello a primavera.", "", "Gareggia nella categoria esordienti.", ""][i % 4];
-      st.sched = schedFor(data.meta, st);
+      if (st.priv === undefined) st.priv = i % 3 === 1; // alcuni alunni con lezioni private
     });
+    // una lezione già prenotata e una richiesta in attesa, per vedere tutti gli stati
+    const priv = codes.filter((c) => data.students[c].priv);
+    const sl = data.meta.slots;
+    if (priv[0] && sl[1]) sl[1].who = priv[0];
+    if (priv[1] && sl[2]) data.students[priv[1]].reqs = { [sl[2].id]: { at: Date.now() - 3600000 } };
+    codes.forEach((c) => { const st = data.students[c], me = { ...st, code: c };
+      st.sched = schedFor(data.meta, st); st.open = openFor(data.meta, me); st.lessons = lessonsFor(data.meta, me); });
   };
   const seed = () => {
     data = { students: sampleStudents(newCode, newId) };
@@ -163,7 +189,7 @@ function demoBackend(KEY, dev) {
   if (!Object.keys(data.students).length) {
     seed();
     if (dev) localStorage.setItem(KEY + "_coach", JSON.stringify({ uid: "dev" }));
-  } else if (dev && !data.meta) {
+  } else if (dev && (!data.meta || !data.meta.slots)) {
     seedMeta(); localStorage.setItem(KEY, JSON.stringify(data)); // dati di sviluppo creati prima dei gruppi
   }
 
@@ -196,7 +222,11 @@ function demoBackend(KEY, dev) {
       return sub(() => { const j = JSON.stringify(data.meta || null); if (j !== last) { last = j; cb(data.meta ? clone(data.meta) : null); } });
     },
     async saveMeta(m) { data.meta = clone(m); save(); },
-    async updateMany(list) { list.forEach(([code, patch]) => { if (S(code)) Object.assign(S(code), clone(patch)); }); save(); },
+    async updateMany(list, meta) {
+      if (meta) data.meta = clone(meta);
+      list.forEach(([code, patch]) => { if (S(code)) applyPatch(S(code), patch); });
+      save();
+    },
     async restoreStudent(code, d) { data.students[code] = clone(d); save(); },
     watchStudents(cb) {
       return sub(() => cb(Object.entries(data.students).map(([code, s]) => ({ code, ...clone(s) }))));
@@ -210,7 +240,7 @@ function demoBackend(KEY, dev) {
       save();
       return code;
     },
-    async updateStudent(code, patch) { Object.assign(S(code), clone(patch)); save(); },
+    async updateStudent(code, patch) { applyPatch(S(code), patch); save(); },
     async deleteStudent(code) { delete data.students[code]; save(); },
     async regenerateCode(old) {
       const code = newCode();
@@ -227,5 +257,11 @@ function demoBackend(KEY, dev) {
       save();
     },
     async resetChecks(code) { S(code).checks = {}; S(code).checksAt = Date.now(); save(); },
+    async setReq(code, id, val) {
+      const s = S(code);
+      s.reqs = s.reqs || {};
+      if (val) s.reqs[id] = clone(val); else delete s.reqs[id];
+      save();
+    },
   };
 }

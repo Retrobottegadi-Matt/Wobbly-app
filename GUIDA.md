@@ -11,7 +11,8 @@ Web app per il telefono (Android e iPhone). Si installa dal browser con "Aggiung
   - **Profilo**: soprannome, livello, gruppo e una breve descrizione facoltativa (la vede anche l'alunno).
 - La **Home** dell'allenatrice mostra quanti alunni ci sono, la media dei progressi, quanti hanno spuntato la scheda negli ultimi 7 giorni e i prossimi allenamenti.
 - Nel **Calendario** si creano i **gruppi** (es. "Sabato mattina") e gli **allenamenti** (data, ora, luogo, note), per tutti o per un gruppo. Nell'elenco **Alunni** si filtra per gruppo.
-- **Alunno**: apre il link ricevuto, oppure inserisce il codice. Vede solo la sua scheda, i suoi prossimi allenamenti e spunta gli esercizi.
+- **Lezioni private**: nel Profilo di un alunno l'allenatrice attiva "Lezioni private" (vale anche per chi è in un gruppo). Nel **Calendario** → *Aggiungi orari liberi* pubblica gli orari (anche ripetuti ogni settimana). Gli alunni con le lezioni private li vedono in **Oggi** e toccano *Chiedi una lezione*. Le richieste arrivano nella Home dell'allenatrice in **Da confermare**: *Conferma* o *Rifiuta*. Se due alunni chiedono lo stesso orario, confermandone uno l'altro vede "Non confermata". L'alunno può disdire fino a 24 ore prima; la disdetta compare in *Da confermare* e l'allenatrice tocca *Libera l'orario*. Non ci sono notifiche: le novità si vedono quando si apre l'app.
+- **Alunno**: apre il link ricevuto, oppure inserisce il codice. Vede solo la sua scheda, i suoi prossimi allenamenti (e lezioni private) e spunta gli esercizi.
 
 ## Cosa viene salvato (e cosa no)
 - Su Firebase (database in Europa) finiscono solo **soprannomi**, esercizi, progressi, note e spunte.
@@ -65,7 +66,7 @@ Il piano gratuito Spark non chiede carta di credito e non può generare costi.
 
 ### Aggiornamenti
 Per aggiornare l'app ricarica i file modificati su GitHub e aumenta il numero di versione in `sw.js` (es. `pattinaggio-v3`).
-Se cambia `firestore.rules`, incolla di nuovo tutto il file in **Firestore → Regole** e premi **Pubblica** (prima di pubblicare la nuova versione dell'app). Gruppi e allenamenti, per esempio, hanno bisogno della regola `meta`.
+Se cambia `firestore.rules`, incolla di nuovo tutto il file in **Firestore → Regole** e premi **Pubblica** (prima di pubblicare la nuova versione dell'app). Gruppi e allenamenti, per esempio, hanno bisogno della regola `meta`. Le lezioni private hanno bisogno della regola aggiornata su `students` (campo `reqs`): senza, l'alunno vede "Non riesco a inviarla".
 
 ## Note
 - **iPhone**: l'allenatrice deve usare l'app dall'icona sulla Home. Safari, se un sito non viene aperto per giorni, può cancellare i dati salvati, e il telefono andrebbe riabilitato. Le app aggiunte alla Home non hanno questo problema.

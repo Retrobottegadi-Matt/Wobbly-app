@@ -110,7 +110,7 @@ html { font-size: 100%; }
 @media (display-mode: standalone) { html { min-height: min(100lvh, calc(100% + env(safe-area-inset-top, 0px))); } }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.45; }
 body { font-size: var(--fs-body); }
-main { max-width: 40rem; margin: 0 auto; padding: calc(env(safe-area-inset-top) + .75rem) 1rem 10rem; }
+main { max-width: 40rem; margin: 0 auto; padding: calc(env(safe-area-inset-top) + .75rem) max(1rem, env(safe-area-inset-right)) 10rem max(1rem, env(safe-area-inset-left)); }
 h1 { font-size: var(--fs-h1); line-height: 1.1; margin: 0; font-weight: 800; letter-spacing: -.025em; }
 h2 { font-size: var(--fs-h2); margin: 0; font-weight: 750; letter-spacing: -.015em; }
 .eyebrow { margin: 0 0 .15rem; color: var(--muted); font-size: .9375rem; font-weight: 600; min-height: 1.4em; overflow-wrap: anywhere; }
@@ -254,8 +254,9 @@ h4.cat { margin-top: .7rem; }
 #sheet { position: fixed; inset: 0; z-index: 10; }
 .sheet-bg { position: absolute; inset: 0; background: rgba(34,26,44,.45); }
 .sheet-panel { position: absolute; left: 0; right: 0; bottom: 0; max-width: 40rem; margin: 0 auto; background: var(--bg);
-  border-radius: var(--r-lg) var(--r-lg) 0 0; padding: 1.25rem 1rem calc(env(safe-area-inset-bottom) + 1rem); max-height: 88vh;
-  display: flex; flex-direction: column; animation: up var(--dur) ease-out; }
+  border-radius: var(--r-lg) var(--r-lg) 0 0; padding: 1.25rem max(1rem, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 1rem) max(1rem, env(safe-area-inset-left)); max-height: 88vh;
+  display: flex; flex-direction: column; animation: up var(--dur) ease-out;
+  overflow-y: auto; overscroll-behavior: contain; /* schermi bassi o testo grande: il pannello scorre e Salva resta raggiungibile */ }
 @keyframes up { from { transform: translateY(40px); opacity: 0; } }
 .sheet-h { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
 .sheet-h h2 { margin: 0; overflow-wrap: anywhere; }
@@ -341,7 +342,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* ---- barra flottante in basso (come la tab bar di iOS): navigazione + azione principale ---- */
 .dock { position: fixed; left: 0; right: 0; bottom: max(.75rem, calc(env(safe-area-inset-bottom) - .6rem)); z-index: 8; display: flex; justify-content: center;
-  align-items: center; gap: .6rem; padding: 0 1rem; pointer-events: none; }
+  align-items: center; gap: .6rem; padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left)); pointer-events: none; }
 .dock > * { pointer-events: auto; }
 .bnav { flex: 0 1 22rem; min-width: 0; display: flex; gap: .15rem; padding: .3rem; border-radius: var(--r-pill);
   background: var(--nav-bg); border: 1px solid var(--nav-line); box-shadow: 0 10px 30px rgba(34,26,44,.22), 0 1px 3px rgba(34,26,44,.1); }
@@ -532,3 +533,86 @@ button.feat { cursor: pointer; }
 .row-btns { display: flex; flex-wrap: wrap; gap: .4rem; margin-left: auto; }
 .reqs .btn.sm { margin-top: 0; }
 .sect .reqs + .btn { margin-top: .75rem; }
+
+/* ---- telefoni piccoli, testo grande, orizzontale, tablet ---- */
+/* barra in basso: come su iPhone non cresce oltre una certa misura, così le etichette restano intere */
+.bnav a { min-height: min(3.1rem, 52px); }
+.dock .fab { width: min(3.75rem, 60px); height: min(3.75rem, 60px); }
+/* numeri riassuntivi: tre colonne; se lo spazio è poco (telefono piccolo o testo grande) diventano righe */
+.statbox { container-type: inline-size; }
+.stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@container (max-width: 19rem) {
+  .stats { grid-template-columns: minmax(0, 1fr); }
+  .stat { flex-direction: row; flex-wrap: wrap; align-items: center; padding: .55rem .85rem; }
+  .stat > span { flex: 1 1 8rem; min-width: 0; flex-direction: row; align-items: center; gap: .6rem; font-size: .9375rem; overflow-wrap: anywhere; }
+  .stat b { font-size: 1.75rem; }
+}
+/* sezioni del dettaglio alunno: sempre su una riga (scorre di lato solo se il testo è enorme) */
+.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { flex: 1 0 auto; padding-inline: .7rem; font-size: .9375rem; }
+@media (max-width: 22.5rem) { .tabs a { padding-inline: .45rem; font-size: .875rem; } }
+.bnav { padding: min(.3rem, 5px); gap: min(.15rem, 3px); }
+.bnav a { padding: min(.15rem, 3px) min(.25rem, 4px); font-size: min(.6875rem, 12px); }
+
+/* =====================================================================
+   NUOVA VERSIONE (per ora solo in modalità sviluppo): aiuto "?", calendario del mese, pannello unico
+   ===================================================================== */
+.top-acts { display: flex; gap: .5rem; flex: none; }
+/* numero sull'icona della barra (richieste da confermare) */
+.bnav a { position: relative; }
+.badge { position: absolute; top: min(.2rem, 4px); left: calc(50% + min(.45rem, 8px)); min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem;
+  border-radius: var(--r-pill); background: var(--yellow); color: var(--on-pastel); font-size: min(.75rem, 13px); font-weight: 800;
+  line-height: 1.25rem; text-align: center; font-style: normal; box-shadow: 0 0 0 2px var(--nav-bg); }
+/* pannello unico: i campi dell'altro tipo sono nascosti e disattivati */
+.kf { border: 0; padding: 0; margin: 0; min-width: 0; }
+.kf[hidden] { display: none; }
+.seg-opt.kind:has(input:checked) { background: var(--ink); color: var(--ink-on); border-color: var(--ink); }
+.seg-tabs { margin-bottom: var(--gap); }
+.seg-tabs .chip { flex: 1 1 0; justify-content: center; }
+/* calendario del mese: esce un po' dai margini, così sette giorni stanno larghi almeno 44px anche su 320px */
+.cal { margin-inline: -.75rem; padding: .6rem .25rem .75rem; }
+.cal-h { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 0 .5rem .4rem; }
+.cal-h h2 { font-size: min(1.25rem, 24px); text-align: center; flex: 1; min-width: 0; }
+.cal-w, .cal-g { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-w span { text-align: center; font-size: min(.8125rem, 15px); font-weight: 700; color: var(--muted); padding: .2rem 0; }
+.cal-pad { min-height: 3rem; }
+.cal-d { appearance: none; border: 0; background: none; font: inherit; color: var(--ink); cursor: pointer; position: relative;
+  min-height: max(3rem, 48px); min-width: 0; padding: .3rem 0 .25rem; border-radius: var(--r-sm);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .2rem; }
+.cal-d b { font-size: min(1.0625rem, 20px); font-weight: 700; line-height: 1.6rem; width: 1.9rem; height: 1.6rem; border-radius: var(--r-pill); display: block; }
+.cal-d.today b { box-shadow: inset 0 0 0 2px var(--ink); }
+.cal-d.on { background: var(--ink); color: var(--ink-on); }
+.cal-d.on.today b { box-shadow: none; }
+.cal-d:disabled { color: var(--muted); opacity: .55; cursor: default; }
+.mks { display: flex; gap: 3px; min-height: 8px; align-items: center; }
+.mk { display: inline-block; width: 8px; height: 8px; flex: none; }
+.mk.k-tr { background: currentColor; border-radius: 2px; }
+.mk.k-les { background: var(--orange); border-radius: 50%; border: 1px solid var(--on-pastel); }
+.mk.k-free { border: 1.5px solid currentColor; border-radius: 50%; }
+.mk.k-ask { background: var(--yellow); border: 1px solid var(--on-pastel); border-radius: 50%; }
+.cal-d.ask::after { content: ""; position: absolute; top: .2rem; right: 18%; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--yellow); border: 1px solid var(--on-pastel); }
+.cal-lg { padding: .5rem .6rem 0; margin: 0; color: var(--muted); }
+.cal-lg .mk { color: var(--ink); }
+/* aiuto: elenco degli elementi della pagina */
+.help-l { list-style: none; margin: 0 0 .5rem; padding: 0; }
+.help-l li { display: flex; gap: .8rem; align-items: flex-start; padding: .7rem 0; }
+.help-l li + li { border-top: 1px solid var(--line); }
+.help-l .txt { min-width: 0; }
+.help-l b { display: block; }
+.help-l small { font-size: .9375rem; color: var(--muted); overflow-wrap: anywhere; }
+.help-ic { flex: none; width: 2.4rem; height: 2.4rem; border-radius: 50%; background: var(--lilac); color: var(--on-pastel); display: grid; place-items: center; }
+.help-ic .ic { width: 1.3rem; height: 1.3rem; }
+/* visita guidata: sagoma sull'elemento e fumetto con la spiegazione */
+#tour { position: fixed; inset: 0; z-index: 30; }
+.tour-hole { position: fixed; border-radius: var(--r); box-shadow: 0 0 0 200vmax rgba(34,26,44,.55), 0 0 0 3px var(--yellow) inset;
+  pointer-events: none; transition: top .2s ease-out, left .2s ease-out, width .2s ease-out, height .2s ease-out; }
+.tour-tip { position: fixed; left: max(1rem, env(safe-area-inset-left)); right: max(1rem, env(safe-area-inset-right)); max-width: 26rem; margin: 0 auto;
+  max-height: calc(100vh - 1rem); overflow-y: auto;
+  background: var(--surface); color: var(--ink); border-radius: var(--r); padding: .9rem 1.1rem 1rem; box-shadow: 0 12px 36px rgba(34,26,44,.35); }
+.tour-top { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.tour-n { flex: 1; margin: 0; color: var(--muted); font-weight: 700; font-size: var(--fs-small); }
+.tour-tip h2 { font-size: 1.25rem; outline: none; }
+.tour-tip p { margin: .35rem 0 .2rem; }
+@media (prefers-contrast: more) { .tour-tip { border: 2px solid var(--ink); } }

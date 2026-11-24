@@ -14,6 +14,7 @@ Lingua dell'interfaccia e dei testi: **italiano**. L'utente (Matt) è un alunno 
 - Novembre 2026: l'utente vuole un'app "semplice e intuitiva, con le informazioni di OS27" (linee guida Apple attuali) e testi curati: brevi, diretti, in italiano naturale.
 - 20 novembre 2026: l'utente ha mandato tre immagini di riferimento (illustrazione a grana blu/giallo/pesca, poster "Wild Flower" blu cobalto e crema, app didattica con carte colorate, numeri grossi e barra nera a capsula). Lo stile v10 le traduce senza illustrazioni né font esterni; sostituisce i "pastelli rifiniti".
 - 22 novembre 2026: lezioni private con prenotazione. Scelte dell'utente: **richiesta + conferma** (l'allenatrice pubblica orari liberi, l'alunno chiede, lei conferma o rifiuta), **tutti gli alunni possono fare privati** (interruttore nel Profilo, anche se sono in un gruppo), **disdetta dell'alunno fino a 24 ore prima**, **niente pacchetti/conteggio lezioni** per ora.
+- 24 novembre 2026: l'app deve essere facile anche per chi non è pratico di tecnologia. Richieste: meno passaggi, un pulsante "?" che spiega gli elementi di ogni pagina, lezioni private più complete (appuntamenti passati cancellati da soli, vista a calendario), area allenatrice completa. **Prima solo in modalità sviluppo**: l'utente conferma, poi si passa all'app per tutti.
 - Novembre 2026: l'utente ha chiesto UX e UI migliori. Ha scelto lo stile "pastelli rifiniti" (toni tenui, bordi sottili, un accento per volta), una Home per l'allenatrice (prossimi allenamenti + numeri riassuntivi), gruppi di alunni (per filtrare l'elenco e collegare gli allenamenti), date degli allenamenti per gruppo e un profilo alunno (nome, livello, gruppo, descrizione facoltativa) compilato dall'allenatrice.
 
 ## Decisioni prese (e perché)
@@ -39,12 +40,13 @@ public/            ← cartella da pubblicare (GitHub Pages)
   a11y.js          preferenze di accessibilità degli utenti (chiave pg_a11y): testo più grande, contrasto, animazioni
   design.js        pagina #/design (solo ?dev): token, contrasti calcolati, componenti, modifica colori dal vivo
   samples.js       10 alunni di esempio deterministici (seed fisso) per la modalità dev
+  help.js          aiuto "?": contenuti per pagina e visita guidata (nuova versione)
   sched.js         gruppi e allenamenti: date locali (mai toISOString), schedFor() = allenamenti futuri di un alunno, sameSched()
   catalog.js       catalogo per livello (base/intermedio/avanzato) → categoria; normItem() rende validi anche i dati vecchi (indicativo, da adattare)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root), v10: crema caldo, blu cobalto (--blue, carta in evidenza .feat con grana --grain e "sole" giallo), pastelli caldi (giallo/pesca in --pink/pervinca in --lilac/salvia/azzurro/arancio), barra in basso scura (--nav-*); tema chiaro e scuro "notte blu"; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v18)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v20)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -84,7 +86,20 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 - iPhone, app aperta dall'icona sulla Home (iOS 26, WebKit bug 301108): finché la pagina è più corta dello schermo, l'area visibile resta più corta di quanto è alta la zona dell'orologio e WebKit **non disegna** ciò che sta sotto (barra in basso tagliata). Correzione in `style.css`: `@media (display-mode: standalone) { html { min-height: min(100lvh, calc(100% + env(safe-area-inset-top, 0px))) } }` (stessa di frappe-ui #1289). La vecchia correzione `--vgap` (spostare la barra in giù) è stata tolta: con l'area intera la spingeva fuori dallo schermo. La barra sta a `max(.75rem, safe-area-bottom − .6rem)` dal fondo e non partecipa all'animazione d'entrata. In Impostazioni allenatrice, solo dalla Home, c'è la riga di diagnosi "Schermo: …".
 - Schema unico delle pagine (verificato in e2e): `head()` ha sempre la riga sopra il titolo (data, conteggio o contesto), quindi il titolo sta alla stessa altezza ovunque; tutte le pagine dell'allenatrice (anche il dettaglio alunno, con la freccia indietro a sinistra) hanno la stessa barra con il pulsante + (azione principale: Oggi e Calendario = nuovo allenamento, Alunni = nuovo alunno, dettaglio = modifica profilo / aggiungi elementi / aggiungi esercizio / copia link); le pagine dell'alunno hanno la barra senza pulsante. Gli stati vuoti usano solo `empty(icona, titolo, testo, pulsante)`.
 - Il telefono dell'allenatrice è riconosciuto anche senza `pg_role`: se `/` non ha un codice alunno, `isCoachDevice()` guarda la sessione anonima già salvata (senza crearne di nuove) e, se è abilitata, apre `#/coach`.
+- Schermi diversi (verificato in e2e a 320×568, 360×740, 768×1024 e 844×390 in orizzontale): niente scorrimento di lato; margini con `env(safe-area-inset-left/right)` (iPhone in orizzontale); i pannelli (`.sheet-panel`) scorrono, così Salva è sempre raggiungibile; i numeri riassuntivi stanno su tre colonne e, con poco spazio (container query sotto 19rem: telefono piccolo o testo grande), diventano righe; le sezioni del dettaglio alunno restano su una riga; la barra in basso ha misure massime in px come su iPhone (a 320 px con testo molto grande "Calendario" viene accorciato).
 - Campi di testo ≥ 16px (sotto, iPhone ingrandisce la pagina al tocco). Non usare `maximum-scale`/`user-scalable=no`: bloccano lo zoom su Android.
+
+## Nuova versione (per ora solo in modalità sviluppo)
+- `beta()` in app.js: vera solo con `?dev` e `localStorage.pg_beta !== "0"`. Nel banner viola "Prova la nuova / Vedi l'attuale" la accende e la spegne, per confrontarle sugli stessi dati. Fuori da dev non cambia nulla.
+- Quando l'utente la approva: `beta()` sempre vera, poi togliere il codice della versione attuale (`renderCoachCal`, gruppi nella Home, `c-new-tr` come pulsante +, potatura a 60 giorni) e in e2e il blocco con `BETA0`.
+- Cosa cambia:
+  - Calendario (`renderCoachMonth`): Mese / Elenco. Mese = griglia di 7 colonne (giorni passati disattivati), segni con forme diverse (quadrato allenamento, cerchio pieno prenotata, cerchio vuoto libero, puntino richiesta) + legenda + `aria-label` per giorno; sotto, gli appuntamenti del giorno scelto. Esce di .75rem dai margini per stare ≥ 42px a 320px.
+  - Pulsante + (`c-new-appt` → `apptSheet`): un solo pannello "Allenamento di gruppo / Lezione privata", già sul giorno scelto. I campi dell'altro tipo sono `hidden` + `disabled` (fieldset `.kf`). Lezioni: con chi (qualunque alunno, o libero), durata, quante di fila (1–6), ripeti ogni settimana (2/4/8). Massimo `MAX_SLOTS` (60) orari futuri. Avviso se si sovrappone a un altro appuntamento (`clashOk`, allenamento = 60 min).
+  - Pannello di un orario: in cima chi l'ha chiesto, con Conferma/Rifiuta (chiudono il pannello). Profilo alunno: sezione "Lezioni private" con "Prenota una lezione" (`c-book`).
+  - Gruppi spostati nell'elenco Alunni (`groupsBox`, aggiornato anche da `refreshList`); niente gruppi nella Home né nel Calendario. Righe con il tipo scritto ("Allenamento · …", "Lezione privata · …", "Orario libero").
+  - Numero sull'icona Oggi della barra = richieste da confermare. "Da confermare" anche nel Calendario.
+  - Pulizia: allenamenti e orari dei giorni passati si cancellano (`pruneOld` = da oggi; `cleanPast()` una volta per sessione all'apertura, mai con dati dalla cache: `watchMeta` passa `fromCache`).
+  - Aiuto: pulsante "?" (`helpBtn`, `data-act=help`) in ogni pagina, alunno e allenatrice. Contenuti in `help.js` (`HELP[S.page]`, voci `[data-help, icona, titolo, testo]`): il pannello elenca le voci presenti nella pagina, "Mostrami" avvia la visita guidata (sagoma + fumetto, Avanti/Indietro, Esc chiude e il focus torna al "?"; si riposiziona dopo ogni ridisegno; si chiude al cambio pagina). `sect()` mette `data-help` = id senza "h" in minuscolo. Ogni nuovo elemento importante va aggiunto a `HELP`.
 
 ## Modello dati (Firestore)
 - `students/{code}`:
@@ -130,7 +145,7 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
 
 ## Come lavorare su questo progetto
 - Niente build: è JS vanilla con ES modules. Per servirlo in locale: `cd public && python3 -m http.server 8765`, poi aprire `http://localhost:8765/?dev`.
-- Test: `python3 tools/e2e.py` (deve stampare `OK`).
+- Test: `python3 tools/e2e.py` (deve stampare `OK`). Se Playwright non trova il suo browser: `PW_CHROME=/opt/pw-browsers/chromium python3 tools/e2e.py`.
 - Dopo ogni modifica ai file in `public/`, aumentare la versione della cache in `sw.js`.
 - Mantenere i testi della UI in italiano, mobile-first, senza dipendenze esterne a parte l'SDK Firebase.
 - Non introdurre servizi a pagamento, login con email/password o raccolta di contatti.

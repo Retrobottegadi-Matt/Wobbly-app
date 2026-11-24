@@ -86,7 +86,8 @@ async function firebaseBackend(cfg) {
     removeDevice: () => fs.deleteDoc(fs.doc(db, "coaches", auth.currentUser.uid)),
     // gruppi e allenamenti: un solo documento, letto e scritto solo dall'allenatrice
     watchMeta(cb, err) {
-      return fs.onSnapshot(fs.doc(db, "meta", "coach"), (d) => cb(d.exists() ? d.data() : null), err);
+      return fs.onSnapshot(fs.doc(db, "meta", "coach"), { includeMetadataChanges: true },
+        (d) => cb(d.exists() ? d.data() : null, { fromCache: d.metadata.fromCache }), err);
     },
     saveMeta: (m) => fs.setDoc(fs.doc(db, "meta", "coach"), m),
     // più alunni in un'unica scrittura atomica (max 500 per batch); con meta, anche gruppi/allenamenti/orari

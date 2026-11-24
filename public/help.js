@@ -3,18 +3,28 @@
 // "Mostrami sulla pagina" fa una visita guidata che evidenzia uno per uno gli elementi presenti.
 import { icon } from "./icons.js";
 
-const NAV_C = ["nav", "home", "Barra in basso", "Porta alle tre pagine: Oggi, Alunni e Calendario. Il numero sopra Oggi dice quante richieste aspettano una tua risposta."];
+const NAV_C = ["nav", "home", "Barra in basso", "Porta alle tre pagine: la casetta è Oggi, le due persone sono gli Alunni, il foglio con gli anelli è il Calendario. Il numero sopra la casetta dice quante richieste aspettano una tua risposta."];
 const HELP_B = ["help", "help", "Pulsante ?", "Apre questa guida. C'è in ogni pagina e spiega quello che vedi."];
 const SET_C = ["settings", "settings", "Impostazioni", "Testo più grande e colori, backup dei dati, aggiungere un altro telefono."];
 
 export const HELP = {
   "c-home": [
-    ["stats", "chart", "In sintesi", "Quanti alunni hai, la media dei loro progressi e quanti hanno usato la scheda negli ultimi 7 giorni."],
+    ["stats", "chart", "In sintesi", "Quanti alunni hai, la media dei loro progressi e quanti hanno usato la scheda negli ultimi 7 giorni. «Tutte le statistiche» apre la pagina con tutti i numeri."],
     ["inbox", "user", "Da confermare", "Le richieste di lezione privata e le disdette degli alunni. Tocca Conferma o Rifiuta: l'alunno vede la risposta nella sua app."],
     ["feat", "calendar", "Prossimo appuntamento", "Il primo allenamento o lezione in programma. Toccalo per cambiarlo o eliminarlo."],
     ["next", "clock", "Poi in calendario", "Gli appuntamenti successivi. «Vedi tutti» apre il calendario."],
     ["fab", "plus", "Pulsante +", "Aggiunge un allenamento di gruppo o una lezione privata."],
     NAV_C, SET_C, HELP_B,
+  ],
+  "c-stats": [
+    ["back", "back", "Freccia indietro", "Torna alla pagina Oggi."],
+    ["stats", "chart", "In sintesi", "Alunni, media dei progressi, elementi completati nell'ultimo mese e chi ha usato la scheda in settimana."],
+    ["liv", "chart", "Progressi per livello", "La media dei progressi degli alunni di ogni livello."],
+    ["top", "done", "Più elementi completati", "Chi è andato più avanti negli ultimi 30 giorni."],
+    ["doing", "doing", "Elementi in corso", "Gli elementi che più alunni stanno imparando adesso: utile per preparare gli allenamenti."],
+    ["idle", "clock", "Da seguire", "Chi ha una scheda ma non la usa da due settimane. Tocca per aprire il suo profilo."],
+    ["privs", "calendar", "Lezioni private", "Quante lezioni sono prenotate, quanti orari sono liberi e le ore di lezione nelle prossime settimane."],
+    HELP_B,
   ],
   "c-alunni": [
     ["filters", "user", "Lezioni private", "Mostra solo chi fa lezioni private. «Tutti» li mostra di nuovo tutti."],
@@ -67,19 +77,19 @@ export const HELP = {
     ["next", "clock", "Poi in calendario", "Gli appuntamenti successivi. Tocca una lezione privata per vederla o disdirla."],
     ["priv", "user", "Lezioni private", "«Chiedi una lezione» mostra gli orari liberi: scegline uno e aspetta la conferma. Puoi disdire fino a 24 ore prima."],
     ["plan", "check", "La tua scheda", "Gli esercizi da fare durante il pattinaggio libero. Toccane uno per spuntarlo quando l'hai fatto."],
-    ["nav", "home", "Barra in basso", "Oggi, Progressi e Profilo: tocca per cambiare pagina."],
+    ["nav", "home", "Barra in basso", "La casetta è Oggi, il grafico sono i Progressi, la persona è il tuo Profilo. Tocca per cambiare pagina."],
     HELP_B,
   ],
   "s-progressi": [
     ["sum", "chart", "Riepilogo", "Quanti elementi hai completato sul totale."],
     ["list", "doing", "Elementi tecnici", "Il simbolo a destra dice a che punto sei: cerchio tratteggiato da iniziare, mezzo pieno in corso, con la spunta completato."],
-    ["nav", "home", "Barra in basso", "Oggi, Progressi e Profilo."],
+    ["nav", "home", "Barra in basso", "La casetta è Oggi, il grafico sono i Progressi, la persona è il tuo Profilo."],
     HELP_B,
   ],
   "s-profilo": [
     ["profile", "user", "I tuoi dati", "Nome e livello li sceglie la tua allenatrice."],
     ["settings", "a11y", "Impostazioni", "Testo più grande, colori e tema. «Scollega» toglie la scheda da questo telefono."],
-    ["nav", "home", "Barra in basso", "Oggi, Progressi e Profilo."],
+    ["nav", "home", "Barra in basso", "La casetta è Oggi, il grafico sono i Progressi, la persona è il tuo Profilo."],
     HELP_B,
   ],
 };

@@ -653,3 +653,77 @@ details.more[open] > summary { margin-bottom: .4rem; }
 .appt-sum { background: var(--lilac); color: var(--on-pastel); border-radius: var(--r-sm); padding: .65rem .85rem; margin: .5rem 0 0; font-weight: 600; }
 .sheet-panel .search input[type=search] { padding-left: 2.6rem; }
 .seg-opt:has(input[name=plv]:checked) { background: var(--ink); color: var(--ink-on); border-color: var(--ink); }
+
+/* =====================================================================
+   NUOVA VERSIONE: movimento a tema pattinaggio (classe .beta su <html>).
+   Tutto si spegne con prefers-reduced-motion e "Riduci animazioni" (regole in cima al file).
+   Entrate e riscontri ≤ 300 ms; barre e numeri che crescono ≤ 600 ms; mai transform su #app o main.
+   ===================================================================== */
+@keyframes glide-r { from { opacity: 0; transform: translateX(34px) skewX(-4deg); } 70% { transform: translateX(-3px) skewX(.5deg); } }
+@keyframes glide-l { from { opacity: 0; transform: translateX(-34px) skewX(4deg); } 70% { transform: translateX(3px) skewX(-.5deg); } }
+@keyframes fillw { from { width: 0; } }
+@keyframes shine { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+@keyframes carve { from { stroke-dashoffset: 24; } }
+@keyframes skate-in { from { transform: translateX(-1.4rem) rotate(-8deg); opacity: 0; } 60% { transform: translateX(.15rem) rotate(2deg); opacity: 1; } }
+@keyframes sk-go { 0% { transform: translateX(-4.2rem); } 50% { transform: translateX(4.2rem); } 50.01% { transform: translateX(4.2rem) scaleX(-1); } 100% { transform: translateX(-4.2rem) scaleX(-1); } }
+@keyframes sk-trail { 0% { transform: scaleX(0); transform-origin: left; } 45% { transform: scaleX(1); transform-origin: left; } 50% { transform: scaleX(1); transform-origin: right; } 95%, 100% { transform: scaleX(0); transform-origin: right; } }
+
+/* cambio pagina: la pagina entra "scivolando" dal lato giusto (avanti da destra, indietro da sinistra) */
+.beta .enter[data-dir="r"] > :not(.dock) { animation: glide-r .3s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .enter[data-dir="l"] > :not(.dock) { animation: glide-l .3s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .enter[data-dir] > :nth-child(2) { animation-delay: .02s; }
+.beta .enter[data-dir] > :nth-child(3) { animation-delay: .04s; }
+.beta .enter[data-dir] > :nth-child(n+4) { animation-delay: .06s; }
+.beta .enter > .dock { animation: none; }
+/* barre che si riempiono */
+.beta .enter .bar span { animation: fillw .6s .08s cubic-bezier(.2, .8, .2, 1) both; transform: none; }
+.beta .enter .hb-t i { animation: fillw .6s .1s cubic-bezier(.2, .8, .2, 1) both; }
+/* riscontro sull'elemento toccato: un riflesso che passa, come la luce sul ghiaccio */
+.beta .just:not(.check):not(.st-ic) { background-image: linear-gradient(100deg, transparent 35%, rgba(255, 255, 255, .55) 50%, transparent 65%);
+  background-size: 250% 100%; background-repeat: no-repeat; animation: shine .55s ease-out both; }
+/* spunta: il segno si "incide" come una lama sul ghiaccio */
+.beta .check.on.just .box .ic path { stroke-dasharray: 24; animation: carve .3s ease-out both; }
+/* avvisi: entra un piccolo pattino */
+.beta .toast { display: flex; align-items: center; gap: .55rem; }
+.beta .toast::before { content: ""; flex: none; width: 1.25rem; height: 1.25rem; background: currentColor;
+  -webkit-mask: var(--skate-mask) center / contain no-repeat; mask: var(--skate-mask) center / contain no-repeat; }
+.beta .toast:not(.idle)::before { animation: skate-in .45s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .toast:empty::before { display: none; }
+:root { --skate-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3.5h5.5v6l4.2 1.6A3.3 3.3 0 0 1 18 14.2V16H6z'/%3E%3Cpath d='M3 20h15.5a2.5 2.5 0 0 0 2.5-2.5M8.5 16v4M15.5 16v4'/%3E%3C/svg%3E"); }
+/* pannelli: salgono con un leggero rimbalzo */
+.beta .sheet-panel { animation-timing-function: cubic-bezier(.2, 1.15, .35, 1); }
+/* caricamento: un pattino scivola avanti e indietro lasciando la traccia sul ghiaccio */
+.skater { position: relative; width: 11rem; height: 4.2rem; margin: auto; }
+.sk-ice { position: absolute; left: 0; right: 0; bottom: .55rem; height: 3px; border-radius: 3px; background: var(--line-strong); }
+.sk-trail { position: absolute; left: 1rem; right: 1rem; bottom: .55rem; height: 3px; border-radius: 3px; background: var(--blue); z-index: 1;
+  animation: sk-trail 1.6s ease-in-out infinite; }
+.sk-boot { position: absolute; left: 50%; bottom: .6rem; margin-left: -1.5rem; width: 3rem; height: 3rem; color: var(--ink);
+  animation: sk-go 1.6s ease-in-out infinite; }
+.sk-boot .ic { width: 100%; height: 100%; }
+@media (prefers-reduced-motion: reduce) { .sk-boot, .sk-trail { animation: none !important; } }
+:root[data-motion="reduce"] .sk-boot, :root[data-motion="reduce"] .sk-trail { animation: none !important; }
+
+/* barra in basso con sole icone */
+.bnav.ico a { min-height: min(3.25rem, 54px); padding: 0; }
+.bnav.ico a .ic { width: min(1.65rem, 30px); height: min(1.65rem, 30px); }
+.bnav.ico a.on .ic { transform: scale(1.05); }
+.bnav.ico .badge { top: min(.35rem, 6px); }
+
+/* statistiche */
+.stats.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stats.four .stat:nth-child(4) { background: var(--sage); }
+.statbox > .btn { margin-top: -.25rem; margin-bottom: var(--gap); }
+.hbars { list-style: none; margin: 0; padding: 0; display: grid; gap: .85rem; }
+.hbars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .75rem; align-items: end; }
+.hb-l { min-width: 0; overflow-wrap: anywhere; }
+.hb-l b { display: block; font-weight: 650; }
+.hb-l small { font-size: var(--fs-small); }
+.hb-v { font-weight: 800; font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+.hb-t { grid-column: 1 / -1; height: .55rem; border-radius: var(--r-pill); background: var(--surface-2); overflow: hidden; }
+.hb-t i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--blue); }
+.mini { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.mini li { background: var(--surface-2); border-radius: var(--r-sm); padding: .6rem .7rem; display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.mini b { font-size: 1.6rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mini span { font-size: var(--fs-small); color: var(--muted); overflow-wrap: anywhere; }
+@container (max-width: 19rem) { .stats.four { grid-template-columns: minmax(0, 1fr); } }
+.statbox > a.btn { text-decoration: none; }

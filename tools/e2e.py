@@ -485,7 +485,10 @@ async def main():
         assert await p4.locator("#sheet [name=group]").is_visible()
         await p4.check("#sheet input[name=kind][value=les]"); await p4.wait_for_timeout(100)
         assert not await p4.locator("#sheet [name=group]").is_visible() and await p4.locator("#sheet [name=group]").is_disabled()
+        assert "Un orario libero da 30 minuti" in await p4.locator("#apptSum").inner_text()
+        await p4.click("#sheet details.more > summary")
         await p4.fill("#sheet [name=time]", "07:00"); await p4.select_option("#sheet [name=many]", "3")
+        assert "3 orari liberi" in await p4.locator("#apptSum").inner_text()
         await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
         d = await dev4(); new = [t for t in d["meta"]["slots"] if t["date"] == day and t["time"] in ("07:00", "07:30", "08:00")]
         assert len(d["meta"]["slots"]) == nb + 3 and len(new) == 3, "tre orari di fila"
@@ -510,15 +513,55 @@ async def main():
         await p4.goto(B + f"#/coach/{nopriv}/profilo"); await p4.wait_for_timeout(300)
         await p4.click("[data-act=c-book]"); await p4.wait_for_timeout(300)
         assert await p4.input_value("#sheet [name=who]") == nopriv
+        await p4.click("#sheet details.more > summary")
         await p4.fill("#sheet [name=time]", "06:00"); await p4.select_option("#sheet [name=rep]", "2")
         await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
         d = await dev4()
         assert len([t for t in d["meta"]["slots"] if t["who"] == nopriv]) == 2
         assert len(d["students"][nopriv]["lessons"]) == 2, "le lezioni arrivano all'alunno"
         assert await p4.locator("section:has(#hLessons) .trs li").count() == 2
-        # gruppi ora nell'elenco alunni
+        # elenco alunni diviso per gruppo; un gruppo nuovo si crea scegliendo subito chi ne fa parte
         await p4.goto(B + "#/coach/alunni"); await p4.wait_for_timeout(300)
-        assert await p4.locator("#grBox [data-act=c-edit-group]").count() == 3
+        assert await p4.locator("#stuList [data-act=c-edit-group]").count() == 3
+        assert await p4.locator("#stuList .srow").count() == 10, "ogni alunno una volta sola"
+        small = await p4.evaluate(MIN); assert not small, ("alunni", small)
+        await p4.click("[data-act=c-gf][data-id=priv]"); await p4.wait_for_timeout(150)
+        npriv = len([1 for st in d["students"].values() if st.get("priv")])
+        assert await p4.locator("#stuList .srow").count() == npriv, "filtro lezioni private"
+        await p4.click("[data-act=c-gf][data-id=all]"); await p4.wait_for_timeout(150)
+        await p4.click("[data-act=c-new-group]"); await p4.wait_for_timeout(250)
+        await p4.fill("#sheet [name=name]", "Gara di Natale")
+        two = list(d["students"].keys())[:2]
+        for c in two: await p4.check(f"#sheet [name=m][value='{c}']")
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        d = await dev4(); gid2 = next(g["id"] for g in d["meta"]["groups"] if g["name"] == "Gara di Natale")
+        assert all(d["students"][c]["group"] == gid2 for c in two), "componenti scelti nel pannello del gruppo"
+        assert await p4.locator(f"section:has(#hG{gid2}) .srow").count() == 2
+        # togliere uno dal gruppo lo lascia senza gruppo
+        await p4.click(f"[data-act=c-edit-group][data-id='{gid2}']"); await p4.wait_for_timeout(250)
+        await p4.uncheck(f"#sheet [name=m][value='{two[0]}']"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        d = await dev4(); assert d["students"][two[0]]["group"] == "" and d["students"][two[1]]["group"] == gid2
+        # aggiungi elementi: ricerca, scelta con un tocco, elemento nuovo scritto nella ricerca
+        await p4.goto(B + f"#/coach/{nopriv}/progressi"); await p4.wait_for_timeout(300)
+        n0 = len(d["students"][nopriv]["progress"])
+        await p4.click("[data-act=c-add-prog]"); await p4.wait_for_timeout(300)
+        small = await p4.evaluate(MIN.replace(".chip,", ".chip, .chip.pick,")); assert not small, ("elementi", small)
+        await p4.locator("#sheet .chip.pick:not(.dis):visible >> nth=0").click()
+        await p4.fill("#pq", "Salto inventato"); await p4.wait_for_timeout(100)
+        assert await p4.locator("#newOpt").is_visible()
+        assert await p4.locator("#sheet [type=submit]").inner_text() == "Aggiungi (2)", "contati anche quelli nascosti dal filtro"
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        d = await dev4(); pr = d["students"][nopriv]["progress"]
+        assert len(pr) == n0 + 2 and pr[-1]["name"] == "Salto inventato" and pr[-1]["cat"] == "Altro"
+        # modifica elemento: data visibile solo se completato, e non si perde cambiando le note
+        done = next((x for x in pr if x["status"] == "done" and x.get("date")), None)
+        if done:
+            await p4.click(f"[data-act=c-edit-prog][data-id='{done['id']}']"); await p4.wait_for_timeout(250)
+            assert await p4.locator("#doneDate").is_visible()
+            await p4.check("#sheet input[name=status][value=doing]"); assert not await p4.locator("#doneDate").is_visible()
+            await p4.fill("#sheet [name=note]", "ok"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(300)
+            d = await dev4(); it = next(x for x in d["students"][nopriv]["progress"] if x["id"] == done["id"])
+            assert it["date"] == done["date"] and it["status"] == "doing", it
         # aiuto: pannello con le voci della pagina, poi visita guidata
         for view in ["#/coach", "#/coach/alunni", "#/coach/calendario", f"#/coach/{nopriv}/profilo", f"#/coach/{nopriv}/invito"]:
             await p4.goto(B + view); await p4.wait_for_timeout(300)

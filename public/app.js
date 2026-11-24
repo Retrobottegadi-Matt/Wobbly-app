@@ -606,13 +606,43 @@ const shownStudents = () => { const q = norm(S.q); return S.students.filter((s) 
 
 function gfChips() {
   const anyPriv = S.students.some((s) => s.priv);
+  if (beta()) return anyPriv ? [["", "Tutti"], ["priv", "Lezioni private"]].map(([k, l]) =>
+    `<button class="chip f" data-act="c-gf" data-id="${k || "all"}" aria-pressed="${S.gf === k}">${l}</button>`).join("") : "";
   if (!S.meta.groups.length && !anyPriv) return "";
   const opts = [["", "Tutti"], ...S.meta.groups.map((g) => [g.id, g.name]), ...(S.meta.groups.length && inGroup("") ? [["none", "Senza gruppo"]] : []),
     ...(anyPriv ? [["priv", "Lezioni private"]] : [])];
   return opts.map(([k, l]) => `<button class="chip f" data-act="c-gf" data-id="${k || "all"}" aria-pressed="${S.gf === k}">${esc(l)}</button>`).join("");
 }
 
+// nuova versione: righe semplici (nome, livello, %), divise per gruppo; i gruppi si gestiscono qui
+const sub = (s) => [LEVEL_LABEL[lvlOf(s) || "base"], s.priv ? "Lezioni private" : ""].filter(Boolean).join(" · ");
+const srow = (s) => `<li><a href="#/coach/${s.code}" class="srow">
+  <span class="av" style="background:var(${avatarColor(s.name)})" aria-hidden="true">${esc([...s.name][0] || "?").toUpperCase()}</span>
+  <span class="txt"><b>${esc(s.name)}</b><small>${sub(s)}</small></span>
+  <span class="pill" aria-label="progressi ${pct(s)}%">${pct(s)}%</span>${icon("chevron", "chev")}</a></li>`;
+const srows = (list) => `<ul class="rows">${list.map(srow).join("")}</ul>`;
+function groupedRows() {
+  if (!S.students.length) return `<div class="card">${empty("users", "Ancora nessun alunno", "Tocca + per aggiungerne uno e mandargli l'invito.")}</div>`;
+  const newG = S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group" data-help="groups">${icon("plus")} Nuovo gruppo</button>`;
+  if (S.q || S.gf) {
+    const shown = shownStudents();
+    return shown.length ? `<div class="card plainlist">${srows(shown)}</div>`
+      : `<div class="card"><p class="muted">${S.q ? `Nessun alunno corrisponde a “${esc(S.q)}”.` : "Nessun alunno."}</p></div>`;
+  }
+  const g = S.meta.groups;
+  if (!g.length) return `<div class="card plainlist">${srows(S.students)}</div>
+    <div class="card">${empty("group", "Vuoi dividerli in gruppi?", NO_GROUPS, newG)}</div>`;
+  const parts = g.map((x) => { const list = S.students.filter((s) => s.group === x.id);
+    return sect(`hG${x.id}`, `${esc(x.name)} <small class="cnt">${list.length}</small>`,
+      list.length ? srows(list) : `<p class="muted">Nessun alunno. Tocca Modifica per aggiungerli.</p>`,
+      `<button class="btn sm ghost" data-act="c-edit-group" data-id="${x.id}">Modifica<span class="sr"> il gruppo ${esc(x.name)}</span></button>`, "card plainlist"); });
+  const none = S.students.filter((s) => !validGroup(s.group));
+  if (none.length) parts.push(sect("hGnone", `Senza gruppo <small class="cnt">${none.length}</small>`, srows(none), "", "card plainlist"));
+  return parts.join("") + newG;
+}
+
 function studentRows() {
+  if (beta()) return groupedRows();
   if (!S.students.length) return `<div class="card">${empty("users", "Ancora nessun alunno", "Tocca + per aggiungerne uno e mandargli l'invito.")}</div>`;
   const shown = shownStudents();
   if (!shown.length) return `<div class="card"><p class="muted">${S.q ? `Nessun alunno corrisponde a “${esc(S.q)}”.` : "Nessun alunno in questo gruppo."}</p></div>`;
@@ -643,18 +673,10 @@ function refreshList() {
   $root.classList.remove("enter"); // le righe filtrate non rifanno l'animazione d'entrata
   const gf = document.getElementById("gfBox");
   if (gf) gf.innerHTML = gfChips();
-  const gr = document.getElementById("grBox");
-  if (gr) gr.innerHTML = groupsBox();
   document.getElementById("stuList").innerHTML = studentRows();
   const c = document.getElementById("stuTot");
   if (c) c.textContent = nAlunni(S.students.length);
 }
-
-// gruppi (nuova versione: si gestiscono dall'elenco alunni, non più dal calendario)
-const groupsBox = () => { const g = S.meta.groups; return sect("hGroups", "Gruppi",
-  `${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>`
-    : empty("group", "Ancora nessun gruppo", NO_GROUPS)}
-  ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card"); };
 
 function renderCoachList() {
   S.page = "c-alunni";
@@ -668,7 +690,6 @@ function renderCoachList() {
       enterkeyhint="search" value="${esc(S.q)}" aria-describedby="stuCount"></div>` : ""}
   <p id="stuCount" class="sr" aria-live="polite"></p>
   <div id="stuList" data-help="list">${studentRows()}</div>
-  ${beta() ? `<div id="grBox">${groupsBox()}</div>` : ""}
   ${bnav("alunni", fab("c-new", "Nuovo alunno"))}`);
   $root.dataset.view = "list";
   const inp = document.getElementById("stuSearch");
@@ -1139,10 +1160,12 @@ const ACTIONS = {
       <fieldset class="seg"><legend>Stato</legend><div class="seg-opts">
         ${Object.keys(STATUS).map((k) => `<label class="seg-opt ${k}"><input type="radio" name="status" value="${k}" ${k === p.status ? "checked" : ""}>${stPill(k)}</label>`).join("")}
       </div></fieldset>
-      ${levelSeg(p.level)}
-      <label>Categoria<select name="cat">${CATEGORIES.map((c) => `<option ${c === p.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label>
-      <label>Data completamento<input type="date" name="date" value="${esc(p.date)}"></label>
+      ${beta() ? "" : levelSeg(p.level)}
+      ${beta() ? "" : `<label>Categoria<select name="cat">${CATEGORIES.map((c) => `<option ${c === p.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label>`}
+      <label id="doneDate"${beta() && p.status !== "done" ? " hidden" : ""}>${beta() ? "Completato il" : "Data completamento"}<input type="date" name="date" value="${esc(p.date)}"></label>
       <label>Note<textarea name="note" rows="3" maxlength="500" placeholder="Cosa migliorare, consigli…">${esc(p.note)}</textarea></label>
+      ${beta() ? `<details class="more"><summary>Sposta in un altro livello o categoria</summary>${levelSeg(p.level)}
+        <label>Categoria<select name="cat">${CATEGORIES.map((c) => `<option ${c === p.cat ? "selected" : ""}>${c}</option>`).join("")}</select></label></details>` : ""}
       ${sheetBtns("Salva")}
       ${delBtn("Elimina elemento")}`,
     onSubmit: async (fd, sub) => {
@@ -1159,9 +1182,13 @@ const ACTIONS = {
           level: normLevel(fd.get("level")) || p.level, cat: CATEGORIES.includes(fd.get("cat")) ? fd.get("cat") : p.cat } : x),
       });
     } });
+    // la data si vede solo quando l'elemento è completato (nascosta resta comunque salvata)
+    const fe = $sheet.querySelector("form"), dd = fe.querySelector("#doneDate");
+    if (beta()) fe.addEventListener("change", (e) => { if (e.target.name === "status") dd.hidden = e.target.value !== "done"; });
   },
 
   "c-add-prog"() {
+    if (beta()) return progPicker();
     const s = cur();
     const lv = lvlOf(s) || "base";
     const order = [lv, ...LEVELS.map(([k]) => k).filter((k) => k !== lv)];
@@ -1443,17 +1470,19 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
       <label>Ora<input type="time" name="time" value="${kind === "les" ? "16:00" : ""}"></label></div>
     <fieldset class="kf" data-k="tr"><legend class="sr">Allenamento di gruppo</legend>
       <label>Per chi<select name="group"><option value="">Tutti gli alunni</option>
-        ${S.meta.groups.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join("")}</select></label>
-      <p class="muted small">Lo vedono nella loro app gli alunni del gruppo scelto, con ora, luogo e note.</p></fieldset>
+        ${S.meta.groups.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join("")}</select></label></fieldset>
     <fieldset class="kf" data-k="les"><legend class="sr">Lezione privata</legend>
-      <label>Con chi<select name="who"><option value="">Nessuno per ora: orario libero da chiedere</option>
-        ${studs.map((x) => `<option value="${x.code}" ${x.code === who ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>
-      <div class="two"><label>Durata<select name="dur">${[30, 45, 60, 90].map((m) => `<option value="${m}">${m} minuti</option>`).join("")}</select></label>
-        <label>Quante di fila<select name="many">${[1, 2, 3, 4, 5, 6].map((n) => `<option value="${n}">${n === 1 ? "Una" : `${n} lezioni`}</option>`).join("")}</select></label></div>
-      <label>Ripeti<select name="rep"><option value="1">Solo questa volta</option>${[2, 4, 8].map((n) => `<option value="${n}">Ogni settimana, per ${n} settimane</option>`).join("")}</select></label>
-      <p class="muted small">Un orario libero lo vedono gli alunni con le lezioni private attive, che possono chiedertelo. Se scegli un alunno, la lezione è subito sua.</p></fieldset>
-    <label>Luogo (facoltativo)<input name="place" maxlength="60" value="${esc(lastPlace())}" placeholder="Es. Palaghiaccio"></label>
-    <label>Note (facoltative)<input name="note" maxlength="120" placeholder="Es. Portare i pattini da salto"></label>
+      <label>Con chi<select name="who"><option value="">Nessuno: orario libero, me lo chiedono</option>
+        ${studs.map((x) => `<option value="${x.code}" ${x.code === who ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></fieldset>
+    <details class="more"><summary>Altre opzioni</summary>
+      <fieldset class="kf" data-k="les"><legend class="sr">Durata e ripetizioni</legend>
+        <div class="two"><label>Durata<select name="dur">${[30, 45, 60, 90].map((m) => `<option value="${m}">${m} minuti</option>`).join("")}</select></label>
+          <label>Quante di fila<select name="many">${[1, 2, 3, 4, 5, 6].map((n) => `<option value="${n}">${n === 1 ? "Una" : `${n} lezioni`}</option>`).join("")}</select></label></div>
+        <label>Ripeti<select name="rep"><option value="1">Solo questa volta</option>${[2, 4, 8].map((n) => `<option value="${n}">Ogni settimana, per ${n} settimane</option>`).join("")}</select></label></fieldset>
+      <label>Luogo<input name="place" maxlength="60" value="${esc(lastPlace())}" placeholder="Es. Palaghiaccio"></label>
+      <label>Note<input name="note" maxlength="120" placeholder="Es. Portare i pattini da salto"></label>
+    </details>
+    <p class="appt-sum" id="apptSum"></p>
     ${sheetBtns("Salva")}`,
   onSubmit: async (fd) => {
     const k = fd.get("kind"), date = fd.get("date");
@@ -1485,8 +1514,21 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
     f.elements.time.required = k === "les";
     if (k === "les" && !f.elements.time.value) f.elements.time.value = "16:00";
   };
-  f.addEventListener("change", (e) => { if (e.target.name === "kind") sync(); });
-  sync();
+  // riassunto in una frase di quello che verrà salvato (non annunciato a ogni tasto: niente aria-live)
+  const summary = () => {
+    const E = f.elements, d = E.date.value, t = E.time.value, when = `${d ? fmtDay(d) : "giorno da scegliere"}${t ? ` alle ${t}` : ""}`;
+    if (E.kind.value !== "les") {
+      const g = groupName(S.meta, E.group.value);
+      return `Allenamento per ${g ? `il gruppo ${g}` : "tutti gli alunni"}, ${when}.`;
+    }
+    const many = Number(E.many.value) || 1, rep = Number(E.rep.value) || 1, n = many * rep, w = E.who.value;
+    const what = w ? `${n === 1 ? "Lezione" : `${n} lezioni`} con ${nameOf(w)}` : n === 1 ? "Un orario libero" : `${n} orari liberi`;
+    return `${what} da ${E.dur.value} minuti, ${when}${many > 1 ? `, ${many} di fila` : ""}${rep > 1 ? `, ogni settimana per ${rep} settimane` : ""}.`;
+  };
+  const upd = () => { f.querySelector("#apptSum").textContent = summary(); };
+  f.addEventListener("change", (e) => { if (e.target.name === "kind") sync(); upd(); });
+  f.addEventListener("input", upd);
+  sync(); upd();
 }
 
 function trainingSheet(t) {
@@ -1518,8 +1560,44 @@ function trainingSheet(t) {
   } });
 }
 
+// nuova versione: nome e componenti del gruppo nello stesso pannello (prima bisognava aprire il profilo di ogni alunno)
+function groupSheet2(g) {
+  const st = S.students;
+  openSheet({ title: g ? "Modifica gruppo" : "Nuovo gruppo", focus: g ? "title" : "input", body: `
+    <label>Nome del gruppo<input name="name" required maxlength="30" value="${esc(g && g.name)}" placeholder="Es. Sabato mattina"></label>
+    ${st.length ? `<fieldset class="grp members"><legend class="cat">Chi ne fa parte</legend>
+      ${st.map((x) => { const other = x.group && validGroup(x.group) && (!g || x.group !== g.id) ? groupName(S.meta, x.group) : "";
+        return `<label class="chk"><input type="checkbox" name="m" value="${x.code}" ${g && x.group === g.id ? "checked" : ""}>
+          <span class="txt">${esc(x.name)}${other ? `<small>Ora in ${esc(other)}: se lo scegli, cambia gruppo</small>` : ""}</span></label>`; }).join("")}
+    </fieldset>` : ""}
+    ${sheetBtns("Salva")}
+    ${g ? delBtn("Elimina gruppo") : ""}`,
+  onSubmit: async (fd, sub) => {
+    if (sub && sub.name === "del") {
+      if (!confirm(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`)) return false;
+      const extra = Object.fromEntries(S.students.filter((x) => x.group === g.id).map((x) => [x.code, { group: "" }]));
+      await saveMeta({ ...S.meta, groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
+      return toast("Gruppo eliminato");
+    }
+    const name = fd.get("name").trim();
+    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) { toast("Esiste già un gruppo con questo nome"); return false; }
+    const id = g ? g.id : newId(), picked = new Set(fd.getAll("m"));
+    const groups = g ? S.meta.groups.map((x) => (x.id === id ? { ...x, name } : x)) : [...S.meta.groups, { id, name }];
+    // chi entra prende questo gruppo, chi esce resta senza gruppo; tutto in un'unica scrittura
+    const extra = {};
+    for (const x of S.students) {
+      if (picked.has(x.code) && x.group !== id) extra[x.code] = { group: id };
+      else if (!picked.has(x.code) && x.group === id) extra[x.code] = { group: "" };
+    }
+    await saveMeta({ ...S.meta, groups }, extra);
+    const n = Object.keys(extra).length;
+    toast(`${g ? "Gruppo salvato" : "Gruppo creato"}${n ? ` · ${plural(n, "alunno spostato", "alunni spostati")}` : ""}`);
+  } });
+}
+
 function groupSheet(g) {
   if (g === undefined) return;
+  if (beta()) return groupSheet2(g);
   const n = g ? inGroup(g.id) : 0;
   openSheet({ title: g ? "Modifica gruppo" : "Nuovo gruppo", focus: g ? "title" : "input", body: `
     <label>Nome del gruppo<input name="name" required maxlength="30" value="${esc(g && g.name)}" placeholder="Es. Sabato mattina"></label>
@@ -1596,6 +1674,59 @@ function slotSheet(t) {
     await saveMeta({ ...S.meta, slots: [...all, ...add] });
     toast(n === 1 ? "Orario aggiunto" : `${n} orari aggiunti`);
   } });
+}
+
+// nuova versione: aggiungi elementi. Una ricerca che serve anche per scriverne uno nuovo, il livello come schede,
+// gli elementi come pulsanti da toccare. I filtri nascondono soltanto: quelli già scelti restano scelti.
+// (Eccezione voluta a focus "input": la tastiera coprirebbe il catalogo, che è la parte principale.)
+function progPicker() {
+  const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey));
+  const f = openSheet({ title: "Aggiungi elementi", body: `
+    <div class="search"><label for="pq" class="sr">Cerca o scrivi un elemento nuovo</label>${icon("search")}
+      <input id="pq" type="search" placeholder="Cerca o scrivi un elemento" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
+    <fieldset class="seg" id="pLv"><legend>Livello</legend><div class="seg-opts">
+      ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="plv" value="${k}" ${k === lv ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
+    <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>
+      <span class="txt"><b>Nuovo: <span id="newName"></span></b><small>Non è nel catalogo: lo aggiungo in “Altro”, nel livello scelto.</small></span></label>
+    <div class="picks">${LEVELS.map(([L]) => Object.entries(CATALOG[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
+      ${names.map((n) => have.has(itemKey({ name: n }))
+        ? `<span class="chip pick dis" data-n="${esc(norm(n))}">${icon("check")}<span>${esc(n)}</span><span class="sr">, già presente</span></span>`
+        : `<label class="chip pick" data-n="${esc(norm(n))}"><input type="checkbox" name="pick" value="${esc(`${L}|${c}|${n}`)}">${icon("check")}<span>${esc(n)}</span></label>`).join("")}
+      </div></div>`).join("")).join("")}</div>
+    <p class="muted" id="noPick" hidden>Nessun elemento del catalogo con questo nome.</p>
+    ${sheetBtns("Aggiungi")}`,
+  onSubmit: async (fd) => {
+    const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
+    const cn = f.querySelector("#pq").value.trim();
+    if (cn && !f.querySelector("#newOpt").hidden && fd.get("custom")) add.push({ level: normLevel(fd.get("plv")) || lv, cat: "Altro", name: cn });
+    if (!add.length) { toast("Tocca almeno un elemento"); return false; }
+    const s2 = cur();
+    await be.updateStudent(s2.code, {
+      progress: [...(s2.progress || []), ...add.map((a) => ({ id: newId(), ...a, status: "todo", date: "", note: "" }))],
+    });
+    toast(add.length === 1 ? `${add[0].name} aggiunto` : `${add.length} elementi aggiunti`);
+  } });
+  const q = f.querySelector("#pq"), btn = f.querySelector("[type=submit]"), all = new Set(Object.values(CATALOG).flatMap((c) => Object.values(c).flat()).map(norm));
+  const upd = () => {
+    const t = norm(q.value), L = f.elements.plv.value;
+    f.querySelector("#pLv").hidden = !!t; // cercando, si cerca in tutti i livelli
+    let any = 0;
+    f.querySelectorAll(".pick-c").forEach((c) => {
+      let vis = 0;
+      c.querySelectorAll(".pick").forEach((p) => { const on = t ? p.dataset.n.includes(t) : true; p.hidden = !on; vis += on; });
+      c.hidden = !vis || (!t && c.dataset.lv !== L);
+      if (!c.hidden) any++;
+    });
+    const isNew = !!t && !all.has(t) && !have.has(itemKey({ name: q.value.trim() }));
+    f.querySelector("#newOpt").hidden = !isNew;
+    f.querySelector("#newName").textContent = q.value.trim();
+    f.querySelector("#noPick").hidden = !!any || isNew || !t;
+    const n = f.querySelectorAll("[name=pick]:checked").length + (isNew && f.elements.custom.checked ? 1 : 0);
+    btn.textContent = n ? `Aggiungi (${n})` : "Aggiungi";
+  };
+  q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); q.blur(); } });
+  f.addEventListener("input", upd); f.addEventListener("change", upd);
+  upd();
 }
 
 function exerciseSheet(x) {

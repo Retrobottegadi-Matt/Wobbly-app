@@ -46,7 +46,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root), v10: crema caldo, blu cobalto (--blue, carta in evidenza .feat con grana --grain e "sole" giallo), pastelli caldi (giallo/pesca in --pink/pervinca in --lilac/salvia/azzurro/arancio), barra in basso scura (--nav-*); tema chiaro e scuro "notte blu"; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v21)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v22)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -96,7 +96,11 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
   - Calendario (`renderCoachMonth`): Mese / Elenco. Mese = griglia di 7 colonne (giorni passati disattivati), segni con forme diverse (quadrato allenamento, cerchio pieno prenotata, cerchio vuoto libero, puntino richiesta) + legenda + `aria-label` per giorno; sotto, gli appuntamenti del giorno scelto. Esce di .75rem dai margini per stare ≥ 42px a 320px.
   - Pulsante + (`c-new-appt` → `apptSheet`): un solo pannello "Allenamento di gruppo / Lezione privata", già sul giorno scelto. I campi dell'altro tipo sono `hidden` + `disabled` (fieldset `.kf`). Lezioni: con chi (qualunque alunno, o libero), durata, quante di fila (1–6), ripeti ogni settimana (2/4/8). Massimo `MAX_SLOTS` (60) orari futuri. Avviso se si sovrappone a un altro appuntamento (`clashOk`, allenamento = 60 min).
   - Pannello di un orario: in cima chi l'ha chiesto, con Conferma/Rifiuta (chiudono il pannello). Profilo alunno: sezione "Lezioni private" con "Prenota una lezione" (`c-book`).
-  - Gruppi spostati nell'elenco Alunni (`groupsBox`, aggiornato anche da `refreshList`); niente gruppi nella Home né nel Calendario. Righe con il tipo scritto ("Allenamento · …", "Lezione privata · …", "Orario libero").
+  - Elenco Alunni (`groupedRows`, dentro `#stuList` così `refreshList` lo aggiorna): righe semplici (`srow`: nome, livello, lezioni private, %), divise in sezioni per gruppo con "Modifica" + "Senza gruppo" + "Nuovo gruppo"; con ricerca o filtro elenco unico. Unico filtro: "Lezioni private". Niente gruppi nella Home né nel Calendario.
+  - Gruppo (`groupSheet2`): nome + "Chi ne fa parte" (spunte; chi è in un altro gruppo viene spostato, la riga lo dice) salvati insieme con un solo `saveMeta(meta, extra)`.
+  - Aggiungi elementi (`progPicker`): ricerca che serve anche a scrivere un elemento nuovo (va in "Altro", livello scelto), livello come schede, elementi come pulsanti da toccare (`.chip.pick`); i filtri nascondono soltanto, le scelte restano. Eccezione voluta: `focus: "title"` (la tastiera coprirebbe il catalogo).
+  - Modifica elemento: la data si vede solo con stato Completato (nascosta resta inviata: non si perde); livello e categoria in "Sposta in un altro livello o categoria" (`details.more`).
+  - Nuovo appuntamento: in vista solo tipo, data, ora, per chi / con chi; durata, quante di fila, ripeti, luogo e note in "Altre opzioni"; frase riassuntiva `#apptSum` (non aria-live). Righe con il tipo scritto ("Allenamento · …", "Lezione privata · …", "Orario libero").
   - Numero sull'icona Oggi della barra = richieste da confermare. "Da confermare" anche nel Calendario.
   - Pulizia: allenamenti e orari dei giorni passati si cancellano (`pruneOld` = da oggi; `cleanPast()` una volta per sessione all'apertura, mai con dati dalla cache: `watchMeta` passa `fromCache`).
   - Aiuto: pulsante "?" (`helpBtn`, `data-act=help`) in ogni pagina, alunno e allenatrice. Contenuti in `help.js` (`HELP[S.page]`, voci `[data-help, icona, titolo, testo]`): il pannello elenca le voci presenti nella pagina, "Mostrami" avvia la visita guidata (sagoma + fumetto, Avanti/Indietro, Esc chiude e il focus torna al "?"; si riposiziona dopo ogni ridisegno; si chiude al cambio pagina). `sect()` mette `data-help` = id senza "h" in minuscolo. Ogni nuovo elemento importante va aggiunto a `HELP`.

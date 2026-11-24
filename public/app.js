@@ -282,6 +282,7 @@ function countUp() {
 
 // ---------------------------------------------------------- avvio
 async function main() {
+  window.__appStarted = true;
   ensureToast();
   loading(); step("collegamento al database");
   try {
@@ -345,9 +346,10 @@ function stuck() {
   clearTimeout(bootTimer);
   $root.innerHTML = `<div class="center stuck" role="alert"><p><b>L'app non riesce a caricarsi.</b></p>
     <p class="muted small">Controlla la connessione, poi tocca Riprova. Se succede ancora, manda a chi gestisce l'app una foto di questa schermata.</p>
-    <p class="muted small">Fermo su: ${esc(bootStep)}${bootErr ? `<br>Errore: ${esc(bootErr)}` : ""}</p>
+    <p class="muted small">Fermo su: ${esc(bootStep)}${bootErr ? `<br>Errore: ${esc(bootErr)}` : ""}<br>${esc(osVer())}</p>
     <button class="btn" onclick="location.reload()">Riprova</button></div>`;
 }
+const osVer = () => { const m = navigator.userAgent.match(/OS (\d+)_(\d+)/); return m ? `iOS ${m[1]}.${m[2]}` : navigator.userAgent.slice(0, 120); };
 const onBootErr = (e) => {
   const x = e && (e.reason || e.error || e), m = x && (x.message || x.code || String(x));
   if (!m || /ResizeObserver/.test(m)) return;

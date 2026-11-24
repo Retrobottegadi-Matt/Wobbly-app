@@ -48,7 +48,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root), v10: crema caldo, blu cobalto (--blue, carta in evidenza .feat con grana --grain e "sole" giallo), pastelli caldi (giallo/pesca in --pink/pervinca in --lilac/salvia/azzurro/arancio), barra in basso scura (--nav-*); tema chiaro e scuro "notte blu"; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v38)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v39)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -124,7 +124,7 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
   - Pulizia: allenamenti e orari dei giorni passati si cancellano (`pruneOld` = da oggi; `cleanPast()` una volta per sessione all'apertura, mai con dati dalla cache: `watchMeta` passa `fromCache`).
   - Aiuto: pulsante "?" (`helpBtn`, `data-act=help`) in ogni pagina, alunno e allenatrice. Contenuti in `help.js` (`HELP[S.page]`, voci `[data-help, icona, titolo, testo]`): il pannello elenca le voci presenti nella pagina, "Mostrami" avvia la visita guidata (sagoma + fumetto, Avanti/Indietro, Esc chiude e il focus torna al "?"; si riposiziona dopo ogni ridisegno; si chiude al cambio pagina). `sect()` mette `data-help` = id senza "h" in minuscolo. Ogni nuovo elemento importante va aggiunto a `HELP`.
 
-- Caricamento con controllo (24/11, dopo la segnalazione "l'allenatrice resta sempre in caricamento", non riproducibile su Chrome): `loading()` fa partire un timer di 15 s; se il caricamento è ancora lì, o arriva un errore non gestito (`error` / `unhandledrejection`) o `renderCoach` lancia un'eccezione, `stuck()` mostra "L'app non riesce a caricarsi", il passo raggiunto (`step()`: collegamento al database, verifica del telefono, lettura degli alunni / del calendario, disegno della pagina) e il testo dell'errore, con Riprova. Serve per capire dal telefono dove si ferma.
+- Caricamento con controllo (24/11, dopo la segnalazione "l'allenatrice resta sempre in caricamento", non riproducibile su Chrome): `loading()` fa partire un timer di 15 s; se il caricamento è ancora lì, o arriva un errore non gestito (`error` / `unhandledrejection`) o `renderCoach` lancia un'eccezione, `stuck()` mostra "L'app non riesce a caricarsi", il passo raggiunto (`step()`: collegamento al database, verifica del telefono, lettura degli alunni / del calendario, disegno della pagina) e il testo dell'errore, con Riprova. Serve per capire dal telefono dove si ferma (con la versione di iOS). In più `index.html` ha uno script classico: se dopo 20 s `window.__appStarted` (messo all'inizio di `main()`) manca, cioè app.js non è partito (iOS troppo vecchio per la sintassi, file non scaricati), mostra "L'app non riesce ad aprirsi" con la versione di iOS. Compatibilità verificata il 24/11 con es-check (sintassi ES2020 tranne un `||=` in catalog.js, quindi iOS ≥ 14) ed eslint-plugin-compat (iOS ≥ 13.4: nessun problema).
 
 ## Modello dati (Firestore)
 - `students/{code}`:

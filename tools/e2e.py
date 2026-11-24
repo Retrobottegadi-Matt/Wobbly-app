@@ -554,6 +554,16 @@ async def main():
         assert await p4.evaluate("document.documentElement.scrollWidth <= innerWidth")
         w = await p4.evaluate("document.querySelector('.cal-d').getBoundingClientRect().width")
         assert w >= 42, ("giorni troppo stretti", w)
+        # dal banner si passa tra allenatrice e alunno
+        await p4.set_viewport_size({"width": 390, "height": 844})
+        await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)
+        assert await p4.locator("h1").first.inner_text() != "Calendario" and not p4.url.endswith("calendario")
+        await p4.click("[data-act=dev-coach]"); await p4.wait_for_timeout(400)
+        assert await p4.locator("nav.bnav a[aria-current=page]").inner_text() == "Oggi"
+        await p4.evaluate("localStorage.removeItem('pg_my_code')"); await p4.goto(B + "#/"); await p4.wait_for_timeout(400)
+        await p4.click("text=Area allenatrice"); await p4.wait_for_timeout(400)
+        assert "#/coach" in p4.url and await p4.locator("nav.bnav").count() == 1
+        await p4.goto(B + "#/coach/calendario"); await p4.wait_for_timeout(300)
         # si torna alla versione attuale dal banner
         await p4.click("[data-act=dev-beta]"); await p4.wait_for_timeout(300)
         assert await p4.locator(".cal").count() == 0 and await p4.locator("[data-act=help]").count() == 0

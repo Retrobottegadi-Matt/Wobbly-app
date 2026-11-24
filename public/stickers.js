@@ -45,8 +45,10 @@ const ART = {
     <path d="M12 84h64a10 10 0 0 0 10-10" fill="none" stroke="var(--on-pastel)" stroke-width="6" stroke-linecap="round"/><path d="M34 74v10M66 74v10" ${L}/>
     <path d="M80 18l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="var(--yellow)" ${L}/>`,
   spark: `${both('<rect x="10" y="10" width="80" height="80" rx="24"/>')}<rect x="10" y="10" width="80" height="80" rx="24" fill="var(--orange)" ${L}/>
-    <circle cx="36" cy="70" r="22" fill="var(--pink)"/><circle cx="66" cy="74" r="16" fill="var(--sky)"/><rect x="10" y="10" width="80" height="80" rx="24" fill="none" ${L}/>
-    <g stroke="var(--on-pastel-inv)" stroke-width="6" stroke-linecap="round" fill="none"><path d="M50 24v14M50 62v14M24 50h14M62 50h14M32 32l9 9M59 59l9 9M68 32l-9 9M41 59l-9 9"/></g>`,
+    <circle cx="34" cy="72" r="24" fill="var(--pink)"/><circle cx="70" cy="76" r="18" fill="var(--sky)"/><rect x="10" y="10" width="80" height="80" rx="24" fill="none" ${L}/>
+    <path d="M46 20c1.6 12 6 16.4 18 18-12 1.6-16.4 6-18 18-1.6-12-6-16.4-18-18 12-1.6 16.4-6 18-18z" fill="var(--on-pastel-inv)" ${L}/>
+    <path d="M70 52c.7 5 2.5 6.8 7.5 7.5-5 .7-6.8 2.5-7.5 7.5-.7-5-2.5-6.8-7.5-7.5 5-.7 6.8-2.5 7.5-7.5z" fill="var(--on-pastel-inv)" ${L}/>
+    ${T(50, 84, 15, "WOW", "var(--on-pastel)")}`,
 };
 
 export const sticker = (k, cls = "") => `<svg class="stk ${cls}" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${ART[k] || ART.star}</svg>`;

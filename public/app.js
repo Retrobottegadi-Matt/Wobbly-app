@@ -133,6 +133,7 @@ function paint(html) {
   delete $root.dataset.view;
   $root.classList.remove("enter");
   if (animateNext) { animateNext = false; $root.dataset.dir = S.dir || ""; void $root.offsetWidth; $root.classList.add("enter"); if (beta()) countUp(); }
+  if (beta()) navGlide();
   if (flashSel) {
     const el = $root.querySelector(flashSel); flashSel = null;
     if (el) (el.dataset.act === "c-move" ? el.closest("li") : el).classList.add("just");
@@ -143,6 +144,34 @@ function paint(html) {
   let el = $root.querySelector(sel);
   if (el && el.disabled) el = $root.querySelector(`${sel.replace(/\[data-d="-?\d+"\]/, "")}:not([disabled])`);
   if (el) restoreFocus(el);
+}
+
+// barra in basso (nuova versione): la pillola nera "scivola" dalla voce di prima a quella nuova, come un pattino
+let lastPill = null;
+function navGlide() {
+  const nav = $root.querySelector(".bnav.ico"), on = nav && nav.querySelector("a.on");
+  if (!on) { lastPill = null; return; }
+  const pill = document.createElement("span");
+  pill.className = "bnav-pill"; pill.setAttribute("aria-hidden", "true");
+  const r = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight, nav: nav.dataset.who };
+  pill.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+  nav.prepend(pill);
+  if (lastPill && lastPill.nav === r.nav && lastPill.x !== r.x && !still() && pill.animate) {
+    const dx = lastPill.x - r.x;
+    pill.animate([{ transform: `translateX(${dx}px)` }, { transform: `translateX(${dx * .3}px) scaleX(1.22) scaleY(.9)`, offset: .45 }, { transform: "none" }],
+      { duration: 440, easing: "cubic-bezier(.3, 1.2, .4, 1)" });
+    on.querySelector(".ic")?.animate([{ transform: "scale(.7) rotate(-12deg)" }, { transform: "scale(1.05)" }], { duration: 380, delay: 120, easing: "cubic-bezier(.3, 1.6, .5, 1)", fill: "backwards" });
+  }
+  lastPill = r;
+}
+// festa sul ghiaccio: un pattino attraversa lo schermo lasciando la scia, con fiocchi di neve (solo decorazione)
+function celebrate() {
+  if (still()) return;
+  const box = document.createElement("div");
+  box.className = "cele"; box.setAttribute("aria-hidden", "true");
+  box.innerHTML = `<span class="cele-trail"></span><span class="cele-boot">${icon("skate")}</span>${Array.from({ length: 22 }, (_, k) => `<i style="--k:${k};--x:${(k * 37) % 100}%"></i>`).join("")}`;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 2200);
 }
 
 // numeri che salgono all'entrata nella pagina (nuova versione); niente con "Riduci animazioni"
@@ -303,7 +332,7 @@ const sect = (id, title, body, right = "", cls = "card") => `<section class="sec
 // barra flottante in basso; action = pulsante tondo accanto (azione principale della schermata)
 // badges: { chiave: numero } → pallino con il numero sull'icona (es. richieste da confermare)
 // nuova versione: solo icone (il nome resta per VoiceOver)
-const tabbar = (items, on, action = "", badges = {}) => `<div class="dock"><nav class="bnav${beta() ? " ico" : ""}" aria-label="Sezioni" data-help="nav">${items
+const tabbar = (items, on, action = "", badges = {}) => `<div class="dock"><nav class="bnav${beta() ? " ico" : ""}" aria-label="Sezioni" data-help="nav" data-who="${items[0][0]}">${items
   .map(([href, ic, l, k]) => { const b = badges[k] || 0; return `<a href="${href}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}${b ? `<b class="badge" aria-hidden="true">${b}</b>` : ""}<span${beta() ? ' class="sr"' : ""}>${l}${b ? `<i class="sr">, ${b} da confermare</i>` : ""}</span></a>`; }).join("")}</nav>${action}</div>`;
 // pulsante "?" (nuova versione): spiega la pagina
 const helpBtn = () => (beta() ? `<button class="icon" data-act="help" data-help="help" aria-label="Aiuto: come funziona questa pagina">${icon("help")}</button>` : "");
@@ -627,7 +656,7 @@ function screenInfo() {
 
 // carta in evidenza (blu con il "sole"): il prossimo allenamento in cima alla schermata Oggi
 function feature(t, who, act, label) {
-  const inner = `<span class="sun" aria-hidden="true">${icon(beta() ? "spark" : "calendar")}</span>
+  const inner = `<span class="sun" aria-hidden="true">${icon(beta() ? (t.dur ? "user" : "skate") : "calendar")}</span>
     <span class="feat-k">${label}</span>
     <b class="feat-t">${fmtDay(t.date)}</b>
     <span class="feat-s">${[t.time, who, t.place].filter(Boolean).map(esc).join(" · ")}</span>
@@ -832,19 +861,24 @@ const mk = (k) => `<i class="mk k-${k}"></i>`;
 function monthGrid() {
   const t0 = today(), m = S.calM, [y, mo] = m.split("-").map(Number);
   const pad = (new Date(y, mo - 1, 1).getDay() + 6) % 7, n = new Date(y, mo, 0).getDate(), map = monthMap(m);
-  const cells = Array.from({ length: pad }, () => `<span class="cal-pad"></span>`);
+  const prevN = new Date(y, mo - 1, 0).getDate();
+  // giorni del mese prima e dopo (solo da vedere, non si toccano): la griglia è sempre a settimane intere
+  const cells = Array.from({ length: pad }, (_, i) => `<span class="cal-o" aria-hidden="true">${prevN - pad + 1 + i}</span>`);
   for (let d = 1; d <= n; d++) {
-    const ds = `${m}-${String(d).padStart(2, "0")}`, x = map[ds], on = ds === S.calD;
-    cells.push(`<button type="button" class="cal-d${on ? " on" : ""}${ds === t0 ? " today" : ""}${x && x.ask ? " ask" : ""}" data-act="c-cal-day" data-id="${ds}"
+    const ds = `${m}-${String(d).padStart(2, "0")}`, x = map[ds], on = ds === S.calD, wk = (pad + d - 1) % 7 > 4;
+    cells.push(`<button type="button" class="cal-d${on ? " on" : ""}${ds === t0 ? " today" : ""}${x && x.ask ? " ask" : ""}${x ? " has" : ""}${wk ? " wk" : ""}" data-act="c-cal-day" data-id="${ds}"
       aria-pressed="${on}" aria-label="${fmtDay(ds, true)}: ${daySummary(x)}"${ds < t0 ? " disabled" : ""}><b>${d}</b><span class="mks" aria-hidden="true">${x ? Object.keys(MK).filter((k) => x[k]).map(mk).join("") : ""}</span></button>`);
   }
-  const title = cap(new Date(y, mo - 1, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }));
+  for (let i = 1; cells.length % 7; i++) cells.push(`<span class="cal-o" aria-hidden="true">${i}</span>`);
+  const dt = new Date(y, mo - 1, 1), mon = cap(dt.toLocaleDateString("it-IT", { month: "long" }));
+  const away = m !== ym(t0) || S.calD !== t0;
   return `<section class="card cal" aria-labelledby="hMonth" data-help="month">
-    <div class="cal-h"><button type="button" class="icon" data-act="c-cal-m" data-d="-1" aria-label="Mese precedente"${m <= ym(t0) ? " disabled" : ""}>${icon("back")}</button>
-      <h2 id="hMonth">${title}</h2>
-      <button type="button" class="icon" data-act="c-cal-m" data-d="1" aria-label="Mese successivo">${icon("arrow")}</button></div>
-    <div class="cal-w" aria-hidden="true">${["L", "M", "M", "G", "V", "S", "D"].map((w) => `<span>${w}</span>`).join("")}</div>
-    <div class="cal-g">${cells.join("")}</div>
+    <div class="cal-h"><h2 id="hMonth">${mon} <small>${y}</small></h2>
+      ${away ? `<button type="button" class="btn sm ghost" data-act="c-cal-today">Oggi</button>` : ""}
+      <span class="cal-nav"><button type="button" class="icon" data-act="c-cal-m" data-d="-1" aria-label="Mese precedente"${m <= ym(t0) ? " disabled" : ""}>${icon("back")}</button>
+      <button type="button" class="icon" data-act="c-cal-m" data-d="1" aria-label="Mese successivo">${icon("arrow")}</button></span></div>
+    <div class="cal-w" aria-hidden="true">${["lun", "mar", "mer", "gio", "ven", "sab", "dom"].map((w, i) => `<span${i > 4 ? ' class="wk"' : ""}>${w}</span>`).join("")}</div>
+    <div class="cal-g"${S.calSlide ? ` data-slide="${S.calSlide > 0 ? "r" : "l"}"` : ""}>${cells.join("")}</div>
     <p class="legend cal-lg" data-help="legend" aria-hidden="true">${Object.entries(MK).map(([k, l]) => `<span class="lg">${mk(k)}${l}</span>`).join("")}<span class="lg"><i class="mk k-ask"></i>Richiesta</span></p>
   </section>`;
 }
@@ -1130,8 +1164,10 @@ const ACTIONS = {
 
   // alunno
   async "s-check"(el) {
-    const s = S.student, id = el.dataset.id;
-    await be.setCheck(s.code, id, s.checks && s.checks[id] ? null : Date.now());
+    const s = S.student, id = el.dataset.id, was = !!(s.checks && s.checks[id]);
+    const all = !was && (s.plan || []).length && checksDone(s) + 1 === s.plan.length;
+    await be.setCheck(s.code, id, was ? null : Date.now());
+    if (all && beta()) { celebrate(); toast("Scheda completata, grande!"); }
   },
   async "s-reset"() {
     if (confirm("Vuoi togliere tutte le spunte e ricominciare la scheda?")) await be.resetChecks(S.student.code);
@@ -1429,11 +1465,14 @@ const ACTIONS = {
   "s-stk"(el) { const x = myStickers(S.student).find((y) => y.id === el.dataset.id); if (x) showStickers([x], false); },
   "c-book"(el) { apptSheet({ date: addDays(1), kind: "les", who: el.dataset.code }); },
   "c-cal-day"(el) { S.calD = el.dataset.id; renderCoachMonth(); },
+  "c-cal-today"() { const m0 = S.calM; S.calD = today(); S.calM = ym(S.calD); S.calSlide = m0 > S.calM ? -1 : 0; renderCoachMonth(); S.calSlide = 0;
+    const b = $root.querySelector(`.cal-d[data-id="${S.calD}"]`); if (b) restoreFocus(b); },
   "c-cal-m"(el) {
     const [y, m] = S.calM.split("-").map(Number), d = new Date(y, m - 1 + Number(el.dataset.d), 1);
     S.calM = ym(localDate(d));
     S.calD = S.calM === ym(today()) ? today() : `${S.calM}-01`;
-    renderCoachMonth();
+    S.calSlide = Number(el.dataset.d);
+    renderCoachMonth(); S.calSlide = 0;
     toast(cap(d.toLocaleDateString("it-IT", { month: "long", year: "numeric" })));
   },
   "c-cal-view"(el) { S.calView = el.dataset.id; renderCoachMonth(); },

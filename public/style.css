@@ -866,3 +866,110 @@ details.more[open] > summary { margin-bottom: .4rem; }
 .beta .sheet-panel > form > .btn.wide[data-act=help-tour], .beta .sheet-panel .btn[data-act=help-tour] { margin: .25rem 0 .5rem; }
 /* tre scelte restano sempre su una riga (niente "Completato" da solo sotto), il testo va a capo dentro */
 .beta .seg-opts:has(> .seg-opt:nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* calendario del mese, v2: allineato alle altre carte, mese grande a sinistra, frecce a destra,
+   giorni in cerchi, settimane intere (giorni degli altri mesi chiari), sabato e domenica appena colorati */
+.beta .cal { margin-inline: 0; padding: 1rem .6rem .9rem; }
+@media (max-width: 359px) { .beta .cal { margin-inline: -.6rem; padding-inline: .3rem; } }
+.beta .cal-h { padding: 0 .4rem .7rem; gap: .5rem; }
+.beta .cal-h h2 { text-align: left; font-size: min(1.5rem, 28px); font-weight: 800; letter-spacing: -.02em; }
+.beta .cal-h h2 small { font-size: .7em; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+.beta .cal-nav { display: flex; gap: .4rem; flex: none; }
+.beta .cal-h .btn.sm { flex: none; }
+.beta .cal-w { margin-bottom: .2rem; }
+.beta .cal-w span { font-size: min(.75rem, 14px); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.beta .cal-w span.wk { color: var(--ink); }
+.beta .cal-g { row-gap: .15rem; }
+.beta .cal-o { min-height: max(3.1rem, 48px); display: flex; justify-content: center; padding-top: .35rem;
+  font-size: min(1rem, 19px); color: var(--muted); opacity: .45; }
+.beta .cal-d { min-height: max(3.1rem, 48px); padding: .25rem 0; border-radius: var(--r-sm); background: none; gap: .15rem; }
+.beta .cal-d b { width: 2.15rem; height: 2.15rem; line-height: 2.15rem; border-radius: 50%; font-weight: 650; text-align: center;
+  font-variant-numeric: tabular-nums; transition: background-color .15s, color .15s, transform .2s cubic-bezier(.3, 1.4, .5, 1); }
+.beta .cal-d.wk:not(:disabled) b { background: var(--surface-2); }
+.beta .cal-d.has:not(.on) b { font-weight: 800; }
+.beta .cal-d:disabled { opacity: 1; color: var(--muted); }
+.beta .cal-d:disabled b { background: none; font-weight: 500; }
+.beta .cal-d.today b { box-shadow: inset 0 0 0 2px var(--ink); }
+.beta .cal-d.on { background: none; color: var(--ink); }
+.beta .cal-d.on b { background: var(--ink); color: var(--ink-on); box-shadow: none; }
+.beta .cal-d:not(:disabled):hover b { background: var(--lilac); color: var(--on-pastel); }
+.beta .cal-d.on:hover b { background: var(--ink); color: var(--ink-on); }
+.beta .cal-d .mks { min-height: 7px; gap: 3px; }
+.beta .cal-d .mk { width: 7px; height: 7px; }
+.beta .cal-d.ask::after { top: .2rem; right: calc(50% - 1.3rem); width: .6rem; height: .6rem; border-width: 1.5px; }
+.beta .cal-lg { border-top: 1px solid var(--line); margin-top: .5rem; padding-top: .7rem; display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+
+/* =====================================================================
+   NUOVA VERSIONE: movimento v2 (più ricco, sempre a tema ghiaccio).
+   Si spegne con prefers-reduced-motion / "Riduci animazioni" (regole in cima al file; celebrate() e navGlide() non partono).
+   ===================================================================== */
+/* barra in basso: la pillola nera è un elemento a parte che scivola tra le voci */
+.beta .bnav.ico { position: relative; }
+.beta .bnav.ico a.on { background: transparent; }
+.beta .bnav.ico a { z-index: 1; transition: color .2s; }
+.bnav-pill { position: absolute; z-index: 0; border-radius: var(--r-pill); background: var(--nav-on); pointer-events: none; transform-origin: center; }
+/* entrata delle pagine: le carte arrivano una dopo l'altra, come pattinatori in fila */
+.beta .enter[data-dir] > :nth-child(2) { animation-delay: .035s; }
+.beta .enter[data-dir] > :nth-child(3) { animation-delay: .07s; }
+.beta .enter[data-dir] > :nth-child(4) { animation-delay: .105s; }
+.beta .enter[data-dir] > :nth-child(5) { animation-delay: .14s; }
+.beta .enter[data-dir] > :nth-child(n+6) { animation-delay: .175s; }
+@keyframes row-in { from { opacity: 0; transform: translateX(18px); } 70% { transform: translateX(-2px); } }
+.beta .enter :is(.rows, .trs, .checks, .hbars, .help-l) > li { animation: row-in .32s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .enter :is(.rows, .trs, .checks, .hbars) > li:nth-child(2) { animation-delay: .05s; }
+.beta .enter :is(.rows, .trs, .checks, .hbars) > li:nth-child(3) { animation-delay: .09s; }
+.beta .enter :is(.rows, .trs, .checks, .hbars) > li:nth-child(4) { animation-delay: .13s; }
+.beta .enter :is(.rows, .trs, .checks, .hbars) > li:nth-child(n+5) { animation-delay: .17s; }
+/* numeri riassuntivi: entrano con un piccolo salto */
+@keyframes tile-in { from { opacity: 0; transform: translateY(14px) scale(.92); } 65% { transform: translateY(-2px) scale(1.02); } }
+.beta .enter .stats > * { animation: tile-in .42s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .enter .stats > :nth-child(2) { animation-delay: .06s; }
+.beta .enter .stats > :nth-child(3) { animation-delay: .12s; }
+.beta .enter .stats > :nth-child(4) { animation-delay: .18s; }
+/* pulsanti: si schiacciano e tornano su con una molla */
+.beta .btn, .beta .chip, .beta .icon, .beta .fab, .beta .srow, .beta .mi { transition: transform .32s cubic-bezier(.3, 1.6, .5, 1), background-color .15s, color .15s; }
+.beta :is(.btn, .chip, .icon, .fab):active { transform: scale(.94); transition-duration: .08s; }
+/* carta in evidenza: le sfumature si muovono piano, il pattino nel cerchio entra scivolando */
+@keyframes feat-drift { to { background-position: 18% 22%, 10% -14%, 0 0; } }
+.beta .feat { background-size: 118% 118%, 118% 118%, auto; background-position: 0 0, 0 0, 0 0; animation: feat-drift 9s ease-in-out infinite alternate; }
+.beta .enter .feat .sun .ic { animation: skate-in .55s .22s cubic-bezier(.2, .8, .2, 1) both; }
+/* spunta: schizzi di ghiaccio attorno al cerchio */
+.check .box { position: relative; }
+@keyframes spray { from { opacity: 1; transform: scale(.35); } to { opacity: 0; transform: scale(1.55); } }
+.beta .check.on.just .box::after { content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; pointer-events: none;
+  background: transparent; color: var(--blue);
+  box-shadow: 0 -17px 0 0 currentColor, 12px -12px 0 -1px currentColor, 17px 0 0 0 currentColor, 12px 12px 0 -1px currentColor,
+    0 17px 0 0 currentColor, -12px 12px 0 -1px currentColor, -17px 0 0 0 currentColor, -12px -12px 0 -1px currentColor;
+  animation: spray .5s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .check.on.just .box { animation: pop .35s cubic-bezier(.3, 1.6, .5, 1); }
+/* stato di un elemento: il cerchio fa una piroetta */
+@keyframes pirouette { from { transform: rotate(-300deg) scale(.55); } 70% { transform: rotate(12deg) scale(1.12); } }
+.beta .st-ic.just .ic { animation: pirouette .55s cubic-bezier(.2, .8, .2, 1) both; }
+/* calendario: il mese nuovo arriva dal lato giusto, il giorno scelto "salta" */
+.beta .cal-g[data-slide="r"] { animation: glide-r .32s cubic-bezier(.2, .8, .2, 1) both; }
+.beta .cal-g[data-slide="l"] { animation: glide-l .32s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes day-pop { from { transform: scale(.6); } 60% { transform: scale(1.15); } }
+.beta .cal-d.on.just b { animation: day-pop .38s cubic-bezier(.3, 1.5, .5, 1); }
+.beta .cal-d.just { animation: none; background: none; }
+/* scheda completata: un pattino attraversa lo schermo, la scia resta un attimo, cadono fiocchi */
+.cele { position: fixed; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; }
+.cele-boot { position: absolute; left: 0; top: 42%; width: 4.5rem; height: 4.5rem; color: var(--ink);
+  animation: cele-go 1.3s cubic-bezier(.45, .05, .35, 1) both; }
+.cele-boot .ic { width: 100%; height: 100%; stroke-width: 1.8; }
+.cele-trail { position: absolute; left: 0; right: 0; top: calc(42% + 4.3rem); height: 4px; border-radius: 4px; background: var(--blue);
+  transform-origin: left; animation: cele-trail 2s ease-out both; }
+.cele i { position: absolute; top: -1rem; left: var(--x); width: .55rem; height: .55rem; border-radius: 50%; background: var(--sky);
+  box-shadow: 0 0 0 2px var(--surface); animation: snow 1.9s calc(var(--k) * 45ms) cubic-bezier(.3, .1, .6, 1) both; }
+.cele i:nth-child(3n) { background: var(--lilac); width: .4rem; height: .4rem; }
+.cele i:nth-child(4n) { background: var(--yellow); }
+@keyframes cele-go { from { transform: translateX(-5rem) rotate(-10deg); } 55% { transform: translateX(55vw) rotate(4deg); } to { transform: translateX(110vw) rotate(-2deg); } }
+@keyframes cele-trail { 0% { transform: scaleX(0); opacity: 1; } 60% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes snow { from { transform: translateY(0) rotate(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(105vh) translateX(2rem) rotate(240deg); opacity: .2; } }
+/* pannelli: lo sfondo si scurisce morbido */
+@keyframes veil { from { opacity: 0; } }
+.beta #sheet:not([hidden]) .sheet-bg { animation: veil .25s ease-out both; }
+@keyframes sheet-up { from { transform: translateY(100%); } 70% { transform: translateY(-6px); } }
+.beta .sheet-panel { animation: sheet-up .38s cubic-bezier(.2, .8, .2, 1); }
+.beta .cal-h h2 small { display: inline; }
+.beta .cal-d:disabled { opacity: .5; }
+.beta .cal-o { opacity: .3; }

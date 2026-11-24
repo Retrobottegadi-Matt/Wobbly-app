@@ -183,16 +183,15 @@ const LS_DEV = "pg_dev";
 // Nuova versione (navigazione più semplice, calendario del mese, aiuto "?", pulizia degli appuntamenti passati):
 // per ora solo in modalità sviluppo, dove si può confrontare con quella attuale. Quando viene approvata,
 // beta() diventa sempre vero e il codice della versione attuale si toglie.
-const LS_BETA = "pg_beta";
-const beta = () => !!(be && be.dev && localStorage.getItem(LS_BETA) !== "0");
+// La "nuova versione" (prima solo in modalità sviluppo) è ora l'app per tutti (approvata dall'utente il 27/11).
+// beta() resta come segnaposto: i rami per la versione vecchia rimasti nel codice non vengono più usati.
+const beta = () => true;
 const demoBanner = () => {
   if (!be || !be.demo) return "";
   if (be.dev) return `<div class="demo dev"><b>Modalità sviluppo</b>: dati di esempio, solo in questo browser.
-    ${beta() ? "Stai provando la <b>nuova versione</b>." : "Stai vedendo la versione attuale."}
     <span class="dev-as" role="group" aria-label="Entra come">Entra come:
       <a href="#/coach" data-act="dev-coach"${location.hash.startsWith("#/coach") ? ' aria-current="page"' : ""}>Allenatrice</a> ·
       <a href="#" data-act="dev-student"${location.hash.startsWith("#/coach") ? "" : ' aria-current="page"'}>Alunno</a></span>
-    <a href="#" data-act="dev-beta">${beta() ? "Vedi l'attuale" : "Prova la nuova"}</a> ·
     <a href="#/design">Design system</a> · <a href="#" data-act="dev-exit">Esci</a></div>`;
   return `<div class="demo">Modalità demo: i dati restano solo su questo dispositivo.</div>`;
 };
@@ -232,9 +231,9 @@ function navGlide() {
   if (!on) { lastPill = null; return; }
   const pill = document.createElement("span");
   pill.className = "bnav-pill"; pill.setAttribute("aria-hidden", "true");
-  const r = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight, nav: nav.dataset.who };
-  pill.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
-  nav.prepend(pill);
+  // dentro la voce attiva: segue da sola testo più grande, rotazione e cambi di larghezza
+  const r = { x: on.offsetLeft, nav: nav.dataset.who };
+  on.prepend(pill);
   if (lastPill && lastPill.nav === r.nav && lastPill.x !== r.x && !still() && pill.animate) {
     const dx = lastPill.x - r.x;
     pill.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 340, easing: "cubic-bezier(.32, .72, 0, 1)" });
@@ -729,8 +728,8 @@ function routeCoach(view, tab) {
 function renderCoach(view, tab) {
   if (isCode(view)) return renderCoachStudent(view, tab);
   if (view === "alunni") return renderCoachList();
-  if (view === "calendario") return beta() ? renderCoachMonth() : renderCoachCal();
-  if (view === "statistiche" && beta()) return renderCoachStats();
+  if (view === "calendario") return renderCoachMonth();
+  if (view === "statistiche") return renderCoachStats();
   return renderCoachHome();
 }
 // nuova versione: allenamenti e lezioni dei giorni passati si cancellano da soli, una volta per sessione,
@@ -873,11 +872,7 @@ function renderCoachHome() {
     next.length ? `<ul class="trs">${next.map((x) => trRow(x.t, x.who, x.act)).join("")}</ul>`
       : empty("calendar", "Nessun allenamento in programma", "Tocca + per aggiungerne uno."),
     next.length ? `<a class="more" href="#/coach/calendario">Vedi tutti</a>` : "")}
-  ${beta() ? "" : sect("hGr", "Gruppi", g.length
-    ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-open-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}
-      ${none ? `<li><button class="mi" data-act="c-open-group" data-id="none">${icon("user")}<span>Senza gruppo</span><small class="cnt">${nAlunni(none)}</small>${icon("chevron", "chev")}</button></li>` : ""}</ul>`
-    : empty("group", "Ancora nessun gruppo", NO_GROUPS, S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`), "", g.length ? "plain" : "card")}
-  ${bnav("", S.metaErr ? "" : beta() ? fab("c-new-appt", "Nuovo appuntamento") : fab("c-new-tr", "Nuovo allenamento"))}`);
+  ${bnav("", S.metaErr ? "" : fab("c-new-appt", "Nuovo appuntamento"))}`);
 }
 
 // ---------------------------------------------------------- Alunni (elenco con gruppi e ricerca)
@@ -981,28 +976,6 @@ function renderCoachList() {
   }
 }
 
-// ---------------------------------------------------------- Calendario (allenamenti e gruppi)
-function renderCoachCal() {
-  const up = upcoming(), past = sortTrainings(S.meta.trainings.filter((t) => t.date < today())).reverse().slice(0, 20);
-  const g = S.meta.groups;
-  paint(`${demoBanner()}
-  ${coachTop("Calendario", up.length ? `${up.length} in programma` : "Niente in programma")}
-  ${metaWarn()}
-  ${sect("hUp", "Prossimi allenamenti",
-    `${up.length ? `<ul class="trs">${up.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul>`
-      : empty("calendar", "Nessun allenamento in programma", "Tocca + per aggiungerne uno. Ogni alunno vede quelli per tutti e quelli del suo gruppo.")}
-    ${past.length ? `<details class="past"><summary>Passati (${past.length})</summary>
-      <ul class="trs">${past.map((t) => trRow(t, whoOf(t), "c-edit-tr")).join("")}</ul></details>` : ""}`)}
-  ${sect("hSlots", "Lezioni private",
-    `${upSlots().length ? `<ul class="trs">${upSlots().map((t) => trRow(t, slotWho(t), "c-edit-slot")).join("")}</ul>`
-      : empty("user", "Nessun orario libero", "Pubblica gli orari in cui puoi fare lezioni private: gli alunni con le lezioni private attive li vedono e ti chiedono quello che preferiscono.")}
-    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-slot">${icon("plus")} Aggiungi orari liberi</button>`}`)}
-  ${sect("hGroups", "Gruppi",
-    `${g.length ? `<ul class="menu">${g.map((x) => `<li><button class="mi" data-act="c-edit-group" data-id="${x.id}">${icon("group")}<span>${esc(x.name)}</span><small class="cnt">${nAlunni(inGroup(x.id))}</small>${icon("chevron", "chev")}</button></li>`).join("")}</ul>`
-      : empty("group", "Ancora nessun gruppo", NO_GROUPS)}
-    ${S.metaErr ? "" : `<button class="btn ghost wide" data-act="c-new-group">${icon("plus")} Nuovo gruppo</button>`}`, "", g.length ? "plain" : "card")}
-  ${bnav("calendario", S.metaErr ? "" : fab("c-new-tr", "Nuovo allenamento"))}`);
-}
 
 // ---------------------------------------------------------- Calendario del mese (nuova versione)
 const ym = (d) => d.slice(0, 7);
@@ -1441,7 +1414,6 @@ const ACTIONS = {
   "dev-coach"() { go("#/coach"); },
   // alunno: se non ne è ancora scelto uno, la schermata d'ingresso mostra quelli di esempio
   "dev-student"() { const c = localStorage.getItem(LS_CODE); if (c && !be.sampleCodes().some((x) => x.code === c)) localStorage.removeItem(LS_CODE); go("#/"); if (location.hash === "#/" || !location.hash) route(); },
-  "dev-beta"() { localStorage.setItem(LS_BETA, beta() ? "0" : "1"); route(); },
   // aiuto: elenco degli elementi della pagina, poi (se si vuole) la visita guidata
   help() {
     const here = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
@@ -1595,41 +1567,7 @@ const ACTIONS = {
     if (beta()) fe.addEventListener("change", (e) => { if (e.target.name === "status") dd.hidden = e.target.value !== "done"; });
   },
 
-  "c-add-prog"() {
-    if (beta()) return progPicker();
-    const s = cur();
-    const lv = lvlOf(s) || "base";
-    const order = [lv, ...LEVELS.map(([k]) => k).filter((k) => k !== lv)];
-    const have = new Set((s.progress || []).map(itemKey));
-    const f = openSheet({ title: "Aggiungi elementi", body: `
-      <div class="scroll">${order.map((L) => `<h3 class="lvl">${LEVEL_LABEL[L]}</h3>${L === lv && lvlOf(s) ? `<small class="lvl-note">Livello di ${esc(s.name)}</small>` : ""}
-        ${Object.entries(CATALOG[L]).map(([c, names]) => `<fieldset class="grp"><legend class="cat">${c}</legend>
-        ${names.map((n) => have.has(itemKey({ name: n }))
-          ? `<div class="chk dis">${icon("check")}<span>${esc(n)}</span><small>già presente</small></div>`
-          : `<label class="chk"><input type="checkbox" name="pick" value="${esc(`${L}|${c}|${n}`)}"> ${esc(n)}</label>`).join("")}</fieldset>`).join("")}`).join("")}
-      <fieldset class="grp"><legend class="cat">Personalizzato</legend>
-      <div class="row2"><label class="sr" for="clevel">Livello</label><select name="clevel" id="clevel">${LEVELS.map(([k, l]) => `<option value="${k}" ${k === lv ? "selected" : ""}>${l}</option>`).join("")}</select>
-      <label class="sr" for="ccat">Categoria</label><select name="ccat" id="ccat">${CATEGORIES.map((c) => `<option ${c === "Altro" ? "selected" : ""}>${c}</option>`).join("")}</select>
-      <label class="sr" for="cname">Nome elemento</label><input name="cname" id="cname" maxlength="60" placeholder="Nome elemento"></div></fieldset></div>
-      ${sheetBtns("Aggiungi")}`,
-    onSubmit: async (fd) => {
-      const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
-      const cn = (fd.get("cname") || "").trim();
-      if (cn) add.push({ level: normLevel(fd.get("clevel")) || lv, cat: fd.get("ccat"), name: cn });
-      if (!add.length) { oops("Seleziona almeno un elemento"); return false; }
-      const s2 = cur();
-      await be.updateStudent(s2.code, {
-        progress: [...(s2.progress || []), ...add.map((a) => ({ id: newId(), ...a, status: "todo", date: "", note: "" }))],
-      });
-      ok(add.length === 1 ? "1 elemento aggiunto" : `${add.length} elementi aggiunti`);
-    } });
-    const btn = f.querySelector("[type=submit]");
-    const upd = () => {
-      const n = f.querySelectorAll("[name=pick]:checked").length + (f.cname.value.trim() ? 1 : 0);
-      btn.textContent = n ? `Aggiungi (${n})` : "Aggiungi";
-    };
-    f.addEventListener("change", upd); f.addEventListener("input", upd);
-  },
+  "c-add-prog"() { progPicker(); },
 
   "c-add-ex"() { exerciseSheet(null); },
   "c-edit-ex"(el) { exerciseSheet((cur().plan || []).find((x) => x.id === el.dataset.id)); },
@@ -1689,7 +1627,6 @@ const ACTIONS = {
     if (b) restoreFocus(b);
   },
   "c-open-group"(el) { S.gf = el.dataset.id; S.q = ""; go("#/coach/alunni"); },
-  "c-new-tr"() { trainingSheet(null); },
   "c-new-appt"() { apptSheet({ date: S.page === "c-cal" && S.calView === "mese" ? S.calD : addDays(1) }); },
   // sticker: scegli, (cambia il messaggio), manda
   "c-stk"(el) { stickerSheet(el.dataset.code ? { code: el.dataset.code } : el.dataset.group ? { group: el.dataset.group } : { code: curCode() }); },
@@ -1715,7 +1652,6 @@ const ACTIONS = {
   "c-cal-view"(el) { S.calView = el.dataset.id; renderCoachMonth(); },
   "c-edit-tr"(el) { trainingSheet(S.meta.trainings.find((t) => t.id === el.dataset.id)); },
   "c-new-group"() { groupSheet(null); },
-  "c-new-slot"() { slotSheet(null); },
   "c-edit-slot"(el) { slotSheet(S.meta.slots.find((t) => t.id === el.dataset.id)); },
   // richieste di lezione: conferma (l'orario diventa suo, le altre richieste per lo stesso orario diventano "non confermate")
   async "c-lr-ok"(el) {
@@ -1865,13 +1801,13 @@ async function syncSched(meta, extra = {}, withMeta = false) {
   return list.length;
 }
 async function saveMeta(meta, extra) {
-  meta = { ...meta, slots: pruneOld(meta.slots || []), ...(beta() ? { trainings: pruneOld(meta.trainings || []) } : {}) };
+  meta = { ...meta, slots: pruneOld(meta.slots || []), trainings: pruneOld(meta.trainings || []) };
   S.meta = meta;
   return syncSched(meta, extra, true);
 }
 // gli allenamenti passati da più di 60 giorni si tolgono, così il documento resta piccolo
 // (nuova versione: appena il giorno è passato)
-const pruneOld = (list) => list.filter((t) => t.date >= (beta() ? today() : addDays(-60)));
+const pruneOld = (list) => list.filter((t) => t.date >= today());
 
 // sovrapposizioni: un allenamento conta un'ora; senza ora non si controlla
 function clashes(list, skip = "") {
@@ -2067,30 +2003,7 @@ function groupSheet2(g) {
 }
 
 function groupSheet(g) {
-  if (g === undefined) return;
-  if (beta()) return groupSheet2(g);
-  const n = g ? inGroup(g.id) : 0;
-  openSheet({ title: g ? "Modifica gruppo" : "Nuovo gruppo", focus: g ? "title" : "input", body: `
-    <label>Nome del gruppo<input name="name" required maxlength="30" value="${esc(g && g.name)}" placeholder="Es. Sabato mattina"></label>
-    ${g ? `<p class="muted small">${nAlunni(n)} in questo gruppo. Il gruppo di un alunno si sceglie nel suo Profilo.</p>`
-      : `<p class="muted small">Dopo, scegli il gruppo nel Profilo di ogni alunno.</p>`}
-    ${sheetBtns("Salva")}
-    ${g ? delBtn("Elimina gruppo") : ""}`,
-  onSubmit: async (fd, sub) => {
-    if (sub && sub.name === "del") {
-      if (!(await ask(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`))) return false;
-      const extra = Object.fromEntries(S.students.filter((s) => s.group === g.id).map((s) => [s.code, { group: "" }]));
-      if (S.gf === g.id) S.gf = "";
-      await saveMeta({ ...S.meta, groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
-      return gone("Gruppo eliminato");
-    }
-    const name = fd.get("name").trim();
-    if (!name) return bad("name", "Scrivi il nome del gruppo.");
-    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) return bad("name", "Esiste già un gruppo con questo nome.");
-    const groups = g ? S.meta.groups.map((x) => (x.id === g.id ? { ...x, name } : x)) : [...S.meta.groups, { id: newId(), name }];
-    await saveMeta({ ...S.meta, groups });
-    ok(g ? "Gruppo rinominato" : "Gruppo creato");
-  } });
+  if (g !== undefined) groupSheet2(g);
 }
 
 // scrittura dell'alunno sulle lezioni private, con un messaggio chiaro se le regole del database non sono aggiornate
@@ -2155,7 +2068,7 @@ function progPicker() {
   const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey)), cat = catNow();
   const f = openSheet({ title: "Aggiungi elementi", body: `
     <div class="search" data-nodirty><label for="pq" class="sr">Cerca o scrivi un elemento nuovo</label>${icon("search")}
-      <input id="pq" type="search" placeholder="Cerca o scrivi un elemento" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
+      <input id="pq" type="search" placeholder="Cerca o scrivi" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
     <fieldset class="seg" id="pLv" data-nodirty><legend>Livello</legend><div class="seg-opts">
       ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="plv" value="${k}" ${k === lv ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
     <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>

@@ -563,9 +563,9 @@ button.feat { cursor: pointer; }
 .top-acts { display: flex; gap: .5rem; flex: none; }
 /* numero sull'icona della barra (richieste da confermare) */
 .bnav a { position: relative; }
-.badge { position: absolute; top: min(.2rem, 4px); left: calc(50% + min(.45rem, 8px)); min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem;
+.badge { position: absolute; top: min(.2rem, 4px); left: calc(50% + min(.45rem, 8px)); min-width: min(1.25rem, 22px); height: min(1.25rem, 22px); padding: 0 min(.3rem, 5px);
   border-radius: var(--r-pill); background: var(--yellow); color: var(--on-pastel); font-size: min(.75rem, 13px); font-weight: 800;
-  line-height: 1.25rem; text-align: center; font-style: normal; box-shadow: 0 0 0 2px var(--nav-bg); }
+  line-height: min(1.25rem, 22px); text-align: center; font-style: normal; box-shadow: 0 0 0 2px var(--nav-bg); }
 /* pannello unico: i campi dell'altro tipo sono nascosti e disattivati */
 .kf { border: 0; padding: 0; margin: 0; min-width: 0; }
 .kf[hidden] { display: none; }
@@ -905,7 +905,7 @@ details.more[open] > summary { margin-bottom: .4rem; }
 .beta .bnav.ico { position: relative; }
 .beta .bnav.ico a.on { background: transparent; }
 .beta .bnav.ico a { z-index: 1; transition: color .2s; }
-.bnav-pill { position: absolute; z-index: 0; border-radius: var(--r-pill); background: var(--nav-on); pointer-events: none; transform-origin: center; }
+.bnav-pill { position: absolute; inset: 0; z-index: -1; border-radius: var(--r-pill); background: var(--nav-on); pointer-events: none; transform-origin: center; }
 /* pulsanti: si schiacciano appena e tornano su, senza molla */
 .beta .btn, .beta .chip, .beta .icon, .beta .fab, .beta .srow, .beta .mi { transition: transform .18s var(--ease-ios), background-color .15s, color .15s; }
 .beta :is(.btn, .chip, .icon, .fab):active { transform: scale(.97); transition-duration: .08s; }
@@ -1100,3 +1100,15 @@ details.more > summary { font-size: var(--fs-small); }
 /* pannelli più alti dello schermo (iPhone SE, testo grande): le parti non si schiacciano una sull'altra, il pannello scorre */
 .sheet-panel > * { flex-shrink: 0; }
 .sheet-panel label.seg-opt:is(.todo, .doing, .done) { font-size: min(1rem, 4.1vw); }
+
+/* Controllo finale (27/11): calendario del mese con testo molto grande (200%):
+   cerchi dei giorni con misura massima in px (come le etichette della barra) e intestazione che va a capo */
+.beta .cal-d b { width: min(2.15rem, 40px); height: min(2.15rem, 40px); line-height: min(2.15rem, 40px); }
+.beta .cal-h { flex-wrap: wrap; }
+.beta .cal-h h2 { flex: 1 1 min-content; }
+.beta .cal-d.ask::after { right: max(0px, calc(50% - min(1.3rem, 24px))); width: min(.6rem, 11px); height: min(.6rem, 11px); }
+.bigcode.tap small { white-space: normal; flex-wrap: wrap; }
+/* settimana dell'alunno: misure massime in px, così 7 giorni stanno in riga anche con testo molto grande */
+.week { gap: min(.3rem, 5px); }
+.week i { width: min(1.35rem, 24px); height: min(1.35rem, 24px); }
+.week i .ic { width: min(.95rem, 17px); height: min(.95rem, 17px); }

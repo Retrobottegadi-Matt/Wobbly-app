@@ -10,16 +10,16 @@ const PLAN = [
   ["Incrociati indietro in cerchio", "3 giri per lato"],
   ["Tre alternati lungo il lato lungo", "3 vasche"],
   ["Spirale tenuta 5 secondi", "4 volte per gamba"],
-  ["Swizzle avanti e indietro", "2 vasche"],
+  ["Limoni avanti e indietro", "2 vasche"],
   ["Salti preparatori sul posto", "10 ripetizioni"],
   ["Entrata in trottola", "6 tentativi"],
   ["Filo esterno avanti su un piede", "Tutto il lato corto"],
 ];
 // percorso tipico: ogni alunno ha affrontato i primi N elementi
 const ORDER = [
-  "Pattinaggio avanti", "Pattinaggio indietro", "Frenata a spazzaneve", "Swizzle avanti", "Spirale",
-  "Incrociati avanti", "Incrociati indietro", "Tre avanti esterno", "Mezzo giro (waltz)", "Trottola verticale (upright)",
-  "Mohawk", "Toe loop", "Salchow", "Trottola bassa (sit)", "Loop", "Trottola ad angelo (camel)",
+  "Pattinaggio avanti", "Pattinaggio indietro", "Frenata a spazzaneve", "Limoni avanti", "Spirale",
+  "Incrociati avanti", "Incrociati indietro", "Tre avanti esterno", "Salto del valzer", "Trottola verticale",
+  "Mohawk", "Toe loop", "Salchow", "Trottola bassa", "Rittberger", "Trottola ad angelo",
   "Bracket", "Flip",
 ];
 

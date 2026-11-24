@@ -1063,3 +1063,10 @@ details.more[open] > summary { margin-bottom: .4rem; }
 @keyframes intro-pop { from { transform: scale(.6) rotate(-10deg); } }
 @media (prefers-reduced-motion: reduce) { .intro, .intro-card > *, .intro-card .intro-ic { animation: none !important; } }
 :root[data-motion="reduce"] .intro, :root[data-motion="reduce"] .intro-card > *, :root[data-motion="reduce"] .intro-card .intro-ic { animation: none !important; }
+
+/* ===== elementi del pattinaggio modificabili (27/11) ===== */
+.linkbtn.cat-edit { display: flex; align-items: center; justify-content: center; gap: .4rem; width: 100%; min-height: var(--target); margin: .25rem 0; font-weight: 600; }
+.linkbtn.cat-edit .ic { width: 1.1rem; height: 1.1rem; }
+.cat-lv .cat { margin-top: 1rem; }
+.cat-l { margin-bottom: .25rem; }
+.cat-l .mi span { overflow-wrap: anywhere; }

@@ -21,6 +21,8 @@ export function normMeta(m) {
     groups: Array.isArray(m && m.groups) ? m.groups.filter((g) => g && g.id && g.name) : [],
     trainings: Array.isArray(m && m.trainings) ? m.trainings.filter((t) => t && t.id && t.date) : [],
     slots: Array.isArray(m && m.slots) ? m.slots.filter((t) => t && t.id && t.date) : [],
+    // elementi del pattinaggio cambiati dall'allenatrice (se mancano vale il catalogo di catalog.js)
+    ...(Array.isArray(m && m.elements) ? { elements: m.elements.filter((e) => e && e.id && e.name && e.level && e.cat) } : {}),
   };
 }
 

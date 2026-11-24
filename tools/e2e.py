@@ -725,6 +725,51 @@ async def main():
         assert await p4.locator("#offline[role=status]").is_visible()
         await ctx4.set_offline(False); await p4.evaluate("dispatchEvent(new Event('online'))"); await p4.wait_for_timeout(150)
         assert await p4.locator("#offline").count() == 0 and "online" in await p4.locator(".toast").inner_text()
+        # elementi del pattinaggio: nomi italiani, l'allenatrice li cambia, ne aggiunge e li toglie
+        _st = (await dev4())["students"]; _st = [dict(v, code=k) for k, v in _st.items()] if isinstance(_st, dict) else _st
+        lim = [x for x in _st if any(p_["name"] == "Limoni avanti" for p_ in x.get("progress", []))]
+        assert lim, "esempi con nomi italiani"
+        await p4.goto(B + f"#/coach/{lim[0]['code']}/progressi"); await p4.wait_for_timeout(400)
+        await p4.click(".fab"); await p4.wait_for_timeout(300)
+        allnames = await p4.locator("#sheet .pick").all_inner_texts()
+        assert not any(w in " ".join(allnames) for w in ["Swizzle", "upright", "(sit)", "camel", "waltz"]), allnames
+        await p4.click("#sheet [data-act=c-cat]"); await p4.wait_for_timeout(250)
+        assert await p4.locator("#sheetTitle").inner_text() == "Elementi del pattinaggio"
+        await p4.click("#sheet [data-act=c-cat-new]"); await p4.wait_for_timeout(250)
+        await p4.fill("#sheet [name=name]", "limoni AVANTI"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(250)
+        assert "C'è già" in await p4.locator("#sheet .f-err").inner_text(), "nome doppio"
+        await p4.fill("#sheet [name=name]", "Tre indietro esterno")
+        await p4.click("#sheet .seg-opt:has-text('Intermedio')"); await p4.select_option("#sheet [name=cat]", "Passi e giri")
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        assert await p4.locator("#sheetTitle").inner_text() == "Elementi del pattinaggio" and await p4.get_attribute(".toast", "data-kind") == "ok"
+        assert await p4.locator("#sheet .cat-lv[data-lv=intermedio]:not([hidden]) .mi:has-text('Tre indietro esterno')").count() == 1
+        els = (await dev4())["meta"]["elements"]
+        assert any(e["name"] == "Tre indietro esterno" and e["level"] == "intermedio" and e["cat"] == "Passi e giri" for e in els)
+        # rinominare cambia anche negli alunni che lo hanno
+        await p4.click("#sheet .seg-opt:has-text('Base')"); await p4.wait_for_timeout(100)
+        await p4.click("#sheet .mi:has-text('Limoni avanti')"); await p4.wait_for_timeout(250)
+        assert "progressi" in await p4.locator("#sheet").inner_text()
+        await p4.fill("#sheet [name=name]", "Limoni in avanti"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        assert "alunn" in await p4.locator(".toast").inner_text()
+        d = await dev4(); _s2 = d["students"]; _s2 = list(_s2.values()) if isinstance(_s2, dict) else _s2
+        names_all = [p_["name"] for x in _s2 for p_ in x.get("progress", [])]
+        assert "Limoni avanti" not in names_all and names_all.count("Limoni in avanti") >= len(lim)
+        # togliere: sparisce dall'elenco, non dagli alunni
+        await p4.click("#sheet .mi:has-text('Limoni in avanti')"); await p4.wait_for_timeout(250)
+        await p4.click("#sheet [name=del]"); await p4.wait_for_timeout(400)
+        assert not any(e["name"] == "Limoni in avanti" for e in (await dev4())["meta"]["elements"])
+        _s2 = (await dev4())["students"]; _s2 = list(_s2.values()) if isinstance(_s2, dict) else _s2
+        assert any(p_["name"] == "Limoni in avanti" for x in _s2 for p_ in x.get("progress", []))
+        # l'elenco nuovo vale in "Aggiungi elementi"
+        await p4.click("#sheet .sheet-h [data-act=close]"); await p4.wait_for_timeout(200)
+        await p4.click(".fab"); await p4.wait_for_timeout(300)
+        allnames = " ".join(await p4.locator("#sheet .pick").all_inner_texts())
+        assert "Tre indietro esterno" in allnames and "Limoni in avanti" not in allnames
+        # ripristino dell'elenco iniziale
+        await p4.click("#sheet [data-act=c-cat]"); await p4.wait_for_timeout(250)
+        await p4.click("#sheet [data-act=c-cat-reset]"); await p4.wait_for_timeout(400)
+        assert "elements" not in (await dev4())["meta"]
+        await p4.click("#sheet .sheet-h [data-act=close]"); await p4.wait_for_timeout(200)
         # invito: "Solo il codice" manda un messaggio senza link; toccare il codice lo copia (solo il codice)
         _st = (await dev4())["students"]; _st = [dict(v, code=k) for k, v in _st.items()] if isinstance(_st, dict) else _st
         stu = sorted(_st, key=lambda x: x["name"])[0]

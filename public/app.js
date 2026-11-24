@@ -1,6 +1,6 @@
 import { CONFIG } from "./config.js";
 import { createBackend, normCode, fmtCode, newId, CODE_LEN } from "./backend.js";
-import { CATALOG, CATEGORIES, EXERCISE_IDEAS, LEVELS, LEVEL_LABEL, normItem, normLevel, itemKey } from "./catalog.js";
+import { CATALOG, CATEGORIES, EXERCISE_IDEAS, LEVELS, LEVEL_LABEL, normItem, normLevel, itemKey, nameKey, defaultElements, catalogFrom } from "./catalog.js";
 import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
 import { initDrag, isDragging } from "./drag.js";
@@ -1451,6 +1451,15 @@ const ACTIONS = {
       <ul class="help-l">${here.map(([, ic, t, d]) => `<li><span class="help-ic" aria-hidden="true">${icon(ic)}</span><span class="txt"><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
       <div class="sheet-btns"><button type="button" class="btn ghost wide" data-act="close">Chiudi</button></div>` });
   },
+  async "c-cat"() { if (await canLeave()) catSheet(); },
+  "c-cat-ed"(el) { elementSheet(elements().find((e) => e.id === el.dataset.id)); },
+  "c-cat-new"() { elementSheet(null); },
+  async "c-cat-back"() { if (await canLeave()) catSheet(); },
+  async "c-cat-reset"() {
+    if (!(await ask("Ripristinare l'elenco iniziale degli elementi? Quelli aggiunti o cambiati da te spariscono dall'elenco, non dagli alunni."))) return;
+    const { elements: _, ...rest } = S.meta;
+    await saveMeta(rest); catSheet(); ok("Elenco iniziale ripristinato");
+  },
   intro(el) {
     const coach = S.page.startsWith("c-");
     if (!$sheet.hidden) closeSheet();
@@ -1481,6 +1490,7 @@ const ACTIONS = {
       <ul class="menu">${mi("a11y", "a11y", "Accessibilità")}
         ${mi("c-transfer", "phone", "Aggiungi un dispositivo", "Per usare l'app su un altro telefono o dopo averlo cambiato.")}
         ${beta() ? mi("intro", "help", "Rivedi la presentazione") : ""}</ul>
+      ${beta() ? `<h3 class="cat">Alunni</h3><ul class="menu">${mi("c-cat", "skate", "Elementi del pattinaggio", "I nomi che proponi in «Aggiungi elementi»: puoi cambiarli, aggiungerne e toglierli.")}</ul>` : ""}
       <h3 class="cat">Backup</h3>
       <ul class="menu">${mi("c-export", "download", "Esporta backup")}
         ${mi("c-import", "upload", "Ripristina da backup", "Il backup è un file sul tuo telefono: tienine una copia ogni tanto.")}</ul>
@@ -1783,9 +1793,12 @@ async function importBackup(e) {
     // gruppi e allenamenti (backup dalla versione 2): solo se qui non ce ne sono ancora
     const bm = normMeta(data.meta), useMeta = !S.metaErr && (bm.groups.length || bm.trainings.length || bm.slots.length)
       && !S.meta.groups.length && !S.meta.trainings.length && !S.meta.slots.length;
-    if (!(await ask(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""} Ripristinarli?`))) return;
-    const meta = useMeta ? bm : S.meta;
-    if (useMeta) { await be.saveMeta(meta); S.meta = meta; }
+    // elenco degli elementi cambiato dall'allenatrice: solo se qui c'è ancora quello iniziale
+    const useEl = !S.metaErr && !!bm.elements && !S.meta.elements;
+    if (!(await ask(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""}${useEl ? " C'è anche il tuo elenco degli elementi." : ""} Ripristinarli?`))) return;
+    const meta = { ...(useMeta ? bm : S.meta) }, el = useEl ? bm.elements : S.meta.elements;
+    delete meta.elements; if (el) meta.elements = el;
+    if (useMeta || useEl) { await be.saveMeta(meta); S.meta = meta; }
     const okGroup = (g) => (meta.groups.some((x) => x.id === g) ? g : "");
     for (const { code, ...rest } of toAdd) {
       const st = { ...rest, group: okGroup(rest.group) };
@@ -2139,7 +2152,7 @@ function slotSheet(t) {
 // gli elementi come pulsanti da toccare. I filtri nascondono soltanto: quelli già scelti restano scelti.
 // (Eccezione voluta a focus "input": la tastiera coprirebbe il catalogo, che è la parte principale.)
 function progPicker() {
-  const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey));
+  const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey)), cat = catNow();
   const f = openSheet({ title: "Aggiungi elementi", body: `
     <div class="search"><label for="pq" class="sr">Cerca o scrivi un elemento nuovo</label>${icon("search")}
       <input id="pq" type="search" placeholder="Cerca o scrivi un elemento" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
@@ -2148,12 +2161,13 @@ function progPicker() {
     <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>
       <span class="txt"><b>Nuovo: <span id="newName"></span></b><small>Non è nel catalogo: lo aggiungo in “Altro”, nel livello scelto.</small></span></label>
     <p class="muted small pick-hint">Tocca gli elementi da aggiungere. Quelli grigi con la spunta li ha già.</p>
-    <div class="picks">${LEVELS.map(([L]) => Object.entries(CATALOG[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
+    <div class="picks">${LEVELS.map(([L]) => Object.entries(cat[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
       ${names.map((n) => have.has(itemKey({ name: n }))
         ? `<span class="chip pick dis" data-n="${esc(norm(n))}">${icon("check")}<span>${esc(n)}</span><span class="sr">, già presente</span></span>`
         : `<label class="chip pick" data-n="${esc(norm(n))}"><input type="checkbox" name="pick" value="${esc(`${L}|${c}|${n}`)}">${icon("check")}<span>${esc(n)}</span></label>`).join("")}
       </div></div>`).join("")).join("")}</div>
     <p class="muted" id="noPick" hidden>Nessun elemento del catalogo con questo nome.</p>
+    <button type="button" class="linkbtn cat-edit" data-act="c-cat">${icon("edit")} Cambia l'elenco degli elementi</button>
     ${sheetBtns("Aggiungi")}`,
   onSubmit: async (fd) => {
     const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
@@ -2166,7 +2180,7 @@ function progPicker() {
     });
     ok(add.length === 1 ? `${add[0].name} aggiunto` : `${add.length} elementi aggiunti`);
   } });
-  const q = f.querySelector("#pq"), btn = f.querySelector("[type=submit]"), all = new Set(Object.values(CATALOG).flatMap((c) => Object.values(c).flat()).map(norm));
+  const q = f.querySelector("#pq"), btn = f.querySelector("[type=submit]"), all = new Set(Object.values(cat).flatMap((c) => Object.values(c).flat()).map(norm));
   const upd = () => {
     const t = norm(q.value), L = f.elements.plv.value;
     f.querySelector("#pLv").hidden = !!t; // cercando, si cerca in tutti i livelli
@@ -2187,6 +2201,66 @@ function progPicker() {
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); q.blur(); } });
   f.addEventListener("input", upd); f.addEventListener("change", upd);
   upd();
+}
+
+// ---------------------------------------------------------- elementi del pattinaggio (nuova versione)
+// L'allenatrice cambia l'elenco proposto in "Aggiungi elementi". Salvato in meta.elements solo dalla prima modifica.
+const elements = () => (beta() && S.meta.elements ? S.meta.elements : defaultElements());
+const catNow = () => (beta() && S.meta.elements ? catalogFrom(S.meta.elements) : CATALOG);
+const lvSeg = (name, cur, legend = "Livello") => `<fieldset class="seg"><legend>${legend}</legend><div class="seg-opts">
+  ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="${name}" value="${k}" ${k === cur ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>`;
+
+function catSheet() {
+  const L0 = S.catLv || "base", list = elements();
+  const f = openSheet({ title: "Elementi del pattinaggio", body: `
+    <p class="muted small">Sono gli elementi che proponi in «Aggiungi elementi». Tocca un elemento per cambiarlo o toglierlo: chi lo ha già nei progressi non perde niente.</p>
+    ${lvSeg("clv", L0)}
+    ${LEVELS.map(([L]) => `<div class="cat-lv" data-lv="${L}" ${L === L0 ? "" : "hidden"}>${CATEGORIES.map((c) => {
+      const xs = list.filter((e) => e.level === L && e.cat === c);
+      return xs.length ? `<h3 class="cat">${c}</h3><ul class="menu cat-l">${xs.map((e) => `<li><button type="button" class="mi" data-act="c-cat-ed" data-id="${esc(e.id)}"><span>${esc(e.name)}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul>` : "";
+    }).join("") || `<p class="muted">Nessun elemento in questo livello.</p>`}</div>`).join("")}
+    <button type="button" class="btn wide" data-act="c-cat-new">${icon("plus")} Nuovo elemento</button>
+    ${S.meta.elements ? `<button type="button" class="linkbtn cat-edit" data-act="c-cat-reset">${icon("refresh")} Ripristina l'elenco iniziale</button>` : ""}
+    <div class="sheet-btns"><button type="button" class="btn ghost wide" data-act="close">Fatto</button></div>` });
+  f.addEventListener("change", (e) => {
+    if (e.target.name !== "clv") return;
+    S.catLv = e.target.value; f.dataset.dirty = "";
+    f.querySelectorAll(".cat-lv").forEach((d) => { d.hidden = d.dataset.lv !== S.catLv; });
+  });
+}
+
+function elementSheet(x) {
+  const L = x ? x.level : S.catLv || "base";
+  const users = (name) => S.students.filter((s) => (s.progress || []).some((p) => itemKey(p) === nameKey(name)));
+  openSheet({ title: x ? "Modifica elemento" : "Nuovo elemento", focus: x ? "title" : "input", body: `
+    <label>Nome<input name="name" required maxlength="60" value="${esc(x && x.name)}" placeholder="Es. Tre indietro esterno" autocomplete="off"></label>
+    ${lvSeg("level", L)}
+    <label>Categoria<select name="cat">${CATEGORIES.map((c) => `<option ${c === (x ? x.cat : "Altro") ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+    ${x && users(x.name).length ? `<p class="muted small">Ce l'hanno nei progressi ${users(x.name).length === 1 ? "1 alunno" : `${users(x.name).length} alunni`}: se cambi il nome, cambia anche da loro.</p>` : ""}
+    <div class="sheet-btns"><button type="button" class="btn ghost" data-act="c-cat-back">Indietro</button><button class="btn" type="submit">${x ? "Salva" : "Aggiungi"}</button></div>
+    ${x ? delBtn("Togli dall'elenco") : ""}`,
+  onSubmit: async (fd, sub) => {
+    const list = elements().map((e) => ({ ...e }));
+    if (sub && sub.name === "del") {
+      if (!(await ask(`Togliere “${x.name}” dall'elenco? Chi lo ha già nei progressi lo tiene.`))) return false;
+      await saveMeta({ ...S.meta, elements: list.filter((e) => e.id !== x.id) });
+      gone(`${x.name} tolto dall'elenco`); catSheet(); return false;
+    }
+    const name = fd.get("name").trim().replace(/\s+/g, " ");
+    if (!name) return bad("name", "Scrivi il nome dell'elemento.");
+    if (list.some((e) => e.id !== (x && x.id) && nameKey(e.name) === nameKey(name))) return bad("name", "C'è già un elemento con questo nome.");
+    const item = { id: x ? x.id : newId(), name, level: normLevel(fd.get("level")) || "base", cat: CATEGORIES.includes(fd.get("cat")) ? fd.get("cat") : "Altro" };
+    // nome cambiato: si aggiorna anche negli alunni che hanno già l'elemento (stessa scrittura)
+    const extra = {};
+    if (x && x.name !== name) {
+      for (const s of users(x.name)) extra[s.code] = { progress: s.progress.map((p) => (itemKey(p) === nameKey(x.name) ? { ...p, name } : p)) };
+    }
+    S.catLv = item.level;
+    await saveMeta({ ...S.meta, elements: x ? list.map((e) => (e.id === x.id ? item : e)) : [...list, item] }, extra);
+    const n = Object.keys(extra).length;
+    ok(x ? (n ? `Elemento salvato, anche in ${n === 1 ? "1 alunno" : `${n} alunni`}` : "Elemento salvato") : `${name} aggiunto all'elenco`);
+    catSheet(); return false;
+  } });
 }
 
 function exerciseSheet(x) {

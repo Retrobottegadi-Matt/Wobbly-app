@@ -62,12 +62,88 @@ function ensureToast() {
   document.body.appendChild($toast);
   return $toast;
 }
-function toast(msg) {
+// kind (nuova versione): "ok" = salvato/aggiunto, "del" = eliminato/tolto, "err" = errore o dato da correggere
+function toast(msg, kind = "") {
   const t = ensureToast();
   clearTimeout(toastTimer); clearTimeout(toastSet);
   t.textContent = ""; // svuota prima: così anche un messaggio uguale al precedente viene riletto
-  toastSet = setTimeout(() => { t.textContent = msg; t.classList.remove("idle"); }, 50);
-  toastTimer = setTimeout(() => { t.classList.add("idle"); t.textContent = ""; }, 3500);
+  toastSet = setTimeout(() => { t.textContent = msg; t.dataset.kind = beta() ? kind : ""; t.classList.remove("idle"); }, 50);
+  toastTimer = setTimeout(() => { t.classList.add("idle"); t.textContent = ""; }, kind === "err" ? 5500 : 3500);
+}
+const ok = (msg) => toast(msg, "ok");
+const gone = (msg) => toast(msg, "del");
+const oops = (msg) => toast(msg, "err");
+
+// Conferma prima di un'azione importante. Nuova versione: finestra dell'app (pulsanti chiari, "Indietro" sempre
+// a sinistra, rosso per eliminare); versione attuale: confirm() del browser.
+const ASK_VERB = [[/^(vuoi )?togliere/i, "Togli"], [/^eliminare/i, "Elimina"], [/^disdire/i, "Disdici"], [/^scollegare/i, "Scollega"],
+  [/^disabilitare/i, "Disabilita"], [/^generare/i, "Genera"], [/^sostituire/i, "Sostituisci"], [/^annullare/i, "Sì, annulla"], [/^uscire/i, "Esci senza salvare"]];
+function ask(text, { yes, danger } = {}) {
+  if (!beta()) return Promise.resolve(confirm(text));
+  const v = ASK_VERB.find(([re]) => re.test(text));
+  yes = yes || (v ? v[1] : /ripristinarli/i.test(text) ? "Ripristina" : /aggiungere lo stesso/i.test(text) ? "Aggiungi lo stesso" : "Conferma");
+  if (danger === undefined) danger = /^(Elimina|Togli|Disdici|Scollega|Disabilita|Sostituisci|Esci)/.test(yes);
+  return new Promise((res) => {
+    const opener = document.activeElement, box = document.createElement("div");
+    const was = [$root.inert, $sheet.inert];
+    box.id = "ask"; box.setAttribute("role", "alertdialog"); box.setAttribute("aria-modal", "true");
+    box.setAttribute("aria-labelledby", "askT");
+    box.innerHTML = `<div class="ask-bg" data-ask="no"></div><div class="ask-card${danger ? " danger" : ""}">
+      <span class="ask-ic" aria-hidden="true">${icon(danger ? "alert" : "help")}</span>
+      <h2 id="askT" tabindex="-1">${esc(text)}</h2>
+      <div class="sheet-btns"><button type="button" class="btn ghost" data-ask="no">Indietro</button>
+        <button type="button" class="btn${danger ? " danger-solid" : ""}" data-ask="yes">${esc(yes)}</button></div></div>`;
+    document.body.appendChild(box); $root.inert = true; $sheet.inert = true;
+    const done = (v) => { document.removeEventListener("keydown", key, true); box.remove(); $root.inert = was[0]; $sheet.inert = was[1];
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true }); res(v); };
+    const key = (e) => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); done(false); } };
+    document.addEventListener("keydown", key, true);
+    box.addEventListener("click", (e) => { const b = e.target.closest("[data-ask]"); if (b) done(b.dataset.ask === "yes"); });
+    // per un'azione pericolosa il primo pulsante è "Indietro": un tocco distratto non cancella nulla
+    setTimeout(() => box.querySelector(danger ? "[data-ask=no].btn" : "[data-ask=yes]").focus(), 30);
+  });
+}
+const askOpen = () => !!document.getElementById("ask");
+
+// Errori nei moduli (nuova versione): il messaggio compare sotto il campo, il campo diventa rosso e riceve il focus.
+const ERR_MISSING = { name: "Scrivi un nome.", title: "Scrivi il nome dell'esercizio.", date: "Scegli la data.", time: "Scegli l'ora." };
+function fieldErr(el, msg) {
+  if (!el) { oops(msg); return false; }
+  clearErr(el);
+  const id = `err-${el.name || "f"}`;
+  el.setAttribute("aria-invalid", "true");
+  el.setAttribute("aria-describedby", `${id} ${el.getAttribute("aria-describedby") || ""}`.trim());
+  el.insertAdjacentHTML("afterend", `<small class="f-err" id="${id}">${icon("alert")}<span>${esc(msg)}</span></small>`);
+  const clear = () => { clearErr(el); el.removeEventListener("input", clear); el.removeEventListener("change", clear); };
+  el.addEventListener("input", clear); el.addEventListener("change", clear);
+  return false;
+}
+function clearErr(el) {
+  const e = el.parentElement && el.parentElement.querySelector(`:scope > .f-err`);
+  if (e) { el.setAttribute("aria-describedby", (el.getAttribute("aria-describedby") || "").replace(e.id, "").trim()); e.remove(); }
+  el.removeAttribute("aria-invalid");
+}
+// segna l'errore su un campo del pannello aperto, lo annuncia e porta lì il focus; restituisce false (il pannello resta aperto)
+function bad(name, msg) {
+  const el = $sheet.querySelector(`[name="${name}"]:not(:disabled)`);
+  if (!beta()) { toast(msg); return false; }
+  fieldErr(el, msg); oops(msg);
+  if (el) { el.closest("details")?.setAttribute("open", ""); el.focus(); }
+  return false;
+}
+function checkForm(f) {
+  let first = null;
+  f.querySelectorAll("input, select, textarea").forEach((el) => {
+    if (el.disabled || el.closest("[hidden]") || el.validity.valid) return clearErr(el);
+    const v = el.validity, label = (el.closest("label")?.firstChild?.textContent || "").trim().toLowerCase();
+    const msg = v.valueMissing ? (ERR_MISSING[el.name] || `Compila il campo ${label}.`)
+      : v.rangeUnderflow ? (el.type === "date" ? "Scegli un giorno da oggi in poi." : "Valore troppo basso.")
+      : v.tooLong ? "Testo troppo lungo." : v.badInput ? "Valore non valido." : "Controlla questo campo.";
+    fieldErr(el, msg);
+    first = first || el;
+  });
+  if (first) { first.closest("details")?.setAttribute("open", ""); first.focus(); oops(f.querySelectorAll(".f-err").length > 1 ? "Controlla i campi in rosso" : first.parentElement.querySelector(".f-err").textContent); }
+  return !first;
 }
 
 // Dopo un tocco il focus torna sull'elemento giusto (serve a VoiceOver), ma senza l'anello viola
@@ -87,8 +163,8 @@ function restoreFocus(el) {
 }
 function fail(e) {
   console.error(e);
-  const m = e && e.code === "permission-denied" ? "Permesso negato." : "Operazione non riuscita. Controlla la connessione.";
-  toast(m);
+  const m = e && e.code === "permission-denied" ? "Permesso negato." : beta() ? "Non salvato: controlla la connessione e riprova." : "Operazione non riuscita. Controlla la connessione.";
+  toast(m, "err");
 }
 const clearSubs = () => { unsub.forEach((f) => f && f()); unsub = []; };
 const go = (h) => { location.hash = h; };
@@ -97,6 +173,9 @@ const pct = (s) => {
   return p.length ? Math.round((p.filter((x) => x.status === "done").length / p.length) * 100) : 0;
 };
 const checksDone = (s) => (s.plan || []).filter((x) => s.checks && s.checks[x.id]).length;
+// soprannome vuoto o già usato da un altro alunno (nuova versione: due "Giulia" uguali confondono)
+const nameErr = (v, self = "") => (!(v || "").trim() ? "Scrivi un nome."
+  : beta() && S.students.some((x) => x.code !== self && norm(x.name) === norm(v)) ? "C'è già un alunno con questo soprannome: aggiungi un'iniziale." : "");
 const findStudent = (code) => S.students.find((s) => s.code === code);
 const inviteLink = (code) => `${location.origin}${location.pathname}?c=${code}`;
 const avatarColor = (name) => AV[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AV.length];
@@ -174,6 +253,20 @@ function celebrate() {
   setTimeout(() => box.remove(), 2200);
 }
 
+// senza connessione (nuova versione): una striscia lo dice finché non torna
+function netBanner() {
+  let b = document.getElementById("offline");
+  if (!(beta() && navigator.onLine === false)) { if (b) b.remove(); return !!b; }
+  if (!b) {
+    b = document.createElement("p"); b.id = "offline"; b.setAttribute("role", "status");
+    b.innerHTML = `${icon("alert")}<span>Sei offline: le modifiche partono appena torna la connessione.</span>`;
+    document.body.appendChild(b);
+  }
+  return false;
+}
+window.addEventListener("offline", netBanner);
+window.addEventListener("online", () => { if (netBanner()) ok("Di nuovo online"); });
+
 // numeri che salgono all'entrata nella pagina (nuova versione); niente con "Riduci animazioni"
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
 function countUp() {
@@ -232,6 +325,7 @@ function route() {
   endTour(false);
   closeSheet();
   document.documentElement.classList.toggle("beta", beta());
+  netBanner();
   const r = pageRank();
   S.dir = lastRank === null || Math.floor(r / 10) !== Math.floor(lastRank / 10) ? "" : r > lastRank ? "r" : r < lastRank ? "l" : "";
   lastRank = r;
@@ -593,9 +687,9 @@ function renderCoachLogin(u) {
   if (trForm) trForm.onsubmit = async (e) => {
     e.preventDefault();
     const t = normCode(document.getElementById("trIn").value);
-    if (t.length !== CODE_LEN) return toast("Il codice ha 12 caratteri");
+    if (t.length !== CODE_LEN) return oops("Il codice ha 12 caratteri");
     try { await be.redeemTransfer(t); route(); }
-    catch (err) { console.error(err); toast("Codice non valido o scaduto"); }
+    catch (err) { console.error(err); oops("Codice non valido o scaduto"); }
   };
 }
 
@@ -1082,16 +1176,28 @@ function openSheet({ title, body, onSubmit = () => {}, focus = "title" }) {
   f.onsubmit = async (e) => {
     e.preventDefault();
     const sub = e.submitter;
-    if (!(sub && sub.hasAttribute("formnovalidate")) && !f.reportValidity()) return;
+    if (!(sub && sub.hasAttribute("formnovalidate")) && !(beta() ? checkForm(f) : f.reportValidity())) return;
     const btns = f.querySelectorAll("[type=submit]");
     btns.forEach((b) => { b.disabled = true; });
-    try { if ((await onSubmit(new FormData(f), sub)) !== false) closeSheet(); }
+    // nuova versione: mentre salva il pulsante lo dice (e non si può premere due volte)
+    const label = sub && sub.innerHTML;
+    if (beta() && sub) { f.setAttribute("aria-busy", "true"); sub.classList.add("busy"); }
+    try { if ((await onSubmit(new FormData(f), sub)) !== false) { f.dataset.dirty = ""; closeSheet(); } }
     catch (err) { fail(err); }
+    if (sub && document.contains(sub)) { sub.classList.remove("busy"); sub.innerHTML = label; }
+    f.removeAttribute("aria-busy");
     btns.forEach((b) => { b.disabled = false; });
   };
+  // modifiche non salvate: chiudendo il pannello si chiede conferma (nuova versione)
+  f.addEventListener("input", (e) => { if (e.isTrusted) f.dataset.dirty = "1"; });
   const target = focus === "input" ? f.querySelector("input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea") : null;
   setTimeout(() => (target ? target.focus() : restoreFocus(f.querySelector("#sheetTitle"))), 50);
   return f;
+}
+async function canLeave() {
+  const f = $sheet.querySelector("form");
+  if (!beta() || !f || !f.dataset.dirty) return true;
+  return ask("Uscire senza salvare? Le modifiche andranno perse.");
 }
 function closeSheet() {
   const wasOpen = !$sheet.hidden;
@@ -1108,7 +1214,8 @@ function closeSheet() {
 }
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  if (tourOn()) endTour(); else if (!$sheet.hidden) closeSheet();
+  if (askOpen()) return;
+  if (tourOn()) endTour(); else if (!$sheet.hidden) canLeave().then((y) => y && closeSheet());
 });
 
 const levelSeg = (cur) => `<fieldset class="seg"><legend>Livello</legend><div class="seg-opts">
@@ -1159,7 +1266,7 @@ async function onClick(e) {
 }
 
 const ACTIONS = {
-  close: closeSheet,
+  async close() { if (await canLeave()) closeSheet(); },
   a11y: a11ySheet,
 
   // alunno
@@ -1167,10 +1274,10 @@ const ACTIONS = {
     const s = S.student, id = el.dataset.id, was = !!(s.checks && s.checks[id]);
     const all = !was && (s.plan || []).length && checksDone(s) + 1 === s.plan.length;
     await be.setCheck(s.code, id, was ? null : Date.now());
-    if (all && beta()) { celebrate(); toast("Scheda completata, grande!"); }
+    if (all && beta()) { celebrate(); ok("Scheda completata, grande!"); }
   },
   async "s-reset"() {
-    if (confirm("Vuoi togliere tutte le spunte e ricominciare la scheda?")) await be.resetChecks(S.student.code);
+    if (await ask("Vuoi togliere tutte le spunte e ricominciare la scheda?")) { await be.resetChecks(S.student.code); gone("Scheda ricominciata"); }
   },
   // lezioni private (alunno)
   "s-ask"() {
@@ -1184,14 +1291,14 @@ const ACTIONS = {
   async "s-req"(el) {
     const st = S.student, t = (st.open || []).find((o) => o.id === el.dataset.id);
     if (!t) return;
-    if (Object.keys(st.reqs || {}).length >= 20) return toast("Hai già troppe richieste aperte");
+    if (Object.keys(st.reqs || {}).length >= 20) return oops("Hai già troppe richieste aperte");
     closeSheet();
     await reqWrite(st.code, t.id, { at: Date.now(), slot: { date: t.date, time: t.time, dur: t.dur, place: t.place } });
-    toast(`Richiesta inviata: ${fmtDay(t.date)}${t.time ? ` · ${t.time}` : ""}`);
+    ok(`Richiesta inviata: ${fmtDay(t.date)}${t.time ? ` · ${t.time}` : ""}`);
   },
   async "s-req-del"(el) {
     const st = S.student, r = (st.reqs || {})[el.dataset.id];
-    if (r && !r.st && !confirm("Annullare la richiesta?")) return;
+    if (r && !r.st && !(await ask("Annullare la richiesta?"))) return;
     await reqWrite(st.code, el.dataset.id, null);
   },
   "s-lesson"(el) {
@@ -1208,14 +1315,14 @@ const ACTIONS = {
       ${!sent && canCancel(t) ? delBtn("Disdici la lezione") : ""}`,
     onSubmit: async (fd, sub) => {
       if (!(sub && sub.name === "del")) return;
-      if (!canCancel(t)) { toast(`Mancano meno di ${CANCEL_HOURS} ore: scrivi alla tua allenatrice`); return false; }
-      if (!confirm(`Disdire la lezione di ${fmtDay(t.date)}${t.time ? ` alle ${t.time}` : ""}?`)) return false;
+      if (!canCancel(t)) { oops(`Mancano meno di ${CANCEL_HOURS} ore: scrivi alla tua allenatrice`); return false; }
+      if (!(await ask(`Disdire la lezione di ${fmtDay(t.date)}${t.time ? ` alle ${t.time}` : ""}?`))) return false;
       await reqWrite(st.code, t.id, { cancel: Date.now() });
-      toast("Lezione disdetta");
+      gone("Lezione disdetta");
     } });
   },
-  "s-logout"() {
-    if (!confirm("Scollegare questo telefono? Ti servirà di nuovo il codice per rientrare.")) return;
+  async "s-logout"() {
+    if (!(await ask("Scollegare questo telefono? Ti servirà di nuovo il codice per rientrare."))) return;
     localStorage.removeItem(LS_CODE);
     location.hash = "";
     route();
@@ -1225,8 +1332,8 @@ const ACTIONS = {
   async "c-demo"() { await be.demoEnable(); },
   "dev-as"(el) { localStorage.setItem(LS_CODE, el.dataset.code); route(); },
   async "dev-reseed"() {
-    if (!confirm("Sostituire tutti i dati di sviluppo con gli alunni di esempio?")) return;
-    await be.reseed(); closeSheet(); toast("Alunni di esempio rigenerati");
+    if (!(await ask("Sostituire tutti i dati di sviluppo con gli alunni di esempio?"))) return;
+    await be.reseed(); closeSheet(); ok("Alunni di esempio rigenerati");
   },
   "dev-coach"() { go("#/coach"); },
   // alunno: se non ne è ancora scelto uno, la schermata d'ingresso mostra quelli di esempio
@@ -1255,7 +1362,7 @@ const ACTIONS = {
     location.href = location.pathname;
   },
   async "c-copy-id"(el) {
-    try { await navigator.clipboard.writeText(el.dataset.id); toast("ID copiato"); }
+    try { await navigator.clipboard.writeText(el.dataset.id); ok("ID copiato"); }
     catch { prompt("Copia l'ID:", el.dataset.id); }
   },
   "c-settings"() {
@@ -1291,10 +1398,10 @@ const ACTIONS = {
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
     a.download = `pattinaggio-backup-${today()}.json`;
     document.body.appendChild(a); a.click(); a.remove();
-    toast("Backup scaricato");
+    ok("Backup scaricato");
   },
   async "c-remove-dev"() {
-    if (!confirm("Disabilitare questo telefono? Per riabilitarlo servirà un codice da un altro dispositivo abilitato.")) return;
+    if (!(await ask("Disabilitare questo telefono? Per riabilitarlo servirà un codice da un altro dispositivo abilitato."))) return;
     await be.removeDevice();
     localStorage.removeItem(LS_ROLE);
     route();
@@ -1309,10 +1416,13 @@ const ACTIONS = {
       L'invito lo mandi tu da WhatsApp o email, l'app non salva contatti.</p>
       ${sheetBtns("Crea")}`,
     onSubmit: async (fd) => {
+      const e = nameErr(fd.get("name"));
+      if (e) return bad("name", e);
       const group = validGroup(fd.get("group"));
       const code = await be.createStudent(fd.get("name").trim(), normLevel(fd.get("level")) || "base",
         { group, bio: "", priv: false, sched: schedFor(S.meta, { group }) });
       go(`#/coach/${code}/invito`);
+      ok(`${fd.get("name").trim()} aggiunto: ora mandagli l'invito`);
     } });
   },
 
@@ -1326,7 +1436,7 @@ const ACTIONS = {
       return { ...p, status, date: status === "done" ? (p.date || today()) : p.date };
     });
     await be.updateStudent(s.code, { progress });
-    if (msg) toast(msg);
+    if (msg) ok(msg);
   },
 
   "c-edit-prog"(el) {
@@ -1348,8 +1458,9 @@ const ACTIONS = {
     onSubmit: async (fd, sub) => {
       const s2 = cur();
       if (sub && sub.name === "del") {
-        if (!confirm(`Eliminare “${p.name}” dai progressi?`)) return false;
-        return be.updateStudent(s2.code, { progress: s2.progress.filter((x) => x.id !== p.id) });
+        if (!(await ask(`Eliminare “${p.name}” dai progressi?`))) return false;
+        await be.updateStudent(s2.code, { progress: s2.progress.filter((x) => x.id !== p.id) });
+        return gone(`${p.name} eliminato`);
       }
       const status = fd.get("status");
       let date = fd.get("date") || "";
@@ -1358,6 +1469,7 @@ const ACTIONS = {
         progress: s2.progress.map((x) => x.id === p.id ? { ...normItem(x), status, date, note: fd.get("note").trim(),
           level: normLevel(fd.get("level")) || p.level, cat: CATEGORIES.includes(fd.get("cat")) ? fd.get("cat") : p.cat } : x),
       });
+      ok(`${p.name}: salvato`);
     } });
     // la data si vede solo quando l'elemento è completato (nascosta resta comunque salvata)
     const fe = $sheet.querySelector("form"), dd = fe.querySelector("#doneDate");
@@ -1385,12 +1497,12 @@ const ACTIONS = {
       const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
       const cn = (fd.get("cname") || "").trim();
       if (cn) add.push({ level: normLevel(fd.get("clevel")) || lv, cat: fd.get("ccat"), name: cn });
-      if (!add.length) { toast("Seleziona almeno un elemento"); return false; }
+      if (!add.length) { oops("Seleziona almeno un elemento"); return false; }
       const s2 = cur();
       await be.updateStudent(s2.code, {
         progress: [...(s2.progress || []), ...add.map((a) => ({ id: newId(), ...a, status: "todo", date: "", note: "" }))],
       });
-      toast(add.length === 1 ? "1 elemento aggiunto" : `${add.length} elementi aggiunti`);
+      ok(add.length === 1 ? "1 elemento aggiunto" : `${add.length} elementi aggiunti`);
     } });
     const btn = f.querySelector("[type=submit]");
     const upd = () => {
@@ -1425,7 +1537,7 @@ const ACTIONS = {
     toast(`${plan[j].title}: posizione ${j + 1} di ${plan.length}`);
   },
   async "c-reset"(el) {
-    if (confirm("Togliere tutte le spunte dalla scheda?")) await be.resetChecks(el.dataset.code);
+    if (await ask("Togliere tutte le spunte dalla scheda?")) { await be.resetChecks(el.dataset.code); gone("Spunte tolte"); }
   },
 
   "c-wa"() {
@@ -1437,7 +1549,7 @@ const ACTIONS = {
     location.href = `mailto:?subject=${encodeURIComponent("La tua scheda di pattinaggio")}&body=${encodeURIComponent(inviteMsg(s))}`;
   },
   async "c-copy"() {
-    try { await navigator.clipboard.writeText(inviteLink(cur().code)); toast("Link copiato"); }
+    try { await navigator.clipboard.writeText(inviteLink(cur().code)); ok("Link copiato"); }
     catch { prompt("Copia il link:", inviteLink(cur().code)); }
   },
   async "c-share"() {
@@ -1459,8 +1571,9 @@ const ACTIONS = {
   "c-stk"(el) { stickerSheet(el.dataset.code ? { code: el.dataset.code } : el.dataset.group ? { group: el.dataset.group } : { code: curCode() }); },
   async "c-stk-del"(el) {
     const s = cur(), x = s && (s.stickers || []).find((y) => y.id === el.dataset.id);
-    if (!x || !confirm(`Togliere lo sticker “${STICKER_LABEL[x.k]}”? Sparirà anche dall'app di ${s.name}.`)) return;
+    if (!x || !(await ask(`Togliere lo sticker “${STICKER_LABEL[x.k]}”? Sparirà anche dall'app di ${s.name}.`))) return;
     await be.updateStudent(s.code, { stickers: s.stickers.filter((y) => y.id !== x.id) });
+    gone("Sticker tolto");
   },
   "s-stk"(el) { const x = myStickers(S.student).find((y) => y.id === el.dataset.id); if (x) showStickers([x], false); },
   "c-book"(el) { apptSheet({ date: addDays(1), kind: "les", who: el.dataset.code }); },
@@ -1483,23 +1596,23 @@ const ACTIONS = {
   // richieste di lezione: conferma (l'orario diventa suo, le altre richieste per lo stesso orario diventano "non confermate")
   async "c-lr-ok"(el) {
     const { code, id } = el.dataset, t = S.meta.slots.find((x) => x.id === id);
-    if (!t || t.who) return toast("Orario già prenotato");
+    if (!t || t.who) return oops("Orario già prenotato");
     if (!$sheet.hidden) closeSheet();
     await saveMeta({ ...S.meta, slots: S.meta.slots.map((x) => (x.id === id ? { ...x, who: code } : x)) });
-    toast(`Lezione confermata a ${nameOf(code)}`);
+    ok(`Lezione confermata a ${nameOf(code)}`);
   },
   async "c-lr-no"(el) {
     const { code, id } = el.dataset, st = S.students.find((x) => x.code === code), r = st && st.reqs && st.reqs[id];
     if (!r) return;
     if (!$sheet.hidden) closeSheet();
     await syncSched(S.meta, { [code]: { [`reqs.${id}`]: { ...r, st: "no" } } });
-    toast("Richiesta rifiutata");
+    gone("Richiesta rifiutata");
   },
   async "c-lr-free"(el) {
     const { id } = el.dataset;
     if (!$sheet.hidden) closeSheet();
     await saveMeta({ ...S.meta, slots: S.meta.slots.map((x) => (x.id === id ? { ...x, who: "" } : x)) });
-    toast("Orario di nuovo libero");
+    ok("Orario di nuovo libero");
   },
   "c-edit-group"(el) { groupSheet(S.meta.groups.find((g) => g.id === el.dataset.id)); },
   "c-profile"() {
@@ -1516,23 +1629,26 @@ const ACTIONS = {
       ${sheetBtns("Salva")}`,
     onSubmit: async (fd) => {
       const s2 = cur(), group = validGroup(fd.get("group"));
+      const e = nameErr(fd.get("name"), s.code);
+      if (e) return bad("name", e);
       const patch = { name: fd.get("name").trim(), level: normLevel(fd.get("level")) || "base", group, bio: fd.get("bio").trim(), priv: fd.get("priv") === "on" };
       await be.updateStudent(s2.code, diffPatch(S.meta, s2, patch));
-      toast("Profilo salvato");
+      ok("Profilo salvato");
     } });
   },
   async "c-regen"() {
     const s = cur();
-    if (!confirm(`Generare un nuovo codice per ${s.name}? Dovrai mandargli di nuovo l'invito.`)) return;
+    if (!(await ask(`Generare un nuovo codice per ${s.name}? Dovrai mandargli di nuovo l'invito.`))) return;
     const code = await be.regenerateCode(s.code);
     if (S.meta.slots.some((t) => t.who === s.code)) await be.saveMeta(S.meta = { ...S.meta, slots: S.meta.slots.map((t) => (t.who === s.code ? { ...t, who: code } : t)) });
     go(`#/coach/${code}/invito`);
-    toast("Nuovo codice creato");
+    ok("Nuovo codice creato");
   },
   async "c-del"() {
     const s = cur();
-    if (!confirm(`Eliminare ${s.name} e tutti i suoi dati? Non si può annullare.`)) return;
+    if (!(await ask(`Eliminare ${s.name} e tutti i suoi dati? Non si può annullare.`))) return;
     await be.deleteStudent(s.code);
+    gone(`${s.name} eliminato`);
     if (S.meta.slots.some((t) => t.who === s.code)) { // le sue lezioni tornano orari liberi
       const meta = { ...S.meta, slots: S.meta.slots.map((t) => (t.who === s.code ? { ...t, who: "" } : t)) };
       S.students = S.students.filter((x) => x.code !== s.code);
@@ -1553,7 +1669,7 @@ async function importBackup(e) {
     // gruppi e allenamenti (backup dalla versione 2): solo se qui non ce ne sono ancora
     const bm = normMeta(data.meta), useMeta = !S.metaErr && (bm.groups.length || bm.trainings.length || bm.slots.length)
       && !S.meta.groups.length && !S.meta.trainings.length && !S.meta.slots.length;
-    if (!confirm(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""} Ripristinarli?`)) return;
+    if (!(await ask(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""} Ripristinarli?`))) return;
     const meta = useMeta ? bm : S.meta;
     if (useMeta) { await be.saveMeta(meta); S.meta = meta; }
     const okGroup = (g) => (meta.groups.some((x) => x.id === g) ? g : "");
@@ -1563,10 +1679,10 @@ async function importBackup(e) {
     }
     if (useMeta) await syncSched(meta); // alunni già presenti che erano nei gruppi del backup
     closeSheet();
-    toast(toAdd.length === 1 ? "1 alunno ripristinato" : `${toAdd.length} alunni ripristinati`);
+    ok(toAdd.length === 1 ? "1 alunno ripristinato" : `${toAdd.length} alunni ripristinati`);
   } catch (err) {
     console.error(err);
-    toast("File di backup non valido");
+    oops("File di backup non valido");
   }
 }
 
@@ -1640,7 +1756,7 @@ function clashOk(list, skip) {
   const c = clashes(list, skip);
   if (!c.length) return true;
   const e = c[0], what = !e.dur ? "un allenamento" : e.who ? `la lezione di ${nameOf(e.who)}` : "un orario libero";
-  return confirm(`${fmtDay(e.date)} alle ${e.time} c'è già ${what}${c.length > 1 ? ` (e altri ${c.length - 1})` : ""}. Aggiungere lo stesso?`);
+  return ask(`${fmtDay(e.date)} alle ${e.time} c'è già ${what}${c.length > 1 ? ` (e altri ${c.length - 1})` : ""}. Aggiungere lo stesso?`);
 }
 const addMin = (hm, min) => { const [h, m] = hm.split(":").map(Number), t = h * 60 + m + min; return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
 const lastPlace = () => [...S.meta.trainings, ...S.meta.slots].filter((t) => t.place).sort((a, b) => a.date.localeCompare(b.date)).map((t) => t.place).pop() || "";
@@ -1674,14 +1790,14 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
     ${sheetBtns("Salva")}`,
   onSubmit: async (fd) => {
     const k = fd.get("kind"), date = fd.get("date");
-    if (!parseDate(date)) { toast("Scegli una data"); return false; }
-    if (date < today()) { toast("Scegli un giorno da oggi in poi"); return false; }
+    if (!parseDate(date)) return bad("date", "Scegli la data.");
+    if (date < today()) return bad("date", "Scegli un giorno da oggi in poi.");
     const time = fd.get("time") || "", place = fd.get("place").trim(), note = fd.get("note").trim();
     if (k !== "les") {
-      if (!clashOk([{ date, time }])) return false;
+      if (!(await clashOk([{ date, time }]))) return false;
       await saveMeta({ ...S.meta, trainings: [...S.meta.trainings, { id: newId(), date, time, group: validGroup(fd.get("group")), place, note }] });
       S.calD = date; S.calM = ym(date);
-      return toast("Allenamento aggiunto");
+      return ok("Allenamento aggiunto");
     }
     const dur = Number(fd.get("dur")) || 30, many = Math.min(6, Number(fd.get("many")) || 1), rep = Math.min(8, Number(fd.get("rep")) || 1);
     const w = S.students.some((x) => x.code === fd.get("who")) ? fd.get("who") : "", d0 = parseDate(date), add = [];
@@ -1689,11 +1805,11 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
       add.push({ id: newId(), date: localDate(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 7 * r)), time: addMin(time, i * dur), dur, place, note, who: w });
     }
     const have = S.meta.slots.filter((t) => t.date >= today()).length;
-    if (have + add.length > MAX_SLOTS) { toast(`Al massimo ${MAX_SLOTS} orari in programma: ne puoi aggiungere ancora ${Math.max(0, MAX_SLOTS - have)}`); return false; }
-    if (!clashOk(add)) return false;
+    if (have + add.length > MAX_SLOTS) return bad("many", `Al massimo ${MAX_SLOTS} orari in programma: ne puoi aggiungere ancora ${Math.max(0, MAX_SLOTS - have)}.`);
+    if (!(await clashOk(add))) return false;
     await saveMeta({ ...S.meta, slots: [...S.meta.slots, ...add] });
     S.calD = date; S.calM = ym(date);
-    toast(add.length === 1 ? (w ? `Lezione prenotata per ${nameOf(w)}` : "Orario libero aggiunto") : `${add.length} ${w ? `lezioni prenotate per ${nameOf(w)}` : "orari liberi aggiunti"}`);
+    ok(add.length === 1 ? (w ? `Lezione prenotata per ${nameOf(w)}` : "Orario libero aggiunto") : `${add.length} ${w ? `lezioni prenotate per ${nameOf(w)}` : "orari liberi aggiunti"}`);
   } });
   // si vedono (e si inviano) solo i campi del tipo scelto
   const sync = () => {
@@ -1734,17 +1850,17 @@ function trainingSheet(t) {
   onSubmit: async (fd, sub) => {
     const all = S.meta.trainings;
     if (sub && sub.name === "del") {
-      if (!confirm("Eliminare questo allenamento?")) return false;
+      if (!(await ask("Eliminare questo allenamento?"))) return false;
       await saveMeta({ ...S.meta, trainings: all.filter((x) => x.id !== t.id) });
-      return toast("Allenamento eliminato");
+      return gone("Allenamento eliminato");
     }
     const date = fd.get("date");
-    if (!parseDate(date)) { toast("Scegli una data"); return false; }
+    if (!parseDate(date)) return bad("date", "Scegli la data.");
     const item = { id: t ? t.id : newId(), date, time: fd.get("time") || "", group: validGroup(fd.get("group")),
       place: fd.get("place").trim(), note: fd.get("note").trim() };
-    if (beta() && !clashOk([item], item.id)) return false;
+    if (beta() && !(await clashOk([item], item.id))) return false;
     await saveMeta({ ...S.meta, trainings: pruneOld(t ? all.map((x) => (x.id === t.id ? item : x)) : [...all, item]) });
-    toast(t ? "Allenamento aggiornato" : "Allenamento aggiunto");
+    ok(t ? "Allenamento aggiornato" : "Allenamento aggiunto");
   } });
 }
 
@@ -1774,7 +1890,7 @@ function stickerSheet({ code, group }) {
     if (!to.length) return false;
     const msg = (fd.get("msg") || "").trim() || STICKER_MSG[k], at = Date.now();
     await be.updateMany(to.map((x) => [x.code, { stickers: [...(x.stickers || []), { id: newId(), k, msg, at }].slice(-30) }]));
-    toast(to.length === 1 ? `Sticker mandato a ${to[0].name}` : `Sticker mandato a ${to.length} alunni`);
+    ok(to.length === 1 ? `Sticker mandato a ${to[0].name}` : `Sticker mandato a ${to.length} alunni`);
   } });
   // il messaggio segue lo sticker scelto, finché non lo cambi a mano
   let touched = false;
@@ -1795,13 +1911,14 @@ function groupSheet2(g) {
     ${g ? delBtn("Elimina gruppo") : ""}`,
   onSubmit: async (fd, sub) => {
     if (sub && sub.name === "del") {
-      if (!confirm(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`)) return false;
+      if (!(await ask(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`))) return false;
       const extra = Object.fromEntries(S.students.filter((x) => x.group === g.id).map((x) => [x.code, { group: "" }]));
       await saveMeta({ ...S.meta, groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
-      return toast("Gruppo eliminato");
+      return gone("Gruppo eliminato");
     }
     const name = fd.get("name").trim();
-    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) { toast("Esiste già un gruppo con questo nome"); return false; }
+    if (!name) return bad("name", "Scrivi il nome del gruppo.");
+    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) return bad("name", "Esiste già un gruppo con questo nome.");
     const id = g ? g.id : newId(), picked = new Set(fd.getAll("m"));
     const groups = g ? S.meta.groups.map((x) => (x.id === id ? { ...x, name } : x)) : [...S.meta.groups, { id, name }];
     // chi entra prende questo gruppo, chi esce resta senza gruppo; tutto in un'unica scrittura
@@ -1812,7 +1929,7 @@ function groupSheet2(g) {
     }
     await saveMeta({ ...S.meta, groups }, extra);
     const n = Object.keys(extra).length;
-    toast(`${g ? "Gruppo salvato" : "Gruppo creato"}${n ? ` · ${plural(n, "alunno spostato", "alunni spostati")}` : ""}`);
+    ok(`${g ? "Gruppo salvato" : "Gruppo creato"}${n ? ` · ${plural(n, "alunno spostato", "alunni spostati")}` : ""}`);
   } });
 }
 
@@ -1828,17 +1945,18 @@ function groupSheet(g) {
     ${g ? delBtn("Elimina gruppo") : ""}`,
   onSubmit: async (fd, sub) => {
     if (sub && sub.name === "del") {
-      if (!confirm(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`)) return false;
+      if (!(await ask(`Eliminare il gruppo “${g.name}”? Gli alunni restano, senza gruppo. Gli allenamenti solo per questo gruppo vengono eliminati.`))) return false;
       const extra = Object.fromEntries(S.students.filter((s) => s.group === g.id).map((s) => [s.code, { group: "" }]));
       if (S.gf === g.id) S.gf = "";
       await saveMeta({ ...S.meta, groups: S.meta.groups.filter((x) => x.id !== g.id), trainings: S.meta.trainings.filter((t) => t.group !== g.id) }, extra);
-      return toast("Gruppo eliminato");
+      return gone("Gruppo eliminato");
     }
     const name = fd.get("name").trim();
-    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) { toast("Esiste già un gruppo con questo nome"); return false; }
+    if (!name) return bad("name", "Scrivi il nome del gruppo.");
+    if (S.meta.groups.some((x) => x.id !== (g && g.id) && norm(x.name) === norm(name))) return bad("name", "Esiste già un gruppo con questo nome.");
     const groups = g ? S.meta.groups.map((x) => (x.id === g.id ? { ...x, name } : x)) : [...S.meta.groups, { id: newId(), name }];
     await saveMeta({ ...S.meta, groups });
-    toast(g ? "Gruppo rinominato" : "Gruppo creato");
+    ok(g ? "Gruppo rinominato" : "Gruppo creato");
   } });
 }
 
@@ -1847,7 +1965,7 @@ async function reqWrite(code, id, val) {
   try { await be.setReq(code, id, val); }
   catch (e) {
     console.warn(e);
-    toast(e && e.code === "permission-denied" ? "Non riesco a inviarla: l'allenatrice deve aggiornare le regole del database" : "Connessione non riuscita. Riprova.");
+    oops(e && e.code === "permission-denied" ? "Non riesco a inviarla: l'allenatrice deve aggiornare le regole del database" : "Connessione non riuscita. Riprova.");
   }
 }
 
@@ -1876,24 +1994,24 @@ function slotSheet(t) {
   onSubmit: async (fd, sub) => {
     const all = S.meta.slots;
     if (sub && sub.name === "del") {
-      if (!confirm(t.who ? `Eliminare la lezione di ${nameOf(t.who)}? Sparirà anche dalla sua app.` : "Eliminare questo orario?")) return false;
+      if (!(await ask(t.who ? `Eliminare la lezione di ${nameOf(t.who)}? Sparirà anche dalla sua app.` : "Eliminare questo orario?"))) return false;
       await saveMeta({ ...S.meta, slots: all.filter((x) => x.id !== t.id) });
-      return toast("Orario eliminato");
+      return gone("Orario eliminato");
     }
     const date = fd.get("date"), d0 = parseDate(date);
-    if (!d0) { toast("Scegli una data"); return false; }
+    if (!d0) return bad("date", "Scegli la data.");
     const base = { time: fd.get("time") || "", dur: Number(fd.get("dur")) || 30, place: fd.get("place").trim(), note: fd.get("note").trim(),
       who: S.students.some((x) => x.code === fd.get("who")) ? fd.get("who") : "" };
     if (t) {
-      if (B && !clashOk([{ ...base, date }], t.id)) return false;
+      if (B && !(await clashOk([{ ...base, date }], t.id))) return false;
       await saveMeta({ ...S.meta, slots: all.map((x) => (x.id === t.id ? { ...x, ...base, date } : x)) });
-      return toast("Orario aggiornato");
+      return ok("Orario aggiornato");
     }
     const n = Number(fd.get("rep")) || 1;
     const add = Array.from({ length: n }, (_, k) => ({ id: newId(), date: localDate(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 7 * k)),
       ...base, who: k === 0 ? base.who : "" }));
     await saveMeta({ ...S.meta, slots: [...all, ...add] });
-    toast(n === 1 ? "Orario aggiunto" : `${n} orari aggiunti`);
+    ok(n === 1 ? "Orario aggiunto" : `${n} orari aggiunti`);
   } });
 }
 
@@ -1921,12 +2039,12 @@ function progPicker() {
     const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
     const cn = f.querySelector("#pq").value.trim();
     if (cn && !f.querySelector("#newOpt").hidden && fd.get("custom")) add.push({ level: normLevel(fd.get("plv")) || lv, cat: "Altro", name: cn });
-    if (!add.length) { toast("Tocca almeno un elemento"); return false; }
+    if (!add.length) { oops("Tocca almeno un elemento, oppure scrivine uno nuovo nella ricerca"); return false; }
     const s2 = cur();
     await be.updateStudent(s2.code, {
       progress: [...(s2.progress || []), ...add.map((a) => ({ id: newId(), ...a, status: "todo", date: "", note: "" }))],
     });
-    toast(add.length === 1 ? `${add[0].name} aggiunto` : `${add.length} elementi aggiunti`);
+    ok(add.length === 1 ? `${add[0].name} aggiunto` : `${add.length} elementi aggiunti`);
   } });
   const q = f.querySelector("#pq"), btn = f.querySelector("[type=submit]"), all = new Set(Object.values(CATALOG).flatMap((c) => Object.values(c).flat()).map(norm));
   const upd = () => {
@@ -1961,11 +2079,14 @@ function exerciseSheet(x) {
   onSubmit: async (fd, sub) => {
     const s = cur(), plan = [...(s.plan || [])];
     if (sub && sub.name === "del") {
-      if (!confirm(`Eliminare “${x.title}” dalla scheda?`)) return false;
-      return be.updateStudent(s.code, { plan: plan.filter((p) => p.id !== x.id) });
+      if (!(await ask(`Eliminare “${x.title}” dalla scheda?`))) return false;
+      await be.updateStudent(s.code, { plan: plan.filter((p) => p.id !== x.id) });
+      return gone("Esercizio eliminato");
     }
+    if (!fd.get("title").trim()) return bad("title", "Scrivi il nome dell'esercizio.");
     const item = { id: x ? x.id : newId(), title: fd.get("title").trim(), detail: fd.get("detail").trim() };
     await be.updateStudent(s.code, { plan: x ? plan.map((p) => (p.id === x.id ? item : p)) : [...plan, item] });
+    ok(x ? "Esercizio salvato" : `${item.title} aggiunto alla scheda`);
   } });
 }
 

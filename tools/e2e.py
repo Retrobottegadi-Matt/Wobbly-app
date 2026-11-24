@@ -449,6 +449,14 @@ async def main():
 
         # ===== nuova versione (solo in dev, accesa di base): calendario del mese, pannello unico, aiuto, pulizia
         ctx4 = await b.new_context(viewport={"width": 390, "height": 844})
+        # la nuova versione chiede conferma con una finestra dell'app (#ask): nei test si accetta da sola,
+        # salvo dove window.__autoAsk = false (test della finestra stessa). I testi finiscono in window.__asks.
+        await ctx4.add_init_script("""
+          window.__asks = []; window.__autoAsk = true;
+          new MutationObserver(() => { const a = document.getElementById('ask');
+            if (a && !a.dataset.seen) { a.dataset.seen = 1; window.__asks.push(a.querySelector('h2').textContent);
+              if (window.__autoAsk) setTimeout(() => a.querySelector('[data-ask=yes]').click(), 20); } })
+            .observe(document, { childList: true, subtree: true });""")
         p4 = await ctx4.new_page()
         p4.on("pageerror", lambda e: errs.append(str(e)))
         p4.on("console", lambda m: m.type == "error" and errs.append(m.text))
@@ -496,7 +504,8 @@ async def main():
         await p4.click("[data-act=c-new-appt]"); await p4.wait_for_timeout(300)
         await p4.check("#sheet input[name=kind][value=les]"); await p4.fill("#sheet [name=time]", "07:15")
         await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
-        assert any("c'è già" in m for m in msgs), msgs
+        asks = await p4.evaluate("window.__asks")
+        assert any("c'è già" in m for m in msgs + asks), (msgs, asks)
         # orario con richiesta: chi l'ha chiesto si conferma dal pannello dell'orario
         d = await dev4()
         req = [(c, sid) for c, st in d["students"].items() for sid, r in (st.get("reqs") or {}).items() if r and not r.get("st") and not r.get("cancel")]
@@ -669,6 +678,48 @@ async def main():
         await p4.click("[data-act=c-stk]"); await p4.wait_for_timeout(250)
         await p4.click("#sheet .seg-opt:has(input[value=grp])"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(300)
         d = await dev4(); assert all(len(d["students"][c]["stickers"]) == before[c] + 2 for c in mem)
+        # controlli: errore sotto il campo, doppioni, modifiche non salvate, finestra di conferma, avvisi con il tipo, offline
+        await p4.set_viewport_size({"width": 390, "height": 844})
+        await p4.goto(B + "#/coach/alunni"); await p4.wait_for_timeout(300)
+        await p4.click(".fab"); await p4.wait_for_timeout(250)
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(200)
+        assert await p4.locator("#sheet .f-err").count() == 1, "errore sotto il campo"
+        assert await p4.get_attribute("#sheet [name=name]", "aria-invalid") == "true"
+        assert await p4.evaluate("document.activeElement.name") == "name", "il focus va sul campo sbagliato"
+        assert "err-name" in await p4.get_attribute("#sheet [name=name]", "aria-describedby")
+        await p4.wait_for_timeout(100); assert await p4.get_attribute(".toast", "data-kind") == "err"
+        await p4.type("#sheet [name=name]", "Q"); await p4.wait_for_timeout(50)
+        assert await p4.locator("#sheet .f-err").count() == 0, "l'errore sparisce scrivendo"
+        d = await dev4(); other = next(iter(d["students"].values()))["name"]
+        await p4.fill("#sheet [name=name]", other.upper()); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(200)
+        assert "C'è già" in await p4.locator("#sheet .f-err").inner_text(), "soprannome doppio"
+        assert len((await dev4())["students"]) == len(d["students"]), "nessun alunno creato"
+        # chiudere con modifiche: chiede, "Indietro" lascia il pannello aperto, Esc chiude solo la domanda
+        await p4.evaluate("window.__autoAsk = false")
+        await p4.click("#sheet .sheet-h [data-act=close]"); await p4.wait_for_timeout(150)
+        assert await p4.locator("#ask[role=alertdialog]").count() == 1 and "senza salvare" in await p4.locator("#askT").inner_text()
+        assert await p4.evaluate("document.activeElement.dataset.ask") == "no", "per un'azione pericolosa il focus parte da Indietro"
+        small = await p4.evaluate(MIN.replace(".chip,", ".chip, #ask .btn,")); assert not small, ("conferma", small)
+        await p4.click("#ask .btn[data-ask=no]"); await p4.wait_for_timeout(100)
+        assert await p4.locator("#ask").count() == 0 and await p4.locator("#sheet form").count() == 1, "Indietro: il pannello resta"
+        await p4.keyboard.press("Escape"); await p4.wait_for_timeout(100)
+        assert await p4.locator("#ask").count() == 1
+        await p4.keyboard.press("Escape"); await p4.wait_for_timeout(100)
+        assert await p4.locator("#ask").count() == 0 and await p4.locator("#sheet form").count() == 1, "Esc chiude solo la domanda"
+        await p4.click("#sheet .sheet-h [data-act=close]"); await p4.wait_for_timeout(100); await p4.click("#ask [data-ask=yes]"); await p4.wait_for_timeout(150)
+        assert await p4.locator("#sheet form").count() == 0, "uscita senza salvare"
+        await p4.evaluate("window.__autoAsk = true")
+        # pannello non toccato: si chiude subito, senza domande
+        await p4.click(".fab"); await p4.wait_for_timeout(200); await p4.keyboard.press("Escape"); await p4.wait_for_timeout(150)
+        assert await p4.locator("#sheet form").count() == 0 and await p4.locator("#ask").count() == 0
+        # creato: avviso verde
+        await p4.click(".fab"); await p4.wait_for_timeout(200); await p4.fill("#sheet [name=name]", "Zoe T."); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        assert await p4.get_attribute(".toast", "data-kind") == "ok" and "Zoe T." in await p4.locator(".toast").inner_text()
+        # senza connessione: striscia gialla, poi "Di nuovo online"
+        await ctx4.set_offline(True); await p4.evaluate("dispatchEvent(new Event('offline'))"); await p4.wait_for_timeout(100)
+        assert await p4.locator("#offline[role=status]").is_visible()
+        await ctx4.set_offline(False); await p4.evaluate("dispatchEvent(new Event('online'))"); await p4.wait_for_timeout(150)
+        assert await p4.locator("#offline").count() == 0 and "online" in await p4.locator(".toast").inner_text()
         # dal banner si passa tra allenatrice e alunno
         await p4.set_viewport_size({"width": 390, "height": 844})
         await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)

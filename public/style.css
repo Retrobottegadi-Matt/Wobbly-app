@@ -843,3 +843,8 @@ details.more[open] > summary { margin-bottom: .4rem; }
 @keyframes stk-float { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(3deg) translateY(-6px); } }
 @keyframes burst { from { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(.4); } to { opacity: 0; transform: rotate(var(--a)) translateY(-10rem) rotate(260deg) scale(1); } }
 .stk-opt .stk, .stk-opt span { pointer-events: none; }
+
+/* sticker al gruppo: pulsante regalo accanto a "Modifica" */
+.beta .g-acts{display:flex;gap:.35rem;align-items:center}
+.beta .btn.sm.ic{min-width:var(--target);padding-inline:0;justify-content:center}
+.beta .btn.sm.ic svg{width:1.25rem;height:1.25rem}

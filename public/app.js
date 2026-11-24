@@ -713,7 +713,7 @@ function groupedRows() {
   const parts = g.map((x) => { const list = S.students.filter((s) => s.group === x.id);
     return sect(`hG${x.id}`, `${esc(x.name)} <small class="cnt">${list.length}</small>`,
       list.length ? srows(list) : `<p class="muted">Nessun alunno. Tocca Modifica per aggiungerli.</p>`,
-      `<button class="btn sm ghost" data-act="c-edit-group" data-id="${x.id}">Modifica<span class="sr"> il gruppo ${esc(x.name)}</span></button>`, "card plainlist"); });
+      `<span class="g-acts">${list.length ? `<button class="btn sm ghost ic" data-act="c-stk" data-group="${x.id}" data-help="gstk" aria-label="Manda uno sticker al gruppo ${esc(x.name)}">${icon("gift")}</button>` : ""}<button class="btn sm ghost" data-act="c-edit-group" data-id="${x.id}">Modifica<span class="sr"> il gruppo ${esc(x.name)}</span></button></span>`, "card plainlist"); });
   const none = S.students.filter((s) => !validGroup(s.group));
   if (none.length) parts.push(sect("hGnone", `Senza gruppo <small class="cnt">${none.length}</small>`, srows(none), "", "card plainlist"));
   return parts.join("") + newG;
@@ -1415,27 +1415,7 @@ const ACTIONS = {
   "c-new-tr"() { trainingSheet(null); },
   "c-new-appt"() { apptSheet({ date: S.page === "c-cal" && S.calView === "mese" ? S.calD : addDays(1) }); },
   // sticker: scegli, (cambia il messaggio), manda
-  "c-stk"(el) {
-    const s = findStudent(el.dataset.code || curCode());
-    if (!s) return;
-    const f = openSheet({ title: `Sticker per ${esc(s.name)}`, body: `
-      <fieldset class="stk-pick"><legend class="sr">Scegli lo sticker</legend>
-        ${STICKERS.map(([k, l], i) => `<label class="stk-opt"><input type="radio" name="k" value="${k}" ${i === 0 ? "checked" : ""}>${sticker(k)}<span>${l}</span></label>`).join("")}</fieldset>
-      <label>Messaggio<input name="msg" maxlength="60" value="${esc(STICKERS[0][2])}"></label>
-      <p class="muted small">Appena apre l'app lo vede arrivare animato, poi resta nei suoi Progressi.</p>
-      ${sheetBtns("Manda")}`,
-    onSubmit: async (fd) => {
-      const k = fd.get("k"), s2 = findStudent(s.code);
-      if (!isSticker(k) || !s2) return false;
-      const item = { id: newId(), k, msg: (fd.get("msg") || "").trim() || STICKER_MSG[k], at: Date.now() };
-      await be.updateStudent(s2.code, { stickers: [...(s2.stickers || []), item].slice(-30) });
-      toast(`Sticker mandato a ${s2.name}`);
-    } });
-    // il messaggio segue lo sticker scelto, finché non lo cambi a mano
-    let touched = false;
-    f.elements.msg.addEventListener("input", () => { touched = true; });
-    f.addEventListener("change", (e) => { if (e.target.name === "k" && !touched) f.elements.msg.value = STICKER_MSG[e.target.value]; });
-  },
+  "c-stk"(el) { stickerSheet(el.dataset.code ? { code: el.dataset.code } : el.dataset.group ? { group: el.dataset.group } : { code: curCode() }); },
   async "c-stk-del"(el) {
     const s = cur(), x = s && (s.stickers || []).find((y) => y.id === el.dataset.id);
     if (!x || !confirm(`Togliere lo sticker “${STICKER_LABEL[x.k]}”? Sparirà anche dall'app di ${s.name}.`)) return;
@@ -1725,6 +1705,39 @@ function trainingSheet(t) {
 }
 
 // nuova versione: nome e componenti del gruppo nello stesso pannello (prima bisognava aprire il profilo di ogni alunno)
+
+// sticker: a un alunno (con la scelta "tutto il suo gruppo") oppure a un gruppo intero
+function stickerSheet({ code, group }) {
+  const s = code && findStudent(code);
+  const gid = group || (s && validGroup(s.group)), gname = groupName(S.meta, gid);
+  const members = () => (gid ? S.students.filter((x) => x.group === gid) : []);
+  if (!s && !members().length) return;
+  const both = s && members().length > 1;
+  const f = openSheet({ title: s ? `Sticker per ${esc(s.name)}` : `Sticker per il gruppo ${esc(gname)}`, body: `
+    <fieldset class="stk-pick"><legend class="sr">Scegli lo sticker</legend>
+      ${STICKERS.map(([k, l], i) => `<label class="stk-opt"><input type="radio" name="k" value="${k}" ${i === 0 ? "checked" : ""}>${sticker(k)}<span>${l}</span></label>`).join("")}</fieldset>
+    <label>Messaggio<input name="msg" maxlength="60" value="${esc(STICKERS[0][2])}"></label>
+    ${both ? `<fieldset class="seg"><legend>A chi</legend><div class="seg-opts">
+      <label class="seg-opt"><input type="radio" name="to" value="one" checked><span>Solo a ${esc(s.name)}</span></label>
+      <label class="seg-opt"><input type="radio" name="to" value="grp"><span>Tutto il gruppo (${members().length})</span></label></div></fieldset>` : ""}
+    ${!s ? `<p class="muted small">Lo ricevono tutti i ${members().length} alunni del gruppo ${esc(gname)}.</p>` : ""}
+    <p class="muted small">Appena apre l'app lo vede arrivare animato, poi resta nei suoi Progressi.</p>
+    ${sheetBtns("Manda")}`,
+  onSubmit: async (fd) => {
+    const k = fd.get("k");
+    if (!isSticker(k)) return false;
+    const to = s && fd.get("to") !== "grp" ? [findStudent(s.code)].filter(Boolean) : members();
+    if (!to.length) return false;
+    const msg = (fd.get("msg") || "").trim() || STICKER_MSG[k], at = Date.now();
+    await be.updateMany(to.map((x) => [x.code, { stickers: [...(x.stickers || []), { id: newId(), k, msg, at }].slice(-30) }]));
+    toast(to.length === 1 ? `Sticker mandato a ${to[0].name}` : `Sticker mandato a ${to.length} alunni`);
+  } });
+  // il messaggio segue lo sticker scelto, finché non lo cambi a mano
+  let touched = false;
+  f.elements.msg.addEventListener("input", () => { touched = true; });
+  f.addEventListener("change", (e) => { if (e.target.name === "k" && !touched) f.elements.msg.value = STICKER_MSG[e.target.value]; });
+}
+
 function groupSheet2(g) {
   const st = S.students;
   openSheet({ title: g ? "Modifica gruppo" : "Nuovo gruppo", focus: g ? "title" : "input", body: `

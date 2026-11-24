@@ -30,6 +30,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const today = () => localDate();
 const fmtDate = (d) => (d ? d.split("-").reverse().join("/") : "");
+const fmtLong = (d) => (d ? new Date(`${d}T12:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "");
 function fmtWhen(ts) {
   if (!ts) return "";
   const d = new Date(ts), n = new Date();
@@ -461,7 +462,7 @@ function progressList(raw, mode) {
     <ul class="prog" ${mode === "student" ? "" : `data-drag="prog" data-group="${g.lv}|${esc(c.cat)}"`}>${c.items.map((i, k) => progRow(i, mode, k, c.items.length)).join("")}</ul>`).join("")}`).join("")}`;
 }
 function progRow(i, mode, k, n) {
-  const meta = `${i.status === "done" && i.date ? `<small>Completato il ${fmtDate(i.date)}</small>` : ""}
+  const meta = `${i.status === "done" && i.date ? `<small>Completato il ${beta() ? fmtLong(i.date) : fmtDate(i.date)}</small>` : ""}
     ${i.note ? `<small class="note">${esc(i.note)}</small>` : ""}`;
   const txt = `<span class="txt"><b>${esc(i.name)}</b>${meta}</span>`;
   if (mode === "coach") return `<li data-id="${i.id}">
@@ -862,7 +863,7 @@ function renderCoachMonth() {
       return `<section class="dayc" style="--dc: var(${DAYC[(dt.getDay() + 6) % 7]})" aria-labelledby="${id}">
         <h2 class="dayc-d" id="${id}"><span aria-hidden="true"><small>${dt.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "")}</small><b>${dt.getDate()}</b><small>${monShort(d)}</small></span><span class="sr">${fmtDay(d, true)}</span></h2>
         <ul class="dayc-l">${all.filter((t) => t.date === d).map((t) => `<li><button class="dayc-i" data-act="${actOf(t)}" data-id="${t.id}">
-          <b>${t.time ? esc(t.time) : "—"}</b><span>${esc(kindWho(t))}${t.place ? `<small>${esc(t.place)}</small>` : ""}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul></section>`; }).join("")
+          <span><b>${t.time ? esc(t.time) : "Orario da decidere"}</b>${esc(kindWho(t))}${t.place ? `<small>${esc(t.place)}</small>` : ""}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul></section>`; }).join("")
       : `<div class="card">${empty("calendar", "Niente in programma", "Tocca + per aggiungere un allenamento o una lezione privata.")}</div>`;
   } else {
     const items = sortTrainings([...S.meta.trainings, ...S.meta.slots].filter((t) => t.date === S.calD));
@@ -880,9 +881,11 @@ function renderCoachMonth() {
 
 // ---------------------------------------------------------- Statistiche (nuova versione)
 // barre orizzontali di un solo colore: etichetta e valore scritti, la barra è solo un aiuto visivo
+// minuti in parole: "45 min", "1 ora", "1,5 ore"
+const fmtMins = (m) => (m < 60 ? `${m} min` : m === 60 ? "1 ora" : `${String(Math.round(m / 6) / 10).replace(".", ",")} ore`);
 const hbars = (rows, max, unit = "") => `<ul class="hbars">${rows.map(([label, v, sub]) => `<li>
   <span class="hb-l"><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</span><span class="hb-v">${v}${unit}</span>
-  <span class="hb-t" aria-hidden="true"><i style="width:${max ? Math.max(2, Math.round((v / max) * 100)) : 0}%"></i></span></li>`).join("")}</ul>`;
+  <span class="hb-t" aria-hidden="true"><i style="width:${max ? (v ? Math.max(2, Math.round((v / max) * 100)) : 0) : 0}%"></i></span></li>`).join("")}</ul>`;
 function renderCoachStats() {
   S.page = "c-stats";
   const st = S.students, n = st.length, d30 = addDays(-30), now = Date.now();
@@ -906,7 +909,7 @@ function renderCoachStats() {
   // lezioni private nelle prossime 4 settimane
   const up = S.meta.slots.filter((t) => t.date >= today());
   const weeks = [0, 1, 2, 3].map((k) => { const a = addDays(7 * k), b = addDays(7 * k + 7), w = up.filter((t) => t.who && t.date >= a && t.date < b);
-    return [["Questa settimana", "Prossima settimana", "Tra 2 settimane", "Tra 3 settimane"][k], w.length, `${Math.round(w.reduce((m, t) => m + (t.dur || 0), 0) / 6) / 10} ore`]; });
+    return [["Questa settimana", "Prossima settimana", "Tra 2 settimane", "Tra 3 settimane"][k], w.length, fmtMins(w.reduce((m, t) => m + (t.dur || 0), 0))]; });
   const free = up.filter((t) => !t.who).length, asks = S.metaErr ? 0 : inbox().filter((x) => x.kind === "req").length;
   const gr = [...S.meta.groups.map((g) => [esc(g.name), inGroup(g.id)]), ...(st.some((s) => !validGroup(s.group)) ? [["Senza gruppo", st.filter((s) => !validGroup(s.group)).length]] : [])];
   const mx = (r) => Math.max(1, ...r.map((x) => x[1]));
@@ -959,9 +962,11 @@ function renderCoachStudent(code, tab) {
       : `<p class="muted">Un piccolo incoraggiamento: lo vedrà arrivare animato nella sua app.</p>`}
       <button class="btn wide" data-act="c-stk" data-code="${s.code}">${icon("gift")} Manda uno sticker</button>`) : ""}
     ${B ? lessonsBox(s) : ""}
-    <section class="card" aria-labelledby="hSn" data-help="agenda"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
+    ${B ? sect("hSn", "Prossimi allenamenti", next.length ? `<ul class="trs">${next.map(([t, w]) => trRow(t, w)).join("")}</ul>`
+        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`).replace('data-help="sn"', 'data-help="agenda"')
+      : `<section class="card" aria-labelledby="hSn" data-help="agenda"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
       ${next.length ? `<ul class="trs">${next.map(([t, w]) => trRow(t, w)).join("")}</ul>`
-        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`;
+        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`}`;
   } else if (tab === "progressi") {
     const n = (s.progress || []).length, ro = S.reorder === "progressi" && n > 1;
     const dn = (s.progress || []).filter((x) => x.status === "done").length;
@@ -1195,10 +1200,10 @@ const ACTIONS = {
   help() {
     const here = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
     openSheet({ title: "Come funziona questa pagina", body: `
-      <p class="muted small">Ecco cosa trovi qui. Con «Mostrami» te li indico uno per uno sulla pagina.</p>
+      <p class="muted small">Ecco cosa trovi qui. Con «Mostrami sulla pagina» te li indico uno per uno.</p>
+      <button type="button" class="btn wide" data-act="help-tour">${icon("help")} Mostrami sulla pagina</button>
       <ul class="help-l">${here.map(([, ic, t, d]) => `<li><span class="help-ic" aria-hidden="true">${icon(ic)}</span><span class="txt"><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
-      <div class="sheet-btns"><button type="button" class="btn ghost" data-act="close">Chiudi</button>
-        <button type="button" class="btn" data-act="help-tour">Mostrami</button></div>` });
+      <div class="sheet-btns"><button type="button" class="btn ghost wide" data-act="close">Chiudi</button></div>` });
   },
   "help-tour"() {
     const steps = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
@@ -1660,7 +1665,7 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
   };
   // riassunto in una frase di quello che verrà salvato (non annunciato a ogni tasto: niente aria-live)
   const summary = () => {
-    const E = f.elements, d = E.date.value, t = E.time.value, when = `${d ? fmtDay(d) : "giorno da scegliere"}${t ? ` alle ${t}` : ""}`;
+    const E = f.elements, d = E.date.value, t = E.time.value, when = `${d ? fmtDay(d).replace(/^\p{Lu}/u, (c) => c.toLowerCase()) : "giorno da scegliere"}${t ? ` alle ${t}` : ""}`;
     if (E.kind.value !== "les") {
       const g = groupName(S.meta, E.group.value);
       return `Allenamento per ${g ? `il gruppo ${g}` : "tutti gli alunni"}, ${when}.`;
@@ -1865,6 +1870,7 @@ function progPicker() {
       ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="plv" value="${k}" ${k === lv ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
     <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>
       <span class="txt"><b>Nuovo: <span id="newName"></span></b><small>Non è nel catalogo: lo aggiungo in “Altro”, nel livello scelto.</small></span></label>
+    <p class="muted small pick-hint">Tocca gli elementi da aggiungere. Quelli grigi con la spunta li ha già.</p>
     <div class="picks">${LEVELS.map(([L]) => Object.entries(CATALOG[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
       ${names.map((n) => have.has(itemKey({ name: n }))
         ? `<span class="chip pick dis" data-n="${esc(norm(n))}">${icon("check")}<span>${esc(n)}</span><span class="sr">, già presente</span></span>`

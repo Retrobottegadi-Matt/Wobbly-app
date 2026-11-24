@@ -1243,7 +1243,9 @@ function renderCoachStudent(code, tab) {
 let sheetOpener = null, sheetOpenerSel = null;
 const selOf = (el) => el && el.dataset && el.dataset.act
   ? `[data-act="${el.dataset.act}"]${el.dataset.id ? `[data-id="${el.dataset.id}"]` : ""}` : null;
-function openSheet({ title, body, onSubmit = () => {}, focus = "title" }) {
+// live: pannello che applica subito ogni scelta (Accessibilità, Impostazioni, aiuto): niente "Uscire senza salvare?"
+// (le scelte sono già valide, chiedere di "non salvare" sarebbe falso)
+function openSheet({ title, body, onSubmit = () => {}, focus = "title", live = false }) {
   // se si apre un pannello da un altro pannello, il focus tornerà comunque al pulsante originale
   if (!$sheet.contains(document.activeElement)) {
     sheetOpener = document.activeElement;
@@ -1275,7 +1277,7 @@ function openSheet({ title, body, onSubmit = () => {}, focus = "title" }) {
     btns.forEach((b) => { b.disabled = false; });
   };
   // modifiche non salvate: chiudendo il pannello si chiede conferma (nuova versione)
-  f.addEventListener("input", (e) => { if (e.isTrusted) f.dataset.dirty = "1"; });
+  if (!live) f.addEventListener("input", (e) => { if (e.isTrusted && !e.target.closest("[data-nodirty]")) f.dataset.dirty = "1"; });
   const target = focus === "input" ? f.querySelector("input:not([type=checkbox]):not([type=radio]):not([type=file]),textarea") : null;
   setTimeout(() => (target ? target.focus() : restoreFocus(f.querySelector("#sheetTitle"))), 50);
   return f;
@@ -1320,7 +1322,7 @@ const delBtn = (label) => `<button type="submit" name="del" value="1" class="btn
 
 function a11ySheet() {
   const p = loadA11y();
-  const f = openSheet({ title: "Accessibilità", body: `
+  const f = openSheet({ title: "Accessibilità", live: true, body: `
     <p class="muted small">Si sommano alle impostazioni del telefono (Impostazioni → Accessibilità) e valgono solo su questo dispositivo.</p>
     <fieldset class="seg"><legend>Tema</legend><div class="seg-opts">
       ${THEMES.map(([k, ic, label]) => `<label class="seg-opt"><input type="radio" name="theme" value="${k}" ${(p.theme || "auto") === k ? "checked" : ""}>${icon(ic)}<span>${label}</span></label>`).join("")}
@@ -1443,7 +1445,7 @@ const ACTIONS = {
   // aiuto: elenco degli elementi della pagina, poi (se si vuole) la visita guidata
   help() {
     const here = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
-    openSheet({ title: "Come funziona questa pagina", body: `
+    openSheet({ title: "Come funziona questa pagina", live: true, body: `
       <p class="muted small">Ecco cosa trovi qui. Con «Mostrami sulla pagina» te li indico uno per uno.</p>
       <button type="button" class="btn wide" data-act="help-tour">${icon("help")} Mostrami sulla pagina</button>
       <ul class="help-l">${here.map(([, ic, t, d]) => `<li><span class="help-ic" aria-hidden="true">${icon(ic)}</span><span class="txt"><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
@@ -1483,7 +1485,7 @@ const ACTIONS = {
   "c-settings"() {
     const mi = (act, ic, label, help) => `<li><button type="button" class="mi" data-act="${act}"${help ? ` aria-describedby="h-${act}"` : ""}>${icon(ic)}<span>${label}</span>${icon("chevron", "chev")}</button>
       ${help ? `<small class="mi-help" id="h-${act}">${help}</small>` : ""}</li>`;
-    openSheet({ title: "Impostazioni", body: `<div class="scroll">
+    openSheet({ title: "Impostazioni", live: true, body: `<div class="scroll">
       <h3 class="cat">Generale</h3>
       <ul class="menu">${mi("a11y", "a11y", "Accessibilità")}
         ${mi("c-transfer", "phone", "Aggiungi un dispositivo", "Per usare l'app su un altro telefono o dopo averlo cambiato.")}
@@ -1907,7 +1909,7 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
       <label>Per chi<select name="group"><option value="">Tutti gli alunni</option>
         ${S.meta.groups.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join("")}</select></label></fieldset>
     <fieldset class="kf" data-k="les"><legend class="sr">Lezione privata</legend>
-      <label>Con chi<select name="who"><option value="">Nessuno: orario libero, me lo chiedono</option>
+      <label>Con chi<select name="who"><option value="">Nessuno (orario libero)</option>
         ${studs.map((x) => `<option value="${x.code}" ${x.code === who ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label></fieldset>
     <details class="more"><summary>Altre opzioni</summary>
       <fieldset class="kf" data-k="les"><legend class="sr">Durata e ripetizioni</legend>
@@ -2152,9 +2154,9 @@ function slotSheet(t) {
 function progPicker() {
   const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey)), cat = catNow();
   const f = openSheet({ title: "Aggiungi elementi", body: `
-    <div class="search"><label for="pq" class="sr">Cerca o scrivi un elemento nuovo</label>${icon("search")}
+    <div class="search" data-nodirty><label for="pq" class="sr">Cerca o scrivi un elemento nuovo</label>${icon("search")}
       <input id="pq" type="search" placeholder="Cerca o scrivi un elemento" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
-    <fieldset class="seg" id="pLv"><legend>Livello</legend><div class="seg-opts">
+    <fieldset class="seg" id="pLv" data-nodirty><legend>Livello</legend><div class="seg-opts">
       ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="plv" value="${k}" ${k === lv ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
     <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>
       <span class="txt"><b>Nuovo: <span id="newName"></span></b><small>Non è nel catalogo: lo aggiungo in “Altro”, nel livello scelto.</small></span></label>
@@ -2210,7 +2212,7 @@ const lvSeg = (name, cur, legend = "Livello") => `<fieldset class="seg"><legend>
 
 function catSheet() {
   const L0 = S.catLv || "base", list = elements();
-  const f = openSheet({ title: "Elementi del pattinaggio", body: `
+  const f = openSheet({ title: "Elementi del pattinaggio", live: true, body: `
     <p class="muted small">Sono gli elementi che proponi in «Aggiungi elementi». Tocca un elemento per cambiarlo o toglierlo: chi lo ha già nei progressi non perde niente.</p>
     ${lvSeg("clv", L0)}
     ${LEVELS.map(([L]) => `<div class="cat-lv" data-lv="${L}" ${L === L0 ? "" : "hidden"}>${CATEGORIES.map((c) => {

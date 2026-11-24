@@ -725,6 +725,34 @@ async def main():
         assert await p4.locator("#offline[role=status]").is_visible()
         await ctx4.set_offline(False); await p4.evaluate("dispatchEvent(new Event('online'))"); await p4.wait_for_timeout(150)
         assert await p4.locator("#offline").count() == 0 and "online" in await p4.locator(".toast").inner_text()
+        # pannelli che applicano subito (Accessibilità): chiudendo non si chiede "Uscire senza salvare?"
+        await p4.goto(B + "#/coach"); await p4.wait_for_timeout(300)
+        await p4.click("[data-act=c-settings]"); await p4.wait_for_timeout(200); await p4.click("#sheet [data-act=a11y]"); await p4.wait_for_timeout(200)
+        n_ask = await p4.evaluate("window.__asks.length")
+        await p4.click("#sheet .sw-row >> nth=2"); await p4.wait_for_timeout(100)
+        await p4.click("#sheet .sheet-btns [data-act=close]"); await p4.wait_for_timeout(200)
+        assert await p4.evaluate("window.__asks.length") == n_ask and await p4.locator("#sheet").is_hidden(), "Accessibilità: niente domanda alla chiusura"
+        await p4.evaluate("localStorage.removeItem('pg_a11y'); document.dispatchEvent(new Event('visibilitychange'))")
+        # iPhone SE (375×667) con testo grande: nei pannelli le parti non si sovrappongono, anche con "Altre opzioni" aperto
+        await p4.set_viewport_size({"width": 375, "height": 667})
+        await p4.evaluate("document.documentElement.style.fontSize = '20.8px'")
+        OVERLAP = """() => { const out = [];
+          // parti del pannello schiacciate: il contenuto esce dal proprio riquadro e finisce sopra la parte successiva
+          for (const e of document.querySelectorAll('#sheet .sheet-panel > *')) if (e.offsetParent !== null && e.scrollHeight > e.clientHeight + 2)
+            out.push('schiacciata: ' + e.tagName + '.' + e.className);
+          // dentro "Altre opzioni" i campi stanno uno sotto l'altro a tutta larghezza
+          for (const d of document.querySelectorAll('#sheet details[open]')) { const w = d.getBoundingClientRect().width;
+            for (const e of d.querySelectorAll(':scope > label, :scope > fieldset:not([hidden])')) if (e.getBoundingClientRect().width < w * .9)
+              out.push('stretta: ' + (e.textContent || '').trim().slice(0, 20)); }
+          return out; }"""
+        await p4.goto(B + "#/coach/calendario"); await p4.wait_for_timeout(300)
+        await p4.click(".fab"); await p4.wait_for_timeout(300); await p4.click("#sheet details.more summary"); await p4.wait_for_timeout(150)
+        for kind in ["Allenamento", "Lezione"]:
+            await p4.click(f"#sheet .seg-opt:has-text('{kind}')"); await p4.wait_for_timeout(150)
+            bad = await p4.evaluate(OVERLAP); assert not bad, ("parti sovrapposte nel pannello", kind, bad)
+        await p4.keyboard.press("Escape"); await p4.wait_for_timeout(200)
+        await p4.evaluate("document.documentElement.style.fontSize = ''")
+        await p4.set_viewport_size({"width": 390, "height": 844})
         # elementi del pattinaggio: nomi italiani, l'allenatrice li cambia, ne aggiunge e li toglie
         _st = (await dev4())["students"]; _st = [dict(v, code=k) for k, v in _st.items()] if isinstance(_st, dict) else _st
         lim = [x for x in _st if any(p_["name"] == "Limoni avanti" for p_ in x.get("progress", []))]

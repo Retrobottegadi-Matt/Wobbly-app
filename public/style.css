@@ -130,6 +130,8 @@ small { display: block; color: var(--muted); font-size: var(--fs-small); }
 
 .demo { background: var(--yellow); color: var(--on-pastel); border-radius: var(--r-sm); padding: .6rem .9rem; font-size: var(--fs-small); margin-bottom: .75rem; }
 .demo.dev { background: var(--lilac); }
+.demo .dev-as { display: block; }
+.demo a[aria-current] { text-decoration: none; background: var(--on-pastel); color: var(--lilac); border-radius: var(--r-pill); }
 .demo a { color: inherit; font-weight: 800; padding: 0 .6rem; display: inline-block; min-height: var(--target); line-height: var(--target); }
 .hero { text-align: center; padding: 2rem 0 1rem; }
 .hero h1 { font-size: var(--fs-display); }

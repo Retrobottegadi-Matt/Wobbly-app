@@ -108,6 +108,9 @@ const demoBanner = () => {
   if (!be || !be.demo) return "";
   if (be.dev) return `<div class="demo dev"><b>Modalità sviluppo</b>: dati di esempio, solo in questo browser.
     ${beta() ? "Stai provando la <b>nuova versione</b>." : "Stai vedendo la versione attuale."}
+    <span class="dev-as" role="group" aria-label="Entra come">Entra come:
+      <a href="#/coach" data-act="dev-coach"${location.hash.startsWith("#/coach") ? ' aria-current="page"' : ""}>Allenatrice</a> ·
+      <a href="#" data-act="dev-student"${location.hash.startsWith("#/coach") ? "" : ' aria-current="page"'}>Alunno</a></span>
     <a href="#" data-act="dev-beta">${beta() ? "Vedi l'attuale" : "Prova la nuova"}</a> ·
     <a href="#/design">Design system</a> · <a href="#" data-act="dev-exit">Esci</a></div>`;
   return `<div class="demo">Modalità demo: i dati restano solo su questo dispositivo.</div>`;
@@ -235,7 +238,10 @@ function renderCodeEntry(msg = "") {
     ${msg ? `<p class="err" id="codeErr" role="alert">${esc(msg)}</p>` : ""}
     <button class="btn wide" type="submit">Apri la mia scheda</button>
   </form>
-  ${be.dev ? `<div class="card"><h2 class="h3">Entra come alunno di esempio</h2><div class="chips">
+  ${be.dev ? `<div class="card"><h2 class="h3">Entra come allenatrice</h2>
+      <p class="muted small">Con gli alunni di esempio: puoi provare tutto senza toccare i dati veri.</p>
+      <a class="btn wide" href="#/coach">Area allenatrice</a></div>
+    <div class="card"><h2 class="h3">Entra come alunno di esempio</h2><div class="chips">
       ${be.sampleCodes().map((x) => `<button class="chip" data-act="dev-as" data-code="${x.code}">${esc(x.name)}</button>`).join("")}
     </div></div>`
     : be.demo ? `<p class="hint">Demo: prova il codice <b>DEMO-ALUN-NO23</b></p>` : ""}
@@ -1024,6 +1030,9 @@ const ACTIONS = {
     if (!confirm("Sostituire tutti i dati di sviluppo con gli alunni di esempio?")) return;
     await be.reseed(); closeSheet(); toast("Alunni di esempio rigenerati");
   },
+  "dev-coach"() { go("#/coach"); },
+  // alunno: se non ne è ancora scelto uno, la schermata d'ingresso mostra quelli di esempio
+  "dev-student"() { const c = localStorage.getItem(LS_CODE); if (c && !be.sampleCodes().some((x) => x.code === c)) localStorage.removeItem(LS_CODE); go("#/"); if (location.hash === "#/" || !location.hash) route(); },
   "dev-beta"() { localStorage.setItem(LS_BETA, beta() ? "0" : "1"); route(); },
   // aiuto: elenco degli elementi della pagina, poi (se si vuole) la visita guidata
   help() {

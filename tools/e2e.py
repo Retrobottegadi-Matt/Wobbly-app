@@ -89,6 +89,9 @@ async def main():
         assert any(t["note"] == "PROVA-PR" for t in d["students"][pr]["sched"])
         assert not any(t["note"] == "PROVA-PR" for t in d["students"][ag]["sched"])
         assert all(any(t["note"] == "PROVA-TUTTI" for t in st["sched"]) for st in d["students"].values()), "allenamento per tutti"
+        await pg.click("[data-act=c-cal-view][data-id=elenco]"); await pg.wait_for_timeout(300)
+        trpr = next(t["id"] for t in d["meta"]["trainings"] if t["note"] == "PROVA-PR")
+        assert await pg.locator(f"main [data-act=c-edit-tr][data-id='{trpr}']").count() == 1, "l'allenamento si vede nel calendario a elenco"
         # profilo: descrizione e gruppo scelti dall'allenatrice
         await pg.goto(B + f"#/coach/{ag}/profilo"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-profile]"); await pg.wait_for_timeout(150); await font16("profilo")
@@ -108,6 +111,9 @@ async def main():
         d = await dev()
         assert not any(st.get("group") == gid["Principianti"] for st in d["students"].values())
         assert not any(t["note"] == "PROVA-PR" for st in d["students"].values() for t in st["sched"])
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        assert await pg.locator(f"main [data-act=c-edit-tr][data-id='{trpr}']").count() == 0, "l'allenamento del gruppo eliminato sparisce dal calendario"
+        await pg.click("[data-act=c-cal-view][data-id=mese]"); await pg.wait_for_timeout(200)
         await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
 
         # lezioni private: l'allenatrice pubblica un orario, due alunni lo chiedono, lei ne conferma uno; disdetta e orario di nuovo libero
@@ -279,6 +285,14 @@ async def main():
         for el in await pg.locator("button.icon, a.icon").all():
             assert await el.get_attribute("aria-label"), "icona senza aria-label"
             assert await el.locator("svg[aria-hidden=true]").count() == 1, "le icone sono SVG decorativi"
+        # schermate della v11: statistiche e calendario a elenco
+        await pg.goto(B + "#/coach/statistiche"); await pg.wait_for_timeout(400)
+        small = await pg.evaluate(MIN); assert not small, ("statistiche", small)
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-cal-view][data-id=elenco]"); await pg.wait_for_timeout(300)
+        small = await pg.evaluate(MIN); assert not small, ("calendario elenco", small)
+        await pg.click("[data-act=c-cal-view][data-id=mese]"); await pg.wait_for_timeout(200)
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-settings]"); await pg.wait_for_timeout(200)
         assert await pg.locator("[role=dialog][aria-modal=true]").count() == 1
@@ -320,6 +334,21 @@ async def main():
         await pg.keyboard.press("Escape")
         for view in ["", "#/progressi", "#/profilo"]:
             await pg.goto(B + view); await pg.wait_for_timeout(300); await reflow("alunno " + view)
+        # schermate e pannelli della v11 con testo molto grande
+        await pg.goto(B + "#/coach/statistiche"); await pg.wait_for_timeout(400); await reflow("statistiche")
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-cal-view][data-id=elenco]"); await pg.wait_for_timeout(300); await reflow("calendario elenco")
+        await pg.click("[data-act=c-cal-view][data-id=mese]"); await pg.wait_for_timeout(200)
+        await pg.click(".fab[data-act=c-new-appt]"); await pg.wait_for_timeout(300)
+        await pg.click("#sheet details.more > summary"); await reflow("pannello appuntamento")
+        small = await pg.evaluate(MIN); assert not small, ("pannello appuntamento", small)
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=help]"); await pg.wait_for_timeout(300); await reflow("pannello aiuto")
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-settings]"); await pg.wait_for_timeout(250)
+        await pg.click("#sheet [data-act=c-cat]"); await pg.wait_for_timeout(300); await reflow("elementi del pattinaggio")
+        small = await pg.evaluate(MIN); assert not small, ("elementi del pattinaggio", small)
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(300)
 
         # pagina design system (#/design, solo dev)
         await pg.goto(B + "#/design"); await pg.wait_for_timeout(400)

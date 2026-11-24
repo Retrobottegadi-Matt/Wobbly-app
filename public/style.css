@@ -800,7 +800,7 @@ details.more[open] > summary { margin-bottom: .4rem; }
 .dayc { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .9rem; align-items: start; background: var(--dc); color: var(--on-pastel);
   border-radius: var(--r-lg); padding: 1rem 1rem 1rem 1.1rem; margin-bottom: .75rem; }
 .dayc-d { margin: 0; }
-.dayc-d > span { display: flex; flex-direction: column; align-items: center; min-width: 3.4rem; line-height: 1.05; }
+.dayc-d > span:not(.sr) { display: flex; flex-direction: column; align-items: center; min-width: 3.4rem; line-height: 1.05; }
 .dayc-d small { color: var(--on-pastel); font-size: .8125rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
 .dayc-d b { font-size: 2.6rem; font-weight: 850; letter-spacing: -.04em; line-height: 1; margin: .1rem 0; }
 .dayc-l { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; min-width: 0; }
@@ -1065,7 +1065,7 @@ fieldset.seg { container-type: inline-size; min-width: 0; }
 .dayc { container-type: inline-size; }
 @container (max-width: 17rem) {
   .dayc-d, .dayc-l { grid-column: 1 / -1; }
-  .dayc-d > span { flex-direction: row; align-items: baseline; gap: .4rem; }
+  .dayc-d > span:not(.sr) { flex-direction: row; align-items: baseline; gap: .4rem; }
   .dayc-d b { font-size: 1.75rem; }
 }
 /* carta in evidenza (nuova versione): il cerchio sta nella riga in alto, il resto usa tutta la larghezza */
@@ -1112,3 +1112,9 @@ details.more > summary { font-size: var(--fs-small); }
 .week { gap: min(.3rem, 5px); }
 .week i { width: min(1.35rem, 24px); height: min(1.35rem, 24px); }
 .week i .ic { width: min(.95rem, 17px); height: min(.95rem, 17px); }
+/* calendario "Elenco" con testo molto grande: le righe non escono dalla carta del giorno */
+.dayc-l { grid-template-columns: minmax(0, 1fr); }
+.dayc-i { gap: min(.65rem, 10px); padding-inline: min(.7rem, 12px); }
+.dayc-i .chev { width: min(1rem, 18px); height: min(1rem, 18px); }
+/* titolo dei pannelli: si restringe accanto alla X e, con testo molto grande, non supera ~7vw */
+.sheet-h h2 { min-width: 0; font-size: min(var(--fs-h2), 7vw); }

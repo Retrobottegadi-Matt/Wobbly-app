@@ -30,6 +30,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const today = () => localDate();
 const fmtDate = (d) => (d ? d.split("-").reverse().join("/") : "");
+const fmtLong = (d) => (d ? new Date(`${d}T12:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "");
 function fmtWhen(ts) {
   if (!ts) return "";
   const d = new Date(ts), n = new Date();
@@ -461,7 +462,7 @@ function progressList(raw, mode) {
     <ul class="prog" ${mode === "student" ? "" : `data-drag="prog" data-group="${g.lv}|${esc(c.cat)}"`}>${c.items.map((i, k) => progRow(i, mode, k, c.items.length)).join("")}</ul>`).join("")}`).join("")}`;
 }
 function progRow(i, mode, k, n) {
-  const meta = `${i.status === "done" && i.date ? `<small>Completato il ${fmtDate(i.date)}</small>` : ""}
+  const meta = `${i.status === "done" && i.date ? `<small>Completato il ${beta() ? fmtLong(i.date) : fmtDate(i.date)}</small>` : ""}
     ${i.note ? `<small class="note">${esc(i.note)}</small>` : ""}`;
   const txt = `<span class="txt"><b>${esc(i.name)}</b>${meta}</span>`;
   if (mode === "coach") return `<li data-id="${i.id}">
@@ -713,7 +714,7 @@ function groupedRows() {
   const parts = g.map((x) => { const list = S.students.filter((s) => s.group === x.id);
     return sect(`hG${x.id}`, `${esc(x.name)} <small class="cnt">${list.length}</small>`,
       list.length ? srows(list) : `<p class="muted">Nessun alunno. Tocca Modifica per aggiungerli.</p>`,
-      `<button class="btn sm ghost" data-act="c-edit-group" data-id="${x.id}">Modifica<span class="sr"> il gruppo ${esc(x.name)}</span></button>`, "card plainlist"); });
+      `<span class="g-acts">${list.length ? `<button class="btn sm ghost ic" data-act="c-stk" data-group="${x.id}" data-help="gstk" aria-label="Manda uno sticker al gruppo ${esc(x.name)}">${icon("gift")}</button>` : ""}<button class="btn sm ghost" data-act="c-edit-group" data-id="${x.id}">Modifica<span class="sr"> il gruppo ${esc(x.name)}</span></button></span>`, "card plainlist"); });
   const none = S.students.filter((s) => !validGroup(s.group));
   if (none.length) parts.push(sect("hGnone", `Senza gruppo <small class="cnt">${none.length}</small>`, srows(none), "", "card plainlist"));
   return parts.join("") + newG;
@@ -862,7 +863,7 @@ function renderCoachMonth() {
       return `<section class="dayc" style="--dc: var(${DAYC[(dt.getDay() + 6) % 7]})" aria-labelledby="${id}">
         <h2 class="dayc-d" id="${id}"><span aria-hidden="true"><small>${dt.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "")}</small><b>${dt.getDate()}</b><small>${monShort(d)}</small></span><span class="sr">${fmtDay(d, true)}</span></h2>
         <ul class="dayc-l">${all.filter((t) => t.date === d).map((t) => `<li><button class="dayc-i" data-act="${actOf(t)}" data-id="${t.id}">
-          <b>${t.time ? esc(t.time) : "—"}</b><span>${esc(kindWho(t))}${t.place ? `<small>${esc(t.place)}</small>` : ""}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul></section>`; }).join("")
+          <span><b>${t.time ? esc(t.time) : "Orario da decidere"}</b>${esc(kindWho(t))}${t.place ? `<small>${esc(t.place)}</small>` : ""}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul></section>`; }).join("")
       : `<div class="card">${empty("calendar", "Niente in programma", "Tocca + per aggiungere un allenamento o una lezione privata.")}</div>`;
   } else {
     const items = sortTrainings([...S.meta.trainings, ...S.meta.slots].filter((t) => t.date === S.calD));
@@ -880,9 +881,11 @@ function renderCoachMonth() {
 
 // ---------------------------------------------------------- Statistiche (nuova versione)
 // barre orizzontali di un solo colore: etichetta e valore scritti, la barra è solo un aiuto visivo
+// minuti in parole: "45 min", "1 ora", "1,5 ore"
+const fmtMins = (m) => (m < 60 ? `${m} min` : m === 60 ? "1 ora" : `${String(Math.round(m / 6) / 10).replace(".", ",")} ore`);
 const hbars = (rows, max, unit = "") => `<ul class="hbars">${rows.map(([label, v, sub]) => `<li>
   <span class="hb-l"><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</span><span class="hb-v">${v}${unit}</span>
-  <span class="hb-t" aria-hidden="true"><i style="width:${max ? Math.max(2, Math.round((v / max) * 100)) : 0}%"></i></span></li>`).join("")}</ul>`;
+  <span class="hb-t" aria-hidden="true"><i style="width:${max ? (v ? Math.max(2, Math.round((v / max) * 100)) : 0) : 0}%"></i></span></li>`).join("")}</ul>`;
 function renderCoachStats() {
   S.page = "c-stats";
   const st = S.students, n = st.length, d30 = addDays(-30), now = Date.now();
@@ -906,7 +909,7 @@ function renderCoachStats() {
   // lezioni private nelle prossime 4 settimane
   const up = S.meta.slots.filter((t) => t.date >= today());
   const weeks = [0, 1, 2, 3].map((k) => { const a = addDays(7 * k), b = addDays(7 * k + 7), w = up.filter((t) => t.who && t.date >= a && t.date < b);
-    return [["Questa settimana", "Prossima settimana", "Tra 2 settimane", "Tra 3 settimane"][k], w.length, `${Math.round(w.reduce((m, t) => m + (t.dur || 0), 0) / 6) / 10} ore`]; });
+    return [["Questa settimana", "Prossima settimana", "Tra 2 settimane", "Tra 3 settimane"][k], w.length, fmtMins(w.reduce((m, t) => m + (t.dur || 0), 0))]; });
   const free = up.filter((t) => !t.who).length, asks = S.metaErr ? 0 : inbox().filter((x) => x.kind === "req").length;
   const gr = [...S.meta.groups.map((g) => [esc(g.name), inGroup(g.id)]), ...(st.some((s) => !validGroup(s.group)) ? [["Senza gruppo", st.filter((s) => !validGroup(s.group)).length]] : [])];
   const mx = (r) => Math.max(1, ...r.map((x) => x[1]));
@@ -959,9 +962,11 @@ function renderCoachStudent(code, tab) {
       : `<p class="muted">Un piccolo incoraggiamento: lo vedrà arrivare animato nella sua app.</p>`}
       <button class="btn wide" data-act="c-stk" data-code="${s.code}">${icon("gift")} Manda uno sticker</button>`) : ""}
     ${B ? lessonsBox(s) : ""}
-    <section class="card" aria-labelledby="hSn" data-help="agenda"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
+    ${B ? sect("hSn", "Prossimi allenamenti", next.length ? `<ul class="trs">${next.map(([t, w]) => trRow(t, w)).join("")}</ul>`
+        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`).replace('data-help="sn"', 'data-help="agenda"')
+      : `<section class="card" aria-labelledby="hSn" data-help="agenda"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
       ${next.length ? `<ul class="trs">${next.map(([t, w]) => trRow(t, w)).join("")}</ul>`
-        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`;
+        : `<p class="muted">Nessun allenamento in programma${gn ? " per il suo gruppo" : ""}.</p>`}</section>`}`;
   } else if (tab === "progressi") {
     const n = (s.progress || []).length, ro = S.reorder === "progressi" && n > 1;
     const dn = (s.progress || []).filter((x) => x.status === "done").length;
@@ -1195,10 +1200,10 @@ const ACTIONS = {
   help() {
     const here = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
     openSheet({ title: "Come funziona questa pagina", body: `
-      <p class="muted small">Ecco cosa trovi qui. Con «Mostrami» te li indico uno per uno sulla pagina.</p>
+      <p class="muted small">Ecco cosa trovi qui. Con «Mostrami sulla pagina» te li indico uno per uno.</p>
+      <button type="button" class="btn wide" data-act="help-tour">${icon("help")} Mostrami sulla pagina</button>
       <ul class="help-l">${here.map(([, ic, t, d]) => `<li><span class="help-ic" aria-hidden="true">${icon(ic)}</span><span class="txt"><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
-      <div class="sheet-btns"><button type="button" class="btn ghost" data-act="close">Chiudi</button>
-        <button type="button" class="btn" data-act="help-tour">Mostrami</button></div>` });
+      <div class="sheet-btns"><button type="button" class="btn ghost wide" data-act="close">Chiudi</button></div>` });
   },
   "help-tour"() {
     const steps = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
@@ -1415,27 +1420,7 @@ const ACTIONS = {
   "c-new-tr"() { trainingSheet(null); },
   "c-new-appt"() { apptSheet({ date: S.page === "c-cal" && S.calView === "mese" ? S.calD : addDays(1) }); },
   // sticker: scegli, (cambia il messaggio), manda
-  "c-stk"(el) {
-    const s = findStudent(el.dataset.code || curCode());
-    if (!s) return;
-    const f = openSheet({ title: `Sticker per ${esc(s.name)}`, body: `
-      <fieldset class="stk-pick"><legend class="sr">Scegli lo sticker</legend>
-        ${STICKERS.map(([k, l], i) => `<label class="stk-opt"><input type="radio" name="k" value="${k}" ${i === 0 ? "checked" : ""}>${sticker(k)}<span>${l}</span></label>`).join("")}</fieldset>
-      <label>Messaggio<input name="msg" maxlength="60" value="${esc(STICKERS[0][2])}"></label>
-      <p class="muted small">Appena apre l'app lo vede arrivare animato, poi resta nei suoi Progressi.</p>
-      ${sheetBtns("Manda")}`,
-    onSubmit: async (fd) => {
-      const k = fd.get("k"), s2 = findStudent(s.code);
-      if (!isSticker(k) || !s2) return false;
-      const item = { id: newId(), k, msg: (fd.get("msg") || "").trim() || STICKER_MSG[k], at: Date.now() };
-      await be.updateStudent(s2.code, { stickers: [...(s2.stickers || []), item].slice(-30) });
-      toast(`Sticker mandato a ${s2.name}`);
-    } });
-    // il messaggio segue lo sticker scelto, finché non lo cambi a mano
-    let touched = false;
-    f.elements.msg.addEventListener("input", () => { touched = true; });
-    f.addEventListener("change", (e) => { if (e.target.name === "k" && !touched) f.elements.msg.value = STICKER_MSG[e.target.value]; });
-  },
+  "c-stk"(el) { stickerSheet(el.dataset.code ? { code: el.dataset.code } : el.dataset.group ? { group: el.dataset.group } : { code: curCode() }); },
   async "c-stk-del"(el) {
     const s = cur(), x = s && (s.stickers || []).find((y) => y.id === el.dataset.id);
     if (!x || !confirm(`Togliere lo sticker “${STICKER_LABEL[x.k]}”? Sparirà anche dall'app di ${s.name}.`)) return;
@@ -1680,7 +1665,7 @@ function apptSheet({ date = addDays(1), kind = "tr", who = "" } = {}) {
   };
   // riassunto in una frase di quello che verrà salvato (non annunciato a ogni tasto: niente aria-live)
   const summary = () => {
-    const E = f.elements, d = E.date.value, t = E.time.value, when = `${d ? fmtDay(d) : "giorno da scegliere"}${t ? ` alle ${t}` : ""}`;
+    const E = f.elements, d = E.date.value, t = E.time.value, when = `${d ? fmtDay(d).replace(/^\p{Lu}/u, (c) => c.toLowerCase()) : "giorno da scegliere"}${t ? ` alle ${t}` : ""}`;
     if (E.kind.value !== "les") {
       const g = groupName(S.meta, E.group.value);
       return `Allenamento per ${g ? `il gruppo ${g}` : "tutti gli alunni"}, ${when}.`;
@@ -1725,6 +1710,39 @@ function trainingSheet(t) {
 }
 
 // nuova versione: nome e componenti del gruppo nello stesso pannello (prima bisognava aprire il profilo di ogni alunno)
+
+// sticker: a un alunno (con la scelta "tutto il suo gruppo") oppure a un gruppo intero
+function stickerSheet({ code, group }) {
+  const s = code && findStudent(code);
+  const gid = group || (s && validGroup(s.group)), gname = groupName(S.meta, gid);
+  const members = () => (gid ? S.students.filter((x) => x.group === gid) : []);
+  if (!s && !members().length) return;
+  const both = s && members().length > 1;
+  const f = openSheet({ title: s ? `Sticker per ${esc(s.name)}` : `Sticker per il gruppo ${esc(gname)}`, body: `
+    <fieldset class="stk-pick"><legend class="sr">Scegli lo sticker</legend>
+      ${STICKERS.map(([k, l], i) => `<label class="stk-opt"><input type="radio" name="k" value="${k}" ${i === 0 ? "checked" : ""}>${sticker(k)}<span>${l}</span></label>`).join("")}</fieldset>
+    <label>Messaggio<input name="msg" maxlength="60" value="${esc(STICKERS[0][2])}"></label>
+    ${both ? `<fieldset class="seg"><legend>A chi</legend><div class="seg-opts">
+      <label class="seg-opt"><input type="radio" name="to" value="one" checked><span>Solo a ${esc(s.name)}</span></label>
+      <label class="seg-opt"><input type="radio" name="to" value="grp"><span>Tutto il gruppo (${members().length})</span></label></div></fieldset>` : ""}
+    ${!s ? `<p class="muted small">Lo ricevono tutti i ${members().length} alunni del gruppo ${esc(gname)}.</p>` : ""}
+    <p class="muted small">Appena apre l'app lo vede arrivare animato, poi resta nei suoi Progressi.</p>
+    ${sheetBtns("Manda")}`,
+  onSubmit: async (fd) => {
+    const k = fd.get("k");
+    if (!isSticker(k)) return false;
+    const to = s && fd.get("to") !== "grp" ? [findStudent(s.code)].filter(Boolean) : members();
+    if (!to.length) return false;
+    const msg = (fd.get("msg") || "").trim() || STICKER_MSG[k], at = Date.now();
+    await be.updateMany(to.map((x) => [x.code, { stickers: [...(x.stickers || []), { id: newId(), k, msg, at }].slice(-30) }]));
+    toast(to.length === 1 ? `Sticker mandato a ${to[0].name}` : `Sticker mandato a ${to.length} alunni`);
+  } });
+  // il messaggio segue lo sticker scelto, finché non lo cambi a mano
+  let touched = false;
+  f.elements.msg.addEventListener("input", () => { touched = true; });
+  f.addEventListener("change", (e) => { if (e.target.name === "k" && !touched) f.elements.msg.value = STICKER_MSG[e.target.value]; });
+}
+
 function groupSheet2(g) {
   const st = S.students;
   openSheet({ title: g ? "Modifica gruppo" : "Nuovo gruppo", focus: g ? "title" : "input", body: `
@@ -1852,6 +1870,7 @@ function progPicker() {
       ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="plv" value="${k}" ${k === lv ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>
     <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>
       <span class="txt"><b>Nuovo: <span id="newName"></span></b><small>Non è nel catalogo: lo aggiungo in “Altro”, nel livello scelto.</small></span></label>
+    <p class="muted small pick-hint">Tocca gli elementi da aggiungere. Quelli grigi con la spunta li ha già.</p>
     <div class="picks">${LEVELS.map(([L]) => Object.entries(CATALOG[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
       ${names.map((n) => have.has(itemKey({ name: n }))
         ? `<span class="chip pick dis" data-n="${esc(norm(n))}">${icon("check")}<span>${esc(n)}</span><span class="sr">, già presente</span></span>`

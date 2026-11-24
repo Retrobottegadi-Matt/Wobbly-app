@@ -653,6 +653,22 @@ async def main():
         await p4.goto(B + f"#/coach/{sc}/profilo"); await p4.wait_for_timeout(300)
         await p4.click("section:has(#hStickers) .stk-b >> nth=0"); await p4.wait_for_timeout(300)
         d = await dev4(); assert len(d["students"][sc]["stickers"]) == 1
+        # sticker a tutto il gruppo: dall'elenco Alunni (regalo accanto a Modifica) e dal profilo ("Tutto il gruppo")
+        await p4.goto(B + "#/coach/alunni"); await p4.wait_for_timeout(400)
+        gb = p4.locator("[data-act=c-stk][data-group] >> nth=0"); gid = await gb.get_attribute("data-group")
+        d = await dev4(); mem = [c for c, x in d["students"].items() if x.get("group") == gid]
+        before = {c: len(d["students"][c].get("stickers", [])) for c in mem}
+        await gb.click(); await p4.wait_for_timeout(250)
+        assert f"{len(mem)} alunni" in await p4.locator("#sheet").inner_text()
+        await p4.click("#sheet .stk-opt:has(input[value=medal])"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(300)
+        d = await dev4()
+        assert all(len(d["students"][c]["stickers"]) == before[c] + 1 and d["students"][c]["stickers"][-1]["k"] == "medal" for c in mem), "tutto il gruppo"
+        assert len({d["students"][c]["stickers"][-1]["id"] for c in mem}) == len(mem), "id diversi per alunno"
+        assert all(len(x.get("stickers", [])) == 0 or x["stickers"][-1]["k"] != "medal" for c, x in d["students"].items() if c not in mem)
+        await p4.goto(B + f"#/coach/{mem[0]}/profilo"); await p4.wait_for_timeout(300)
+        await p4.click("[data-act=c-stk]"); await p4.wait_for_timeout(250)
+        await p4.click("#sheet .seg-opt:has(input[value=grp])"); await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(300)
+        d = await dev4(); assert all(len(d["students"][c]["stickers"]) == before[c] + 2 for c in mem)
         # dal banner si passa tra allenatrice e alunno
         await p4.set_viewport_size({"width": 390, "height": 844})
         await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)

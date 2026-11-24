@@ -7,8 +7,14 @@ import asyncio, os, sys
 from playwright.async_api import async_playwright
 
 B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/"
-# i test della versione attuale girano con la nuova versione spenta (in dev è accesa di base)
-BETA0 = "try { if (localStorage.getItem('pg_beta') === null) localStorage.setItem('pg_beta', '0'); } catch (e) {}"
+# le conferme sono una finestra dell'app (#ask): nei test si accetta da sola, salvo dove
+# window.__autoAsk = false (test della finestra stessa). I testi finiscono in window.__asks.
+ASK = """
+  window.__asks = []; window.__autoAsk = true;
+  new MutationObserver(() => { const a = document.getElementById('ask');
+    if (a && !a.dataset.seen) { a.dataset.seen = 1; window.__asks.push(a.querySelector('h2').textContent);
+      if (window.__autoAsk) setTimeout(() => a.querySelector('[data-ask=yes]').click(), 20); } })
+    .observe(document, { childList: true, subtree: true });"""
 # presentazione del primo avvio già vista (si prova a parte, in un contesto pulito)
 INTRO0 = """try { if (localStorage.getItem('pg_intro') === null) localStorage.setItem('pg_intro', '{"s":1,"c":1}'); } catch (e) {}"""
 # appunti finti: copiare e incollare senza permessi del browser
@@ -19,7 +25,7 @@ async def main():
         # PW_CHROME: percorso di un Chromium già installato, se la versione di Playwright non ha il suo
         b = await p.chromium.launch(**({"executable_path": os.environ["PW_CHROME"]} if os.environ.get("PW_CHROME") else {}))
         ctx = await b.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
-        await ctx.add_init_script(BETA0); await ctx.add_init_script(INTRO0)
+        await ctx.add_init_script(ASK); await ctx.add_init_script(INTRO0)
         pg = await ctx.new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -41,53 +47,51 @@ async def main():
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(500)
         assert await pg.locator(".stat b >> nth=0").inner_text() == "10", "numero di alunni nella Home"
         assert await pg.locator("#hNext + * .trs li, section:has(#hNext) .trs li").count() == 3, "tre prossimi allenamenti"
-        assert await pg.locator("nav.bnav a[aria-current=page]").inner_text() == "Oggi"
+        assert await pg.locator("nav.bnav a[aria-current=page]").get_attribute("href") == "#/coach"
         # barra in basso attaccata al fondo (in stile iOS: 12-30px sopra il bordo)
         gapb = await pg.evaluate("innerHeight - document.querySelector('.dock').getBoundingClientRect().bottom")
         assert 8 <= gapb <= 30, ("barra in basso staccata dal fondo", gapb)
-        await pg.click("nav.bnav >> text=Alunni"); await pg.wait_for_timeout(400)
+        await pg.click("nav.bnav a[href='#/coach/alunni']"); await pg.wait_for_timeout(400)
         assert pg.url.endswith("#/coach/alunni")
         await font16("elenco")
-        assert await pg.locator(".students li").count() == 10, "attesi 10 alunni di esempio"
+        assert await pg.locator("#stuList .srow").count() == 10, "attesi 10 alunni di esempio"
         assert await pg.locator("#app.enter").count() == 1, "entrata animata al cambio di schermata"
 
         # ricerca: senza accenti né maiuscole, il campo non perde il focus, conteggio annunciato
         await pg.fill("#stuSearch", "ALÌ"); await pg.wait_for_timeout(100)
-        assert await pg.locator(".students li").count() == 1
+        assert await pg.locator("#stuList .srow").count() == 1
         assert await pg.evaluate("document.activeElement.id") == "stuSearch"
-        assert await pg.evaluate("getComputedStyle(document.querySelector('.students li')).animationName") == "none", "la ricerca non rifà l'entrata"
+        assert await pg.evaluate("getComputedStyle(document.querySelector('#stuList .srow')).animationName") == "none", "la ricerca non rifà l'entrata"
         await pg.wait_for_timeout(500)
         assert await pg.locator("#stuCount").inner_text() == "1 alunno trovato"
         await pg.fill("#stuSearch", "zzz"); await pg.wait_for_timeout(100)
         assert "Nessun alunno corrisponde" in await pg.locator("#stuList").inner_text()
         await pg.fill("#stuSearch", ""); await pg.wait_for_timeout(100)
-        assert await pg.locator(".students li").count() == 10
+        assert await pg.locator("#stuList .srow").count() == 10
 
-        # gruppi: filtro dell'elenco (il focus resta sul filtro), combinato con la ricerca
+        # gruppi: l'elenco è diviso per gruppo
         dev = lambda: pg.evaluate("JSON.parse(localStorage.getItem('pg_dev_v1'))")
         d = await dev(); gid = {g["name"]: g["id"] for g in d["meta"]["groups"]}
         n_ag = sum(1 for st in d["students"].values() if st.get("group") == gid["Agonisti"])
-        await pg.click("[data-act=c-gf]:has-text('Agonisti')"); await pg.wait_for_timeout(150)
-        assert await pg.locator(".students li").count() == n_ag and n_ag > 0
-        assert await pg.evaluate("document.activeElement.textContent") == "Agonisti", "il focus resta sul filtro"
-        assert await pg.locator("[data-act=c-gf][aria-pressed=true]").inner_text() == "Agonisti"
-        await pg.click("[data-act=c-gf]:has-text('Tutti')"); await pg.wait_for_timeout(150)
-        assert await pg.locator(".students li").count() == 10
+        assert await pg.locator(f"section:has(#hG{gid['Agonisti']}) .srow").count() == n_ag and n_ag > 0
 
         # allenamenti: uno per un gruppo, uno per tutti; ogni alunno vede solo i suoi
-        await pg.click("nav.bnav >> text=Calendario"); await pg.wait_for_timeout(300)
+        await pg.click("nav.bnav a[href='#/coach/calendario']"); await pg.wait_for_timeout(300)
         for note, grp in [("PROVA-PR", "Principianti"), ("PROVA-TUTTI", None)]:
-            await pg.click(".fab[data-act=c-new-tr]"); await pg.wait_for_timeout(150); await font16("allenamento")
-            await pg.fill("input[name=time]", "16:15")
-            if grp: await pg.select_option("select[name=group]", label=grp)
-            await pg.fill("input[name=note]", note); await pg.click("text=Salva"); await pg.wait_for_timeout(250)
-        assert await pg.locator(".trs li:has-text('PROVA-PR')").count() == 1
+            await pg.click(".fab[data-act=c-new-appt]"); await pg.wait_for_timeout(250); await font16("allenamento")
+            await pg.fill("#sheet input[name=time]", "16:15")
+            if grp: await pg.select_option("#sheet select[name=group]", label=grp)
+            await pg.click("#sheet details.more > summary"); await font16("altre opzioni")
+            await pg.fill("#sheet input[name=note]", note); await pg.click("#sheet [type=submit]"); await pg.wait_for_timeout(300)
         d = await dev()
         pr = next(c for c, st in d["students"].items() if st.get("group") == gid["Principianti"])
         ag = next(c for c, st in d["students"].items() if st.get("group") == gid["Agonisti"])
         assert any(t["note"] == "PROVA-PR" for t in d["students"][pr]["sched"])
         assert not any(t["note"] == "PROVA-PR" for t in d["students"][ag]["sched"])
         assert all(any(t["note"] == "PROVA-TUTTI" for t in st["sched"]) for st in d["students"].values()), "allenamento per tutti"
+        await pg.click("[data-act=c-cal-view][data-id=elenco]"); await pg.wait_for_timeout(300)
+        trpr = next(t["id"] for t in d["meta"]["trainings"] if t["note"] == "PROVA-PR")
+        assert await pg.locator(f"main [data-act=c-edit-tr][data-id='{trpr}']").count() == 1, "l'allenamento si vede nel calendario a elenco"
         # profilo: descrizione e gruppo scelti dall'allenatrice
         await pg.goto(B + f"#/coach/{ag}/profilo"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-profile]"); await pg.wait_for_timeout(150); await font16("profilo")
@@ -98,24 +102,28 @@ async def main():
         await pg.goto(B); await pg.wait_for_timeout(400)
         txt = await pg.locator("main").inner_text()
         assert "PROVA-PR" in txt and "PROVA-TUTTI" in txt, "l'alunno vede gli allenamenti del nuovo gruppo"
-        await pg.click("nav.bnav >> text=Profilo"); await pg.wait_for_timeout(300)
+        await pg.click("nav.bnav a[href='#/profilo']"); await pg.wait_for_timeout(300)
         assert "Descrizione di prova" in await pg.locator("main").inner_text(), "l'alunno vede la descrizione nel Profilo"
         # eliminare un gruppo: gli alunni restano senza gruppo e i suoi allenamenti spariscono anche dalle loro schede
-        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
-        await pg.click("[data-act=c-edit-group]:has-text('Principianti')"); await pg.wait_for_timeout(150)
-        await pg.click("text=Elimina gruppo"); await pg.wait_for_timeout(300)
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
+        await pg.click(f"[data-act=c-edit-group][data-id='{gid['Principianti']}']"); await pg.wait_for_timeout(250)
+        await pg.click("#sheet >> text=Elimina gruppo"); await pg.wait_for_timeout(400)
         d = await dev()
         assert not any(st.get("group") == gid["Principianti"] for st in d["students"].values())
         assert not any(t["note"] == "PROVA-PR" for st in d["students"].values() for t in st["sched"])
-        assert await pg.locator(".trs li:has-text('PROVA-PR')").count() == 0
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        assert await pg.locator(f"main [data-act=c-edit-tr][data-id='{trpr}']").count() == 0, "l'allenamento del gruppo eliminato sparisce dal calendario"
+        await pg.click("[data-act=c-cal-view][data-id=mese]"); await pg.wait_for_timeout(200)
         await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
 
         # lezioni private: l'allenatrice pubblica un orario, due alunni lo chiedono, lei ne conferma uno; disdetta e orario di nuovo libero
         await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
-        await pg.click("[data-act=c-new-slot]"); await pg.wait_for_timeout(150); await font16("orario")
-        await pg.fill("input[name=date]", (await pg.evaluate("(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()")))
-        await pg.fill("input[name=time]", "18:45"); await pg.fill("input[name=note]", "PROVA-SLOT")
-        await pg.select_option("select[name=rep]", "2"); await pg.click("text=Salva"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-new-appt]"); await pg.wait_for_timeout(250)
+        await pg.check("#sheet input[name=kind][value=les]"); await font16("orario")
+        await pg.click("#sheet details.more > summary")
+        await pg.fill("#sheet input[name=date]", (await pg.evaluate("(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()")))
+        await pg.fill("#sheet input[name=time]", "18:45"); await pg.fill("#sheet input[name=note]", "PROVA-SLOT")
+        await pg.select_option("#sheet select[name=rep]", "2"); await pg.click("#sheet [type=submit]"); await pg.wait_for_timeout(400)
         d = await dev()
         mine = [t for t in d["meta"]["slots"] if t["note"] == "PROVA-SLOT"]
         assert len(mine) == 2 and all(not t["who"] for t in mine), "orario ripetuto per 2 settimane"
@@ -160,8 +168,8 @@ async def main():
         await pg.fill("input[name=name]", "Test"); await pg.click("label.seg-opt.lv:has-text('Intermedio')"); await pg.click("button[type=submit]")
         await pg.wait_for_timeout(300)
         await pg.click("text=Progressi"); await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
-        assert await pg.evaluate("document.querySelector('#sheet .scroll').scrollTop") == 0, "il catalogo deve aprirsi dall'inizio"
-        await pg.click("label.chk:has-text('Toe loop')")
+        assert await pg.evaluate("document.querySelector('#sheet .sheet-panel').scrollTop") == 0, "il catalogo deve aprirsi dall'inizio"
+        await pg.click("#sheet .chip.pick:has-text('Toe loop')")
         assert await pg.locator("#sheet button[type=submit]").inner_text() == "Aggiungi (1)"
         await pg.click("button[type=submit]"); await pg.wait_for_timeout(200)
         assert "Intermedio" in await pg.locator("header .eyebrow").inner_text(), "livello dell'alunno nella testata"
@@ -233,9 +241,9 @@ async def main():
         path = "/tmp/pattinaggio-backup-test.json"; await (await dl.value).save_as(path)
         await pg.click(".sheet-h [data-act=close]")
         await pg.click("text=Test"); await pg.click("text=Invito"); await pg.click("text=Elimina alunno"); await pg.wait_for_timeout(300)
-        assert await pg.locator(".students li").count() == 10
+        assert await pg.locator("#stuList .srow").count() == 10
         await pg.click("[data-act=c-settings]"); await pg.set_input_files("#impIn", path); await pg.wait_for_timeout(500)
-        assert await pg.locator(".students li").count() == 11
+        assert await pg.locator("#stuList .srow").count() == 11
 
         # backup "vecchio" (categoria Base, nessun livello, categoria sconosciuta): nessun elemento deve sparire
         import json
@@ -250,7 +258,7 @@ async def main():
         assert await pg.locator(".prog li").count() == 3, "tutti gli elementi del backup vecchio sono visibili"
         assert await pg.locator("h3.lvl").all_inner_texts() == ["Base", "Avanzato"]
         await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(150)
-        assert await pg.locator(".chk.dis:has-text('Pattinaggio avanti')").count() == 1, "riconosciuto come già presente"
+        assert await pg.locator("#sheet .chip.pick.dis:has-text('Pattinaggio avanti')").count() == 1, "riconosciuto come già presente"
         await pg.keyboard.press("Escape")
 
         # accessibilità: target >= 44px sulle schermate principali
@@ -267,7 +275,7 @@ async def main():
             await pg.goto(B + "#/coach" + view); await pg.wait_for_timeout(400)
             small = await pg.evaluate(MIN); assert not small, (view, small)
             poss[view] = await pg.evaluate(POS)
-        await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
+        await pg.click("#stuList .srow >> nth=0"); await pg.wait_for_timeout(300)
         for tab in ["Profilo", "Progressi", "Scheda", "Invito"]:
             await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200)
             small = await pg.evaluate(MIN); assert not small, (tab, small)
@@ -277,6 +285,14 @@ async def main():
         for el in await pg.locator("button.icon, a.icon").all():
             assert await el.get_attribute("aria-label"), "icona senza aria-label"
             assert await el.locator("svg[aria-hidden=true]").count() == 1, "le icone sono SVG decorativi"
+        # schermate della v11: statistiche e calendario a elenco
+        await pg.goto(B + "#/coach/statistiche"); await pg.wait_for_timeout(400)
+        small = await pg.evaluate(MIN); assert not small, ("statistiche", small)
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-cal-view][data-id=elenco]"); await pg.wait_for_timeout(300)
+        small = await pg.evaluate(MIN); assert not small, ("calendario elenco", small)
+        await pg.click("[data-act=c-cal-view][data-id=mese]"); await pg.wait_for_timeout(200)
+        await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
         await pg.goto(B + "#/coach"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-settings]"); await pg.wait_for_timeout(200)
         assert await pg.locator("[role=dialog][aria-modal=true]").count() == 1
@@ -309,7 +325,7 @@ async def main():
             await pg.evaluate(A11Y_OFF)
         for view in ["", "/calendario", "/alunni"]:
             await pg.goto(B + "#/coach" + view); await pg.wait_for_timeout(300); await reflow(view or "home")
-        await pg.click(".students li a >> nth=0"); await pg.wait_for_timeout(300)
+        await pg.click("#stuList .srow >> nth=0"); await pg.wait_for_timeout(300)
         for tab in ["Profilo", "Progressi", "Scheda", "Invito"]:
             await pg.click(f"nav.tabs >> text={tab}"); await pg.wait_for_timeout(200); await reflow(tab)
         await pg.click("nav.tabs >> text=Progressi"); await pg.click("[data-act=c-add-prog]"); await pg.wait_for_timeout(200); await reflow("pannello elementi")
@@ -318,6 +334,21 @@ async def main():
         await pg.keyboard.press("Escape")
         for view in ["", "#/progressi", "#/profilo"]:
             await pg.goto(B + view); await pg.wait_for_timeout(300); await reflow("alunno " + view)
+        # schermate e pannelli della v11 con testo molto grande
+        await pg.goto(B + "#/coach/statistiche"); await pg.wait_for_timeout(400); await reflow("statistiche")
+        await pg.goto(B + "#/coach/calendario"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-cal-view][data-id=elenco]"); await pg.wait_for_timeout(300); await reflow("calendario elenco")
+        await pg.click("[data-act=c-cal-view][data-id=mese]"); await pg.wait_for_timeout(200)
+        await pg.click(".fab[data-act=c-new-appt]"); await pg.wait_for_timeout(300)
+        await pg.click("#sheet details.more > summary"); await reflow("pannello appuntamento")
+        small = await pg.evaluate(MIN); assert not small, ("pannello appuntamento", small)
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=help]"); await pg.wait_for_timeout(300); await reflow("pannello aiuto")
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(300)
+        await pg.click("[data-act=c-settings]"); await pg.wait_for_timeout(250)
+        await pg.click("#sheet [data-act=c-cat]"); await pg.wait_for_timeout(300); await reflow("elementi del pattinaggio")
+        small = await pg.evaluate(MIN); assert not small, ("elementi del pattinaggio", small)
+        await pg.keyboard.press("Escape"); await pg.wait_for_timeout(300)
 
         # pagina design system (#/design, solo dev)
         await pg.goto(B + "#/design"); await pg.wait_for_timeout(400)
@@ -337,7 +368,7 @@ async def main():
         await pg.uncheck("[data-pref=contrast]")
         await pg.click("label.seg-opt:has([name=dsTheme][value=auto])")
         await pg.emulate_media(color_scheme="dark"); await pg.wait_for_timeout(100)
-        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == "#12132b", "automatico segue il telefono"
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()") == "#0e0f15", "automatico segue il telefono"
         await pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
         await pg.click("label.seg-opt:has([name=dsTheme][value=auto])")
         assert await pg.locator("#dsContrast td.ko").count() == 0, "automatico in scuro"
@@ -353,7 +384,7 @@ async def main():
         # rigenera esempi e uscita dalla modalità dev
         await pg.goto(B + "#/coach/alunni"); await pg.wait_for_timeout(300)
         await pg.click("[data-act=c-settings]"); await pg.click("text=Rigenera alunni di esempio"); await pg.wait_for_timeout(300)
-        assert await pg.locator(".students li").count() == 10
+        assert await pg.locator("#stuList .srow").count() == 10
         await pg.click("[data-act=c-settings]"); await pg.click(".mi[data-act=a11y]"); await pg.wait_for_timeout(150)
         assert await pg.locator("#sheetTitle").inner_text() == "Accessibilità"
         await pg.click("label.sw-row:has([data-a11y=text])"); await pg.wait_for_timeout(100)
@@ -372,18 +403,18 @@ async def main():
         await pg.route("https://www.gstatic.com/**", lambda r: r.abort())
         await pg.click("[data-act=dev-exit]"); await pg.wait_for_timeout(500)
         assert await pg.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize)") >= base * 1.3 - .1, "la preferenza resta fuori dalla modalità dev"
-        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#f9b48c", "gli override colore dev non arrivano agli utenti"
+        assert await pg.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pink').trim()") == "#eda9f3", "gli override colore dev non arrivano agli utenti"
 
         errs[n_err:] = [e for e in errs[n_err:] if "firebasejs" not in e and "net::ERR_FAILED" not in e]
         await pg.unroute("https://www.gstatic.com/**")
 
         # trascinamento con il dito (eventi touch reali via CDP): la pagina non deve scorrere
         ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)
-        await ctx2.add_init_script(BETA0); await ctx2.add_init_script(INTRO0)
+        await ctx2.add_init_script(ASK); await ctx2.add_init_script(INTRO0)
         p2 = await ctx2.new_page()
         p2.on("pageerror", lambda e: errs.append(str(e)))
         await p2.goto(B + "?dev#/coach/alunni"); await p2.wait_for_timeout(700)
-        await p2.tap(".students li a >> nth=0"); await p2.wait_for_timeout(300)
+        await p2.tap("#stuList .srow >> nth=0"); await p2.wait_for_timeout(300)
         await p2.tap("nav.tabs >> text=Scheda"); await p2.wait_for_timeout(500)
         await p2.evaluate("document.querySelector('.plan').scrollIntoView({block: 'center'})"); await p2.wait_for_timeout(200)
         before = await p2.locator(".plan li b").all_inner_texts()
@@ -436,7 +467,7 @@ async def main():
         # numeri riassuntivi senza buchi, pannello che scorre fino a Salva anche su uno schermo basso
         for (w, h) in [(320, 568), (360, 740), (768, 1024), (844, 390)]:
             p3 = await b.new_page(viewport={"width": w, "height": h})
-            await p3.add_init_script(BETA0); await p3.add_init_script(INTRO0)
+            await p3.add_init_script(ASK); await p3.add_init_script(INTRO0)
             await p3.goto(B + "?dev#/coach"); await p3.wait_for_timeout(500)
             for view in ["#/coach", "#/coach/alunni", "#/coach/calendario"]:
                 await p3.goto(B + view); await p3.wait_for_timeout(300)
@@ -445,22 +476,15 @@ async def main():
             tops = await p3.evaluate("[...document.querySelectorAll('.stat')].map(e => Math.round(e.getBoundingClientRect().top))")
             assert len(set(tops)) in (1, 3), ("numeri riassuntivi: o in fila o uno per riga", w, tops)
             await p3.goto(B + "#/coach/calendario"); await p3.wait_for_timeout(300)
-            await p3.click("[data-act=c-new-slot]"); await p3.wait_for_timeout(300)
+            await p3.click("[data-act=c-new-appt]"); await p3.wait_for_timeout(400)
             await p3.locator(".sheet-btns .btn[type=submit]").scroll_into_view_if_needed()
             bb = await p3.locator(".sheet-btns .btn[type=submit]").bounding_box()
             assert bb and bb["y"] >= 0 and bb["y"] + bb["height"] <= h, ("Salva fuori dallo schermo", w, h, bb)
             await p3.close()
 
-        # ===== nuova versione (solo in dev, accesa di base): calendario del mese, pannello unico, aiuto, pulizia
+        # ===== calendario del mese, pannello unico, aiuto, pulizia
         ctx4 = await b.new_context(viewport={"width": 390, "height": 844})
-        # la nuova versione chiede conferma con una finestra dell'app (#ask): nei test si accetta da sola,
-        # salvo dove window.__autoAsk = false (test della finestra stessa). I testi finiscono in window.__asks.
-        await ctx4.add_init_script("""
-          window.__asks = []; window.__autoAsk = true;
-          new MutationObserver(() => { const a = document.getElementById('ask');
-            if (a && !a.dataset.seen) { a.dataset.seen = 1; window.__asks.push(a.querySelector('h2').textContent);
-              if (window.__autoAsk) setTimeout(() => a.querySelector('[data-ask=yes]').click(), 20); } })
-            .observe(document, { childList: true, subtree: true });""")
+        await ctx4.add_init_script(ASK)
         await ctx4.add_init_script(INTRO0); await ctx4.add_init_script(CLIP)
         p4 = await ctx4.new_page()
         p4.on("pageerror", lambda e: errs.append(str(e)))
@@ -470,7 +494,6 @@ async def main():
         dev4 = lambda: p4.evaluate("JSON.parse(localStorage.getItem('pg_dev_v1'))")
         today = await p4.evaluate("(() => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; })()")
         await p4.goto(B + "?dev#/coach"); await p4.wait_for_timeout(800)
-        assert "nuova versione" in await p4.locator(".demo").inner_text()
         d = await dev4()
         assert all(t["date"] >= today for t in d["meta"]["trainings"] + d["meta"]["slots"]), "appuntamenti passati cancellati all'apertura"
         assert await p4.locator("#hGr").count() == 0, "gruppi non più nella Home"
@@ -843,10 +866,6 @@ async def main():
         await p4.evaluate("localStorage.removeItem('pg_my_code')"); await p4.goto(B + "#/"); await p4.wait_for_timeout(400)
         await p4.click("text=Area allenatrice"); await p4.wait_for_timeout(400)
         assert "#/coach" in p4.url and await p4.locator("nav.bnav").count() == 1
-        await p4.goto(B + "#/coach/calendario"); await p4.wait_for_timeout(300)
-        # si torna alla versione attuale dal banner
-        await p4.click("[data-act=dev-beta]"); await p4.wait_for_timeout(300)
-        assert await p4.locator(".cal").count() == 0 and await p4.locator("[data-act=help]").count() == 0
         await ctx4.close()
 
         # ===== presentazione al primo avvio (nuova versione): una volta per ruolo, si rivede, porta alla visita guidata

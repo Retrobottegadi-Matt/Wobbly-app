@@ -5,14 +5,16 @@ Web app per il telefono (Android e iPhone). Si installa dal browser con "Aggiung
 
 ## Come funziona
 - **Allenatrice**: apre `https://TUO-SITO/#/coach` dal suo telefono. Il telefono va abilitato una sola volta (vedi sotto), poi lei vede tutti gli alunni. Per ognuno gestisce:
-  - **Progressi**: elementi per categoria (Base, Passi e giri, Salti, Trottole, Altro), ognuno con stato *Da iniziare / In corso / Completato*, data e note.
+  - **Progressi**: elementi per livello e categoria, ognuno con stato *Da iniziare / In corso / Completato*, data e note. L'elenco degli elementi proposti (nomi in italiano) si cambia da **Impostazioni → Elementi del pattinaggio**.
   - **Scheda**: esercizi per il pattinaggio libero. Vede in tempo reale cosa ha spuntato l'alunno.
-  - **Invito**: codice personale e pulsanti WhatsApp / Email / Copia link.
-  - **Profilo**: soprannome, livello, gruppo e una breve descrizione facoltativa (la vede anche l'alunno).
-- La **Home** dell'allenatrice mostra quanti alunni ci sono, la media dei progressi, quanti hanno spuntato la scheda negli ultimi 7 giorni e i prossimi allenamenti.
-- Nel **Calendario** si creano i **gruppi** (es. "Sabato mattina") e gli **allenamenti** (data, ora, luogo, note), per tutti o per un gruppo. Nell'elenco **Alunni** si filtra per gruppo.
-- **Lezioni private**: nel Profilo di un alunno l'allenatrice attiva "Lezioni private" (vale anche per chi è in un gruppo). Nel **Calendario** → *Aggiungi orari liberi* pubblica gli orari (anche ripetuti ogni settimana). Gli alunni con le lezioni private li vedono in **Oggi** e toccano *Chiedi una lezione*. Le richieste arrivano nella Home dell'allenatrice in **Da confermare**: *Conferma* o *Rifiuta*. Se due alunni chiedono lo stesso orario, confermandone uno l'altro vede "Non confermata". L'alunno può disdire fino a 24 ore prima; la disdetta compare in *Da confermare* e l'allenatrice tocca *Libera l'orario*. Non ci sono notifiche: le novità si vedono quando si apre l'app.
-- **Alunno**: apre il link ricevuto, oppure inserisce il codice. Vede solo la sua scheda, i suoi prossimi allenamenti (e lezioni private) e spunta gli esercizi.
+  - **Invito**: codice personale (si tocca per copiarlo) e pulsanti WhatsApp / Email / Condividi; si può mandare il link con il codice oppure solo il codice.
+  - **Profilo**: soprannome, livello, gruppo, una breve descrizione facoltativa (la vede anche l'alunno), lezioni private e sticker di incoraggiamento.
+- La **Home** dell'allenatrice mostra quanti alunni ci sono, la media dei progressi, quanti hanno spuntato la scheda negli ultimi 7 giorni, le richieste da confermare e i prossimi appuntamenti. *Tutte le statistiche* apre una pagina con più numeri.
+- Nell'elenco **Alunni** gli alunni sono divisi per **gruppo** (es. "Sabato mattina"): *Nuovo gruppo* e *Modifica* permettono di scegliere chi ne fa parte.
+- Il **Calendario** mostra il mese (o l'elenco dei giorni). Il pulsante **+** crea un **allenamento di gruppo** (per tutti o per un gruppo) o una **lezione privata**, già sul giorno scelto. Gli allenamenti e gli orari dei giorni passati si cancellano da soli.
+- **Lezioni private**: nel Profilo di un alunno l'allenatrice attiva "Lezioni private" (vale anche per chi è in un gruppo). Nel **Calendario** → **+** → *Lezione privata* pubblica orari liberi (anche più di fila o ripetuti ogni settimana) oppure prenota direttamente per un alunno. Gli alunni con le lezioni private li vedono in **Oggi** e toccano *Chiedi una lezione*. Le richieste arrivano nella Home dell'allenatrice in **Da confermare**: *Conferma* o *Rifiuta*. Se due alunni chiedono lo stesso orario, confermandone uno l'altro vede "Non confermata". L'alunno può disdire fino a 24 ore prima; la disdetta compare in *Da confermare* e l'allenatrice tocca *Libera l'orario*. Non ci sono notifiche: le novità si vedono quando si apre l'app.
+- **Alunno**: apre il link ricevuto, oppure inserisce (o incolla) il codice. Vede solo la sua scheda, i suoi prossimi allenamenti (e lezioni private) e spunta gli esercizi.
+- Ogni pagina ha il pulsante **?** che spiega cosa c'è e può mostrarlo sulla pagina. Al primo avvio una breve presentazione spiega l'app (si rivede da Profilo o Impostazioni).
 
 ## Cosa viene salvato (e cosa no)
 - Su Firebase (database in Europa) finiscono solo **soprannomi**, esercizi, progressi, note e spunte.

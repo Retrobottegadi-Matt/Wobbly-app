@@ -17,10 +17,10 @@ export const HELP = {
     NAV_C, SET_C, HELP_B,
   ],
   "c-alunni": [
-    ["filters", "group", "Filtri", "Mostrano solo un gruppo o solo chi fa lezioni private. «Tutti» li mostra di nuovo tutti."],
+    ["filters", "user", "Lezioni private", "Mostra solo chi fa lezioni private. «Tutti» li mostra di nuovo tutti."],
     ["search", "search", "Cerca", "Scrivi una parte del nome. Non servono accenti né maiuscole."],
-    ["list", "users", "Alunni", "Tocca un alunno per vedere profilo, progressi, scheda e invito. La barra colorata mostra quanto ha completato."],
-    ["groups", "group", "Gruppi", "Crea, rinomina o elimina i gruppi. Il gruppo di un alunno si sceglie nel suo profilo."],
+    ["list", "users", "Alunni divisi per gruppo", "Tocca un alunno per vedere profilo, progressi, scheda e invito. Il numero a destra è quanto ha completato. «Modifica» accanto a un gruppo cambia il nome e chi ne fa parte."],
+    ["groups", "group", "Nuovo gruppo", "Scegli il nome e spunta gli alunni che ne fanno parte, tutto nello stesso pannello."],
     ["fab", "plus", "Pulsante +", "Aggiunge un alunno. Subito dopo puoi mandargli l'invito su WhatsApp."],
     NAV_C, SET_C, HELP_B,
   ],

@@ -1,5 +1,7 @@
 # Pubblica la cartella public/ su GitHub Pages ad ogni modifica del branch principale.
 # Impostazione una tantum: Settings → Pages → Source = "GitHub Actions".
+# Due job separati (come il modello ufficiale di GitHub): il pacchetto caricato nel primo è già
+# registrato quando parte il secondo. Se GitHub non lo trova ancora, si riprova dopo 30 secondi.
 name: Pubblica su GitHub Pages
 on:
   push:
@@ -11,18 +13,28 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
+    steps:
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - id: retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4

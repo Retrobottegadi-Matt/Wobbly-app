@@ -616,6 +616,43 @@ async def main():
         assert await p4.locator("#app").get_attribute("data-dir") == "l", "tornando indietro la pagina entra da sinistra"
         await p4.click("nav.bnav a[href='#/coach/calendario']"); await p4.wait_for_timeout(100)
         assert await p4.locator("#app").get_attribute("data-dir") == "r"
+        # sticker: l'allenatrice ne manda due, l'alunno li vede arrivare una volta, poi restano nei Progressi
+        d = await dev4(); sc = next(c for c in d["students"] if c != nopriv)
+        await p4.goto(B + f"#/coach/{sc}/profilo"); await p4.wait_for_timeout(300)
+        await p4.click("[data-act=c-stk]"); await p4.wait_for_timeout(250)
+        small = await p4.evaluate(MIN.replace(".chip,", ".chip, .stk-opt,")); assert not small, ("sticker", small)
+        await p4.click("#sheet .stk-opt:has(input[value=keep])"); await p4.wait_for_timeout(100)
+        assert await p4.input_value("#sheet [name=msg]") == "Continua così!", "il messaggio segue lo sticker"
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(300)
+        await p4.click("[data-act=c-stk]"); await p4.wait_for_timeout(200)
+        await p4.fill("#sheet [name=msg]", "Bravissima oggi"); await p4.click("#sheet .stk-opt:has(input[value=heart])")
+        assert await p4.input_value("#sheet [name=msg]") == "Bravissima oggi", "il messaggio scritto a mano resta"
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(300)
+        d = await dev4(); assert [x["k"] for x in d["students"][sc]["stickers"]] == ["keep", "heart"]
+        assert await p4.locator("section:has(#hStickers) .stk-b").count() == 2
+        await p4.evaluate(f"localStorage.setItem('pg_my_code','{sc}'); localStorage.removeItem('pg_seen_stk')")
+        await p4.goto(B + "#/"); await p4.wait_for_timeout(900)
+        assert await p4.locator(".week li").count() == 7
+        assert await p4.locator(".stk-show[role=dialog]").count() == 1, "sticker nuovi a tutto schermo"
+        assert await p4.evaluate("document.activeElement.id") == "stkT"
+        assert "1 di 2" in await p4.locator(".stk-from").inner_text()
+        await p4.click("[data-stk=next]"); await p4.wait_for_timeout(150)
+        assert await p4.locator("#stkT").inner_text() == "Bravissima oggi"
+        await p4.click("[data-stk=next]"); await p4.wait_for_timeout(200)
+        assert await p4.locator(".stk-show").count() == 0 and not await p4.evaluate("document.getElementById('app').inert")
+        await p4.reload(); await p4.wait_for_timeout(900)
+        assert await p4.locator(".stk-show").count() == 0, "una volta visti non tornano"
+        await p4.goto(B + "#/progressi"); await p4.wait_for_timeout(400)
+        assert await p4.locator(".stk-wall .stk-b").count() == 2
+        await p4.click(".stk-wall .stk-b >> nth=0"); await p4.wait_for_timeout(200)
+        assert await p4.locator(".stk-show").count() == 1, "si possono rivedere"
+        await p4.keyboard.press("Escape"); await p4.wait_for_timeout(150)
+        assert await p4.locator(".stk-show").count() == 0
+        # l'allenatrice toglie uno sticker
+        await p4.evaluate("localStorage.removeItem('pg_my_code')")
+        await p4.goto(B + f"#/coach/{sc}/profilo"); await p4.wait_for_timeout(300)
+        await p4.click("section:has(#hStickers) .stk-b >> nth=0"); await p4.wait_for_timeout(300)
+        d = await dev4(); assert len(d["students"][sc]["stickers"]) == 1
         # dal banner si passa tra allenatrice e alunno
         await p4.set_viewport_size({"width": 390, "height": 844})
         await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)

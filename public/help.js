@@ -47,6 +47,7 @@ export const HELP = {
     ["back", "back", "Freccia indietro", "Torna all'elenco degli alunni."],
     ["tabs", "user", "Sezioni dell'alunno", "Profilo, Progressi, Scheda e Invito. Tocca per passare da una all'altra."],
     ["profile", "user", "Profilo", "Nome, livello, gruppo e descrizione. Si cambiano con il pulsante a matita in basso."],
+    ["stickers", "gift", "Sticker", "Manda una stellina, un «continua così» o un altro sticker: l'alunno lo vede arrivare animato appena apre l'app. Tocca uno sticker già mandato per toglierlo."],
     ["lessons", "calendar", "Lezioni private", "Le sue lezioni prenotate e le richieste. «Prenota una lezione» la fissa subito, senza aspettare una sua richiesta."],
     ["agenda", "clock", "Prossimi allenamenti", "Gli allenamenti del suo gruppo e quelli per tutti."],
     ["fab", "edit", "Pulsante matita", "Modifica nome, livello, gruppo, lezioni private e descrizione."],
@@ -73,6 +74,7 @@ export const HELP = {
     HELP_B,
   ],
   "s-oggi": [
+    ["week", "calendar", "La tua settimana", "I prossimi 7 giorni: oggi è quello scuro, il pattino segna i giorni con un allenamento o una lezione."],
     ["feat", "calendar", "Prossimo appuntamento", "Il tuo prossimo allenamento o lezione privata, con ora e luogo."],
     ["next", "clock", "Poi in calendario", "Gli appuntamenti successivi. Tocca una lezione privata per vederla o disdirla."],
     ["priv", "user", "Lezioni private", "«Chiedi una lezione» mostra gli orari liberi: scegline uno e aspetta la conferma. Puoi disdire fino a 24 ore prima."],
@@ -81,6 +83,7 @@ export const HELP = {
     HELP_B,
   ],
   "s-progressi": [
+    ["stickers", "gift", "I tuoi sticker", "Gli incoraggiamenti della tua allenatrice. Quando ne arriva uno nuovo lo vedi a tutto schermo; toccane uno per rivederlo."],
     ["sum", "chart", "Riepilogo", "Quanti elementi hai completato sul totale."],
     ["list", "doing", "Elementi tecnici", "Il simbolo a destra dice a che punto sei: cerchio tratteggiato da iniziare, mezzo pieno in corso, con la spunta completato."],
     ["nav", "home", "Barra in basso", "La casetta è Oggi, il grafico sono i Progressi, la persona è il tuo Profilo."],

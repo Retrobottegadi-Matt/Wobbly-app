@@ -8,6 +8,7 @@ import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 import { localDate, addDays, parseDate, emptyMeta, normMeta, sortTrainings, groupName, schedFor, sameSched,
   openFor, lessonsFor, sameSlots, canCancel, CANCEL_HOURS, startOf, MAX_SLOTS } from "./sched.js";
 import { HELP, startTour, endTour, tourOn, tourPlace, tourStep } from "./help.js";
+import { STICKERS, STICKER_LABEL, STICKER_MSG, sticker, isSticker, seenStickers, markSeen } from "./stickers.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
 
@@ -334,13 +335,56 @@ function privBox(s) {
       : rows || booked.length ? "" : empty("calendar", "Nessun orario libero", "Quando la tua allenatrice pubblica degli orari, li trovi qui.")}`;
 }
 
+// nuova versione: la settimana in una riga (come un'agenda), con un segno nei giorni con un appuntamento
+function weekStrip(list) {
+  const days = Array.from({ length: 7 }, (_, k) => addDays(k));
+  return `<ol class="week" data-help="week" aria-label="I prossimi 7 giorni">${days.map((d, k) => {
+    const n = list.filter((x) => x.t.date === d).length, dt = parseDate(d);
+    return `<li class="${k === 0 ? "today" : ""}${n ? " has" : ""}" aria-label="${fmtDay(d, true)}: ${n ? plural(n, "appuntamento", "appuntamenti") : "niente"}">
+      <span aria-hidden="true">${dt.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "")}</span><b aria-hidden="true">${dt.getDate()}</b>
+      <i aria-hidden="true">${n ? icon("skate") : ""}</i></li>`; }).join("")}</ol>`;
+}
+const myStickers = (s) => (s.stickers || []).filter((x) => x && isSticker(x.k)).sort((a, b) => b.at - a.at);
+const stickerWall = (list, act) => `<ul class="stk-wall">${list.map((x, i) => `<li style="--i:${i}"><button class="stk-b" data-act="${act}" data-id="${x.id}"
+  aria-label="${esc(STICKER_LABEL[x.k])}: ${esc(x.msg || "")}, ${fmtWhen(x.at)}">${sticker(x.k)}</button></li>`).join("")}</ul>`;
+// sticker nuovi: arrivano uno alla volta a tutto schermo, poi restano nella raccolta (Progressi)
+let stkOpen = false;
+function showStickers(list, mark = true) {
+  if (!list.length || stkOpen || !$sheet.hidden) return;
+  stkOpen = true;
+  const opener = document.activeElement;
+  const box = document.createElement("div");
+  box.className = "stk-show";
+  box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-labelledby", "stkT");
+  document.body.appendChild(box); $root.inert = true;
+  let i = 0;
+  const draw = () => {
+    const x = list[i], last = i === list.length - 1;
+    box.innerHTML = `<div class="stk-card">
+      <div class="confetti" aria-hidden="true">${Array.from({ length: 16 }, (_, k) => `<i style="--k:${k}"></i>`).join("")}</div>
+      <div class="stk-big">${sticker(x.k)}</div>
+      <p class="stk-from">${list.length > 1 ? `${i + 1} di ${list.length} · ` : ""}Dalla tua allenatrice · ${fmtWhen(x.at)}</p>
+      <h2 id="stkT" tabindex="-1">${esc(x.msg || STICKER_MSG[x.k])}</h2>
+      <button type="button" class="btn wide" data-stk="next">${last ? "Grazie!" : "Avanti"}</button></div>`;
+    box.querySelector("#stkT").focus({ preventScroll: true });
+    if (mark) markSeen([x.id]);
+  };
+  const close = () => { box.remove(); $root.inert = false; stkOpen = false; document.removeEventListener("keydown", esc_); if (opener && document.contains(opener)) opener.focus({ preventScroll: true }); };
+  const esc_ = (e) => { if (e.key === "Escape") close(); };
+  box.addEventListener("click", (e) => { if (e.target.closest("[data-stk=next]")) { if (i < list.length - 1) { i++; draw(); } else close(); } });
+  document.addEventListener("keydown", esc_);
+  draw();
+}
+
 function renderStudent(view = "oggi") {
   const s = S.student;
   S.page = `s-${view}`;
   let body = "";
   if (view === "progressi") {
     const items = (s.progress || []).length, dn = (s.progress || []).filter((x) => x.status === "done").length;
+    const stk = beta() ? myStickers(s) : [];
     body = `${head("Progressi", `Livello ${LEVEL_LABEL[lvlOf(s) || "base"].toLowerCase()}`, helpBtn())}
+    ${stk.length ? sect("hStickers", "I tuoi sticker", `${stickerWall(stk, "s-stk")}<p class="muted small">Tocca uno sticker per rivederlo.</p>`) : ""}
     ${!items ? `<div class="card">${empty("chart", "Ancora nessun elemento", "Qui vedrai gli elementi tecnici e a che punto sei.")}</div>` : `<div class="card sum-card" data-help="sum"><div class="big-pct"><b>${pct(s)}%</b><span>${items ? `${dn} di ${items} elementi completati` : "Ancora nessun elemento"}</span></div>${progressBar(s)}</div>
     <div class="card" aria-label="Elementi" data-help="list">${progressList(s.progress, "student")}</div>`}`;
   } else if (view === "profilo") {
@@ -356,6 +400,7 @@ function renderStudent(view = "oggi") {
     const plan = s.plan || [], done = checksDone(s);
     const up = studentAgenda(s), first = up[0], next = up.slice(1, 3);
     body = `${head(`Ciao, ${esc(s.name)}`, longToday(), helpBtn())}
+    ${beta() ? weekStrip(up) : ""}
     ${first ? feature(first.t, first.who, first.act, first.act ? "La tua prossima lezione" : "Il tuo prossimo allenamento") : ""}
     ${next.length ? sect("hNext", "Poi in calendario",
       `<ul class="trs">${next.map((x) => trRow(x.t, x.who, x.act)).join("")}</ul>`) : ""}
@@ -367,6 +412,7 @@ function renderStudent(view = "oggi") {
       plan.length ? `<span class="pill" aria-label="${done} su ${plan.length} fatti">${done} di ${plan.length}</span>` : "")}`;
   }
   paint(`${demoBanner()}${body}${tabbar(STUDENT_TABS, view)}`);
+  if (beta()) { const seen = seenStickers(), fresh = myStickers(s).filter((x) => !seen.has(x.id)).reverse(); if (fresh.length) setTimeout(() => showStickers(fresh), 350); }
 }
 
 // mode: "student" (spunta), "coach" (apre la modifica), "reorder" (solo lettura + frecce)
@@ -580,7 +626,7 @@ function screenInfo() {
 
 // carta in evidenza (blu con il "sole"): il prossimo allenamento in cima alla schermata Oggi
 function feature(t, who, act, label) {
-  const inner = `<span class="sun" aria-hidden="true">${icon("calendar")}</span>
+  const inner = `<span class="sun" aria-hidden="true">${icon(beta() ? "spark" : "calendar")}</span>
     <span class="feat-k">${label}</span>
     <b class="feat-t">${fmtDay(t.date)}</b>
     <span class="feat-s">${[t.time, who, t.place].filter(Boolean).map(esc).join(" · ")}</span>
@@ -766,6 +812,7 @@ function kindWho(t) {
   const n = reqsFor(t).length;
   return n ? `Orario libero · ${plural(n, "richiesta", "richieste")}` : "Orario libero";
 }
+const DAYC = ["--lilac", "--pink", "--sky", "--sage", "--yellow", "--orange", "--lilac"]; // un colore per giorno della settimana
 const allItems = () => sortTrainings([...S.meta.trainings, ...S.meta.slots].filter((t) => t.date >= today()));
 const actOf = (t) => (t.dur ? "c-edit-slot" : "c-edit-tr");
 function monthMap(m) {
@@ -811,8 +858,11 @@ function renderCoachMonth() {
   let body;
   if (S.calView === "elenco") {
     const days = [...new Set(all.map((t) => t.date))];
-    body = days.length ? days.map((d) => sect(`hD${d.replace(/-/g, "")}`, cap(fmtDay(d, true)),
-      `<ul class="trs">${all.filter((t) => t.date === d).map((t) => trRow(t, kindWho(t), actOf(t))).join("")}</ul>`)).join("")
+    body = days.length ? days.map((d) => { const dt = parseDate(d), id = `hD${d.replace(/-/g, "")}`;
+      return `<section class="dayc" style="--dc: var(${DAYC[(dt.getDay() + 6) % 7]})" aria-labelledby="${id}">
+        <h2 class="dayc-d" id="${id}"><span aria-hidden="true"><small>${dt.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "")}</small><b>${dt.getDate()}</b><small>${monShort(d)}</small></span><span class="sr">${fmtDay(d, true)}</span></h2>
+        <ul class="dayc-l">${all.filter((t) => t.date === d).map((t) => `<li><button class="dayc-i" data-act="${actOf(t)}" data-id="${t.id}">
+          <b>${t.time ? esc(t.time) : "—"}</b><span>${esc(kindWho(t))}${t.place ? `<small>${esc(t.place)}</small>` : ""}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul></section>`; }).join("")
       : `<div class="card">${empty("calendar", "Niente in programma", "Tocca + per aggiungere un allenamento o una lezione privata.")}</div>`;
   } else {
     const items = sortTrainings([...S.meta.trainings, ...S.meta.slots].filter((t) => t.date === S.calD));
@@ -905,6 +955,9 @@ function renderCoachStudent(code, tab) {
         <small>${LEVEL_LABEL[lvlOf(s) || "base"]} · ${gn ? esc(gn) : "Nessun gruppo"}${s.priv ? " · Lezioni private" : ""}</small></div></div>
       ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : `<p class="muted">Nessuna descrizione.</p>`}
     </section>
+    ${B ? sect("hStickers", "Sticker", `${myStickers(s).length ? `${stickerWall(myStickers(s).slice(0, 8), "c-stk-del")}<p class="muted small">Tocca uno sticker per toglierlo.</p>`
+      : `<p class="muted">Un piccolo incoraggiamento: lo vedrà arrivare animato nella sua app.</p>`}
+      <button class="btn wide" data-act="c-stk" data-code="${s.code}">${icon("gift")} Manda uno sticker</button>`) : ""}
     ${B ? lessonsBox(s) : ""}
     <section class="card" aria-labelledby="hSn" data-help="agenda"><h2 class="h3" id="hSn">Prossimi allenamenti</h2>
       ${next.length ? `<ul class="trs">${next.map(([t, w]) => trRow(t, w)).join("")}</ul>`
@@ -1361,6 +1414,34 @@ const ACTIONS = {
   "c-open-group"(el) { S.gf = el.dataset.id; S.q = ""; go("#/coach/alunni"); },
   "c-new-tr"() { trainingSheet(null); },
   "c-new-appt"() { apptSheet({ date: S.page === "c-cal" && S.calView === "mese" ? S.calD : addDays(1) }); },
+  // sticker: scegli, (cambia il messaggio), manda
+  "c-stk"(el) {
+    const s = findStudent(el.dataset.code || curCode());
+    if (!s) return;
+    const f = openSheet({ title: `Sticker per ${esc(s.name)}`, body: `
+      <fieldset class="stk-pick"><legend class="sr">Scegli lo sticker</legend>
+        ${STICKERS.map(([k, l], i) => `<label class="stk-opt"><input type="radio" name="k" value="${k}" ${i === 0 ? "checked" : ""}>${sticker(k)}<span>${l}</span></label>`).join("")}</fieldset>
+      <label>Messaggio<input name="msg" maxlength="60" value="${esc(STICKERS[0][2])}"></label>
+      <p class="muted small">Appena apre l'app lo vede arrivare animato, poi resta nei suoi Progressi.</p>
+      ${sheetBtns("Manda")}`,
+    onSubmit: async (fd) => {
+      const k = fd.get("k"), s2 = findStudent(s.code);
+      if (!isSticker(k) || !s2) return false;
+      const item = { id: newId(), k, msg: (fd.get("msg") || "").trim() || STICKER_MSG[k], at: Date.now() };
+      await be.updateStudent(s2.code, { stickers: [...(s2.stickers || []), item].slice(-30) });
+      toast(`Sticker mandato a ${s2.name}`);
+    } });
+    // il messaggio segue lo sticker scelto, finché non lo cambi a mano
+    let touched = false;
+    f.elements.msg.addEventListener("input", () => { touched = true; });
+    f.addEventListener("change", (e) => { if (e.target.name === "k" && !touched) f.elements.msg.value = STICKER_MSG[e.target.value]; });
+  },
+  async "c-stk-del"(el) {
+    const s = cur(), x = s && (s.stickers || []).find((y) => y.id === el.dataset.id);
+    if (!x || !confirm(`Togliere lo sticker “${STICKER_LABEL[x.k]}”? Sparirà anche dall'app di ${s.name}.`)) return;
+    await be.updateStudent(s.code, { stickers: s.stickers.filter((y) => y.id !== x.id) });
+  },
+  "s-stk"(el) { const x = myStickers(S.student).find((y) => y.id === el.dataset.id); if (x) showStickers([x], false); },
   "c-book"(el) { apptSheet({ date: addDays(1), kind: "les", who: el.dataset.code }); },
   "c-cal-day"(el) { S.calD = el.dataset.id; renderCoachMonth(); },
   "c-cal-m"(el) {

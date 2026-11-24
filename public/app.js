@@ -225,7 +225,7 @@ function paint(html) {
   if (el) restoreFocus(el);
 }
 
-// barra in basso (nuova versione): la pillola nera "scivola" dalla voce di prima a quella nuova, come un pattino
+// barra in basso (nuova versione): la pillola nera scorre morbida dalla voce di prima a quella nuova
 let lastPill = null;
 function navGlide() {
   const nav = $root.querySelector(".bnav.ico"), on = nav && nav.querySelector("a.on");
@@ -237,9 +237,7 @@ function navGlide() {
   nav.prepend(pill);
   if (lastPill && lastPill.nav === r.nav && lastPill.x !== r.x && !still() && pill.animate) {
     const dx = lastPill.x - r.x;
-    pill.animate([{ transform: `translateX(${dx}px)` }, { transform: `translateX(${dx * .3}px) scaleX(1.22) scaleY(.9)`, offset: .45 }, { transform: "none" }],
-      { duration: 440, easing: "cubic-bezier(.3, 1.2, .4, 1)" });
-    on.querySelector(".ic")?.animate([{ transform: "scale(.7) rotate(-12deg)" }, { transform: "scale(1.05)" }], { duration: 380, delay: 120, easing: "cubic-bezier(.3, 1.6, .5, 1)", fill: "backwards" });
+    pill.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 340, easing: "cubic-bezier(.32, .72, 0, 1)" });
   }
   lastPill = r;
 }
@@ -248,7 +246,7 @@ function celebrate() {
   if (still()) return;
   const box = document.createElement("div");
   box.className = "cele"; box.setAttribute("aria-hidden", "true");
-  box.innerHTML = `<span class="cele-trail"></span><span class="cele-boot">${icon("skate")}</span>${Array.from({ length: 22 }, (_, k) => `<i style="--k:${k};--x:${(k * 37) % 100}%"></i>`).join("")}`;
+  box.innerHTML = `<span class="cele-trail"></span><span class="cele-boot">${icon("skate")}</span>${Array.from({ length: 12 }, (_, k) => `<i style="--k:${k};--x:${(k * 53 + 7) % 100}%"></i>`).join("")}`;
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 2200);
 }

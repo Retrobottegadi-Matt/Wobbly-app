@@ -5,7 +5,7 @@ import { icon } from "./icons.js";
 
 const NAV_C = ["nav", "home", "Barra in basso", "Porta alle tre pagine: la casetta è Oggi, le due persone sono gli Alunni, il foglio con gli anelli è il Calendario. Il numero sopra la casetta dice quante richieste aspettano una tua risposta."];
 const HELP_B = ["help", "help", "Pulsante ?", "Apre questa guida. C'è in ogni pagina e spiega quello che vedi."];
-const SET_C = ["settings", "settings", "Impostazioni", "Testo più grande e colori, backup dei dati, aggiungere un altro telefono."];
+const SET_C = ["settings", "settings", "Impostazioni", "Testo più grande e colori, backup dei dati, aggiungere un altro telefono, rivedere la presentazione dell'app."];
 
 export const HELP = {
   "c-home": [
@@ -70,6 +70,8 @@ export const HELP = {
   "c-stu-invito": [
     ["tabs", "user", "Sezioni dell'alunno", "Profilo, Progressi, Scheda e Invito."],
     ["invite", "chat", "Invito", "Manda il link su WhatsApp o per email. L'alunno lo apre e vede solo la sua scheda. L'app non salva numeri né indirizzi."],
+    ["code", "copy", "Codice", "Il codice dell'alunno. Toccalo per copiarlo e incollarlo dove vuoi."],
+    ["what", "chat", "Cosa mandi", "«Solo il codice» manda un messaggio senza link: l'alunno apre l'app e scrive il codice. Utile se il link non si apre o se ha già l'app sulla Home."],
     ["manage", "refresh", "Gestione", "Un nuovo codice blocca quello vecchio. «Elimina alunno» cancella tutti i suoi dati."],
     ["fab", "link", "Pulsante link", "Copia il link dell'invito, da incollare dove vuoi."],
     HELP_B,
@@ -93,8 +95,31 @@ export const HELP = {
   "s-profilo": [
     ["profile", "user", "I tuoi dati", "Nome e livello li sceglie la tua allenatrice."],
     ["settings", "a11y", "Impostazioni", "Testo più grande, colori e tema. «Scollega» toglie la scheda da questo telefono."],
+    ["intro", "help", "Presentazione", "Rivedi in un minuto come funziona l'app."],
     ["nav", "home", "Barra in basso", "La casetta è Oggi, il grafico sono i Progressi, la persona è il tuo Profilo."],
     HELP_B,
+  ],
+};
+
+// ---------------------------------------------------------- presentazione al primo avvio (nuova versione)
+// Poche schermate per ruolo: [icona, colore (token), titolo, testo]. "home" = come mettere l'app sulla schermata Home
+// (si salta se l'app è già aperta dall'icona). L'ultima offre "Mostrami sulla pagina" (visita guidata qui sotto).
+export const INTRO = {
+  s: [
+    ["skate", "--lilac", "Ciao! Questa è la tua scheda", "Qui trovi gli esercizi da fare in pista, i tuoi progressi e gli allenamenti. Ti faccio vedere tutto in un minuto."],
+    ["home", "--sky", "Oggi", "La casetta in basso. Ci sono i prossimi allenamenti e la tua scheda: tocca un esercizio quando l'hai fatto, la spunta la vede anche la tua allenatrice."],
+    ["chart", "--sage", "Progressi", "Il grafico in basso. Gli elementi tecnici e a che punto sei. Qui restano anche gli sticker che ti manda la tua allenatrice."],
+    ["user", "--pink", "Profilo", "La persona in basso. I tuoi dati e le impostazioni: testo più grande, colori e tema."],
+    ["phone", "--yellow", "Mettila sulla Home", "<b>iPhone</b>: in Safari tocca Condividi, poi «Aggiungi alla schermata Home».<br><b>Android</b>: in Chrome tocca il menu ⋮, poi «Installa app».<br>Se dall'icona ti chiede il codice, scrivilo: è nel messaggio dell'invito.", "home"],
+    ["help", "--lilac", "Il pulsante ?", "C'è in ogni pagina, in alto a destra: spiega cosa vedi. Puoi rivedere questa presentazione dal Profilo."],
+  ],
+  c: [
+    ["skate", "--lilac", "Benvenuta!", "Qui segui i tuoi alunni: progressi, schede e allenamenti. Ogni alunno vede solo la propria scheda."],
+    ["users", "--sky", "Alunni e invito", "Le due persone in basso. Con + aggiungi un alunno (basta un soprannome), poi gli mandi l'invito da WhatsApp o email: il link, oppure solo il codice."],
+    ["chart", "--sage", "Progressi e scheda", "Tocca un alunno: segni a che punto è con gli elementi tecnici e prepari gli esercizi per il pattinaggio libero. Lui li spunta dal suo telefono."],
+    ["calendar", "--pink", "Calendario", "Allenamenti di gruppo e lezioni private. Gli alunni li vedono nella loro pagina Oggi e possono chiedere una lezione."],
+    ["home", "--yellow", "Oggi", "La casetta: numeri, prossimo allenamento e richieste da confermare. Il numero sull'icona dice quante ne aspettano."],
+    ["help", "--lilac", "Il pulsante ?", "C'è in ogni pagina e spiega cosa vedi. Nelle Impostazioni (ingranaggio) trovi il backup e puoi rivedere questa presentazione."],
   ],
 };
 

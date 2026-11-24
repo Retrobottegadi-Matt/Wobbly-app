@@ -1,13 +1,13 @@
 import { CONFIG } from "./config.js";
 import { createBackend, normCode, fmtCode, newId, CODE_LEN } from "./backend.js";
-import { CATALOG, CATEGORIES, EXERCISE_IDEAS, LEVELS, LEVEL_LABEL, normItem, normLevel, itemKey } from "./catalog.js";
+import { CATALOG, CATEGORIES, EXERCISE_IDEAS, LEVELS, LEVEL_LABEL, normItem, normLevel, itemKey, nameKey, defaultElements, catalogFrom } from "./catalog.js";
 import { renderDesign, applyDevVars } from "./design.js";
 import { icon } from "./icons.js";
 import { initDrag, isDragging } from "./drag.js";
 import { loadA11y, saveA11y, applyA11y, A11Y_OPTIONS, THEMES } from "./a11y.js";
 import { localDate, addDays, parseDate, emptyMeta, normMeta, sortTrainings, groupName, schedFor, sameSched,
   openFor, lessonsFor, sameSlots, canCancel, CANCEL_HOURS, startOf, MAX_SLOTS } from "./sched.js";
-import { HELP, startTour, endTour, tourOn, tourPlace, tourStep } from "./help.js";
+import { HELP, INTRO, startTour, endTour, tourOn, tourPlace, tourStep } from "./help.js";
 import { STICKERS, STICKER_LABEL, STICKER_MSG, sticker, isSticker, seenStickers, markSeen } from "./stickers.js";
 
 applyA11y(); // prima di tutto, così la prima schermata ha già testo e contrasto giusti
@@ -379,6 +379,13 @@ function routeStudent(view) {
   }));
 }
 
+// codice da quello che si scrive o si incolla: anche il link dell'invito o il messaggio intero di WhatsApp
+function codeFrom(t) {
+  t = String(t || "");
+  const m = t.match(/[?&]c=([A-Za-z0-9-]{12,16})/) || t.match(/\b([A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4})\b/);
+  return normCode(m ? m[1] : t);
+}
+
 function renderCodeEntry(msg = "") {
   paint(`${demoBanner()}
   <div class="hero">
@@ -389,9 +396,11 @@ function renderCodeEntry(msg = "") {
   <form class="card" id="codeForm">
     <label for="codeIn" class="sr">Codice invito</label>
     <input id="codeIn" class="code-in" autocomplete="off" autocapitalize="characters" spellcheck="false"
-      placeholder="XXXX-XXXX-XXXX" maxlength="20" inputmode="text" ${msg ? 'aria-invalid="true" aria-describedby="codeErr"' : ""}>
+      placeholder="XXXX-XXXX-XXXX" maxlength="600" inputmode="text" ${msg ? 'aria-invalid="true" aria-describedby="codeErr"' : ""}>
     ${msg ? `<p class="err" id="codeErr" role="alert">${esc(msg)}</p>` : ""}
+    ${beta() && navigator.clipboard && navigator.clipboard.readText ? `<button type="button" class="btn ghost wide" data-act="code-paste">${icon("copy")} Incolla il codice</button>` : ""}
     <button class="btn wide" type="submit">Apri la mia scheda</button>
+    ${beta() ? `<p class="muted small">Puoi incollare anche tutto il messaggio dell'invito: il codice lo trovo io.</p>` : ""}
   </form>
   ${be.dev ? `<div class="card"><h2 class="h3">Entra come allenatrice</h2>
       <p class="muted small">Con gli alunni di esempio: puoi provare tutto senza toccare i dati veri.</p>
@@ -404,8 +413,8 @@ function renderCodeEntry(msg = "") {
   <p class="foot"><button class="linkbtn" data-act="a11y">${icon("a11y")} Accessibilità</button></p>`);
   document.getElementById("codeForm").onsubmit = (e) => {
     e.preventDefault();
-    const c = normCode(document.getElementById("codeIn").value);
-    if (c.length !== CODE_LEN) return renderCodeEntry("Il codice ha 12 caratteri.");
+    const c = codeFrom(document.getElementById("codeIn").value);
+    if (c.length !== CODE_LEN) return renderCodeEntry("Il codice ha 12 caratteri, come XXXX-XXXX-XXXX.");
     localStorage.setItem(LS_CODE, c);
     route();
   };
@@ -474,7 +483,7 @@ const stickerWall = (list, act) => `<ul class="stk-wall">${list.map((x, i) => `<
 // sticker nuovi: arrivano uno alla volta a tutto schermo, poi restano nella raccolta (Progressi)
 let stkOpen = false;
 function showStickers(list, mark = true) {
-  if (!list.length || stkOpen || !$sheet.hidden) return;
+  if (!list.length || stkOpen || introOn || !$sheet.hidden) return;
   stkOpen = true;
   const opener = document.activeElement;
   const box = document.createElement("div");
@@ -500,6 +509,78 @@ function showStickers(list, mark = true) {
   draw();
 }
 
+// ---------------------------------------------------------- presentazione al primo avvio (nuova versione)
+// Una volta per ruolo su questo telefono (pg_intro = {s, c}); si rivede da Profilo / Impostazioni.
+const LS_INTRO = "pg_intro";
+let introOn = false;
+const introSeen = (r) => { try { return !!(JSON.parse(localStorage.getItem(LS_INTRO)) || {})[r]; } catch { return true; } };
+function markIntro(r) { try { const o = JSON.parse(localStorage.getItem(LS_INTRO) || "{}") || {}; o[r] = 1; localStorage.setItem(LS_INTRO, JSON.stringify(o)); } catch {} }
+const standalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+// vero se la presentazione sta per aprirsi: chi chiama (sticker) aspetta che si chiuda
+function maybeIntro(r) {
+  if (!beta() || introOn || introSeen(r)) return introOn;
+  introOn = true;
+  setTimeout(() => {
+    if (!$sheet.hidden || askOpen() || tourOn() || stkOpen || !document.contains($root.querySelector(".dock"))) { introOn = false; return; }
+    showIntro(r);
+  }, 450);
+  return true;
+}
+function showIntro(r, opener = null) {
+  introOn = true;
+  const slides = INTRO[r].filter((x) => !(x[4] === "home" && standalone()));
+  const box = document.createElement("div");
+  box.id = "intro"; box.className = "intro";
+  box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-labelledby", "introT");
+  document.body.appendChild(box); $root.inert = true;
+  let i = 0, dir = "";
+  const draw = () => {
+    const [ic, c, t, txt] = slides[i], n = slides.length, last = i === n - 1;
+    box.innerHTML = `<div class="intro-card" data-dir="${dir}">
+      <div class="intro-top"><p class="intro-n">${i + 1} di ${n}</p>${last ? "" : `<button type="button" class="btn ghost sm" data-in="skip">Salta</button>`}</div>
+      <div class="intro-art" style="--c:var(${c})" aria-hidden="true"><span class="intro-ic">${icon(ic)}</span><i></i><i></i><i></i></div>
+      <h2 id="introT" tabindex="-1">${t}</h2><p class="intro-p">${txt}</p>
+      <div class="intro-dots" aria-hidden="true">${slides.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
+      <div class="sheet-btns">${i ? `<button type="button" class="btn ghost" data-in="prev">Indietro</button>` : `<span></span>`}
+        <button type="button" class="btn" data-in="next">${last ? "Inizia" : "Avanti"}</button></div>
+      ${last && (HELP[S.page] || []).some(([k]) => $root.querySelector(`[data-help="${k}"]`)) ? `<button type="button" class="btn ghost wide" data-in="show">${icon("help")} Mostrami sulla pagina</button>` : ""}
+    </div>`;
+    box.querySelector("#introT").focus({ preventScroll: true });
+  };
+  const go_ = (d) => { const j = i + d; if (j < 0) return; if (j >= slides.length) return close(); dir = d > 0 ? "r" : "l"; i = j; draw(); };
+  const close = (then) => {
+    box.remove(); $root.inert = false; introOn = false; markIntro(r);
+    document.removeEventListener("keydown", key, true);
+    if (then === "show") return ACTIONS["help-tour"]();
+    const el = opener && document.contains(opener) ? opener : $root.querySelector('[data-act="help"]');
+    if (el) restoreFocus(el);
+    if (r === "s") stickerCheck();
+  };
+  const key = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === "ArrowRight" && !e.target.closest("input")) go_(1);
+    else if (e.key === "ArrowLeft" && !e.target.closest("input")) go_(-1);
+  };
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-in]"); if (!b) return;
+    const a = b.dataset.in;
+    if (a === "next") go_(1); else if (a === "prev") go_(-1); else if (a === "skip") close(); else if (a === "show") close("show");
+  });
+  // scorrere col dito: solo un aiuto in più, i pulsanti restano
+  let x0 = null;
+  box.addEventListener("pointerdown", (e) => { x0 = e.clientX; });
+  box.addEventListener("pointerup", (e) => { if (x0 === null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 60 && !e.target.closest("button")) go_(dx < 0 ? 1 : -1); });
+  document.addEventListener("keydown", key, true);
+  draw();
+}
+// sticker nuovi dell'alunno: a tutto schermo uno alla volta (dopo la presentazione, se è aperta)
+function stickerCheck() {
+  const s = S.student;
+  if (!beta() || !s || !S.page.startsWith("s-")) return;
+  const seen = seenStickers(), fresh = myStickers(s).filter((x) => !seen.has(x.id)).reverse();
+  if (fresh.length) setTimeout(() => showStickers(fresh), 350);
+}
+
 function renderStudent(view = "oggi") {
   const s = S.student;
   S.page = `s-${view}`;
@@ -518,6 +599,7 @@ function renderStudent(view = "oggi") {
       ${s.bio ? `<p class="bio">${esc(s.bio)}</p>` : ""}</div>
     ${sect("hSet", "Impostazioni", `<ul class="menu">
       <li><button type="button" class="mi" data-act="a11y">${icon("a11y")}<span>Accessibilità</span>${icon("chevron", "chev")}</button></li>
+      ${beta() ? `<li><button type="button" class="mi" data-act="intro" data-help="intro">${icon("help")}<span>Rivedi la presentazione</span>${icon("chevron", "chev")}</button></li>` : ""}
       <li><button type="button" class="mi danger-row" data-act="s-logout" aria-describedby="logoutHelp">${icon("logout")}<span>Scollega questo telefono</span></button>
         <small class="mi-help" id="logoutHelp">Per rientrare ti servirà di nuovo il codice dell'invito.</small></li></ul>`, "", "plain")}`;
   } else {
@@ -536,7 +618,7 @@ function renderStudent(view = "oggi") {
       plan.length ? `<span class="pill" aria-label="${done} su ${plan.length} fatti">${done} di ${plan.length}</span>` : "")}`;
   }
   paint(`${demoBanner()}${body}${tabbar(STUDENT_TABS, view)}`);
-  if (beta()) { const seen = seenStickers(), fresh = myStickers(s).filter((x) => !seen.has(x.id)).reverse(); if (fresh.length) setTimeout(() => showStickers(fresh), 350); }
+  if (!maybeIntro("s")) stickerCheck();
 }
 
 // mode: "student" (spunta), "coach" (apre la modifica), "reorder" (solo lettura + frecce)
@@ -632,7 +714,7 @@ function routeCoach(view, tab) {
     if (!be.dev) localStorage.setItem(LS_ROLE, "coach");
     loading();
     let gotS = false, gotM = false;
-    const draw = () => { if (gotS && gotM) { renderCoach(view, tab); cleanPast(); } };
+    const draw = () => { if (gotS && gotM) { renderCoach(view, tab); cleanPast(); maybeIntro("c"); } };
     stu = be.watchStudents((list) => {
       S.students = list.sort((a, b) => a.name.localeCompare(b.name, "it"));
       gotS = true; draw();
@@ -1122,10 +1204,16 @@ function renderCoachStudent(code, tab) {
   } else {
     body = `<section class="card invite" aria-labelledby="hTab" data-help="invite"><h2 class="sr" id="hTab">Invito</h2>
       <p>Manda questo invito a <b>${esc(s.name)}</b>. Chi ha il link o il codice vede solo questa scheda.</p>
-      <div class="bigcode" aria-label="Codice: ${[...fmtCode(s.code)].join(" ")}">${fmtCode(s.code)}</div>
+      ${beta() ? `<button type="button" class="bigcode tap" data-act="c-copy-code" data-help="code" aria-label="Codice: ${[...fmtCode(s.code)].join(" ")}. Tocca per copiarlo">${fmtCode(s.code)}<small>${icon("copy")} Tocca per copiarlo</small></button>
+      <fieldset class="seg inv-what" data-help="what"><legend>Cosa mandi</legend><div class="seg-opts">
+        ${[["link", "Link e codice"], ["code", "Solo il codice"]].map(([k, l]) => `<label class="seg-opt"><input type="radio" name="invWhat" value="${k}" ${invWhat() === k ? "checked" : ""}><span>${l}</span></label>`).join("")}
+      </div></fieldset>
+      <p class="muted small" id="invWhy">${INV_WHY[invWhat()]}</p>`
+      : `<div class="bigcode" aria-label="Codice: ${[...fmtCode(s.code)].join(" ")}">${fmtCode(s.code)}</div>`}
       <div class="grid2">
         <button class="btn" data-act="c-wa">${icon("chat")} WhatsApp</button>
         <button class="btn" data-act="c-mail">${icon("mail")} Email</button>
+        ${beta() ? `<button class="btn ghost" data-act="c-copy-code">${icon("copy")} Copia codice</button>` : ""}
         <button class="btn ghost" data-act="c-copy">${icon("link")} Copia link</button>
         ${navigator.share ? `<button class="btn ghost" data-act="c-share">${icon("share")} Condividi…</button>` : ""}
       </div>
@@ -1212,6 +1300,13 @@ function closeSheet() {
   }
   sheetOpener = null; sheetOpenerSel = null;
 }
+// scelta "Cosa mandi" nell'Invito: resta finché l'app è aperta; cambia solo la frase sotto, senza ridisegnare
+document.addEventListener("change", (e) => {
+  if (e.target.name !== "invWhat") return;
+  S.invWhat = e.target.value;
+  const p = document.getElementById("invWhy");
+  if (p) p.textContent = INV_WHY[invWhat()];
+});
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (askOpen()) return;
@@ -1330,6 +1425,14 @@ const ACTIONS = {
 
   // allenatrice
   async "c-demo"() { await be.demoEnable(); },
+  async "code-paste"() {
+    const inp = document.getElementById("codeIn");
+    try {
+      const c = codeFrom(await navigator.clipboard.readText());
+      if (c.length !== CODE_LEN) return oops("Negli appunti non c'è un codice: copialo dal messaggio e riprova");
+      inp.value = fmtCode(c); ok("Codice incollato"); document.querySelector("#codeForm [type=submit]").focus();
+    } catch { inp.focus(); oops("Non riesco a leggere gli appunti: tieni premuto nel campo e scegli Incolla"); }
+  },
   "dev-as"(el) { localStorage.setItem(LS_CODE, el.dataset.code); route(); },
   async "dev-reseed"() {
     if (!(await ask("Sostituire tutti i dati di sviluppo con gli alunni di esempio?"))) return;
@@ -1347,6 +1450,20 @@ const ACTIONS = {
       <button type="button" class="btn wide" data-act="help-tour">${icon("help")} Mostrami sulla pagina</button>
       <ul class="help-l">${here.map(([, ic, t, d]) => `<li><span class="help-ic" aria-hidden="true">${icon(ic)}</span><span class="txt"><b>${t}</b><small>${d}</small></span></li>`).join("")}</ul>
       <div class="sheet-btns"><button type="button" class="btn ghost wide" data-act="close">Chiudi</button></div>` });
+  },
+  async "c-cat"() { if (await canLeave()) catSheet(); },
+  "c-cat-ed"(el) { elementSheet(elements().find((e) => e.id === el.dataset.id)); },
+  "c-cat-new"() { elementSheet(null); },
+  async "c-cat-back"() { if (await canLeave()) catSheet(); },
+  async "c-cat-reset"() {
+    if (!(await ask("Ripristinare l'elenco iniziale degli elementi? Quelli aggiunti o cambiati da te spariscono dall'elenco, non dagli alunni."))) return;
+    const { elements: _, ...rest } = S.meta;
+    await saveMeta(rest); catSheet(); ok("Elenco iniziale ripristinato");
+  },
+  intro(el) {
+    const coach = S.page.startsWith("c-");
+    if (!$sheet.hidden) closeSheet();
+    showIntro(coach ? "c" : "s", coach ? $root.querySelector('[data-act="c-settings"]') : el);
   },
   "help-tour"() {
     const steps = (HELP[S.page] || []).filter(([k]) => $root.querySelector(`[data-help="${k}"]`));
@@ -1371,7 +1488,9 @@ const ACTIONS = {
     openSheet({ title: "Impostazioni", body: `<div class="scroll">
       <h3 class="cat">Generale</h3>
       <ul class="menu">${mi("a11y", "a11y", "Accessibilità")}
-        ${mi("c-transfer", "phone", "Aggiungi un dispositivo", "Per usare l'app su un altro telefono o dopo averlo cambiato.")}</ul>
+        ${mi("c-transfer", "phone", "Aggiungi un dispositivo", "Per usare l'app su un altro telefono o dopo averlo cambiato.")}
+        ${beta() ? mi("intro", "help", "Rivedi la presentazione") : ""}</ul>
+      ${beta() ? `<h3 class="cat">Alunni</h3><ul class="menu">${mi("c-cat", "skate", "Elementi del pattinaggio", "I nomi che proponi in «Aggiungi elementi»: puoi cambiarli, aggiungerne e toglierli.")}</ul>` : ""}
       <h3 class="cat">Backup</h3>
       <ul class="menu">${mi("c-export", "download", "Esporta backup")}
         ${mi("c-import", "upload", "Ripristina da backup", "Il backup è un file sul tuo telefono: tienine una copia ogni tanto.")}</ul>
@@ -1546,7 +1665,12 @@ const ACTIONS = {
   },
   "c-mail"() {
     const s = cur();
-    location.href = `mailto:?subject=${encodeURIComponent("La tua scheda di pattinaggio")}&body=${encodeURIComponent(inviteMsg(s))}`;
+    location.href = `mailto:?subject=${encodeURIComponent(invWhat() === "code" ? "Il tuo codice per la scheda di pattinaggio" : "La tua scheda di pattinaggio")}&body=${encodeURIComponent(inviteMsg(s))}`;
+  },
+  async "c-copy-code"() {
+    const c = fmtCode(cur().code);
+    try { await navigator.clipboard.writeText(c); ok("Codice copiato"); }
+    catch { prompt("Copia il codice:", c); }
   },
   async "c-copy"() {
     try { await navigator.clipboard.writeText(inviteLink(cur().code)); ok("Link copiato"); }
@@ -1554,7 +1678,7 @@ const ACTIONS = {
   },
   async "c-share"() {
     const s = cur();
-    try { await navigator.share({ title: "Scheda pattinaggio", text: inviteMsg(s) }); } catch {}
+    try { await navigator.share({ title: invWhat() === "code" ? "Codice scheda pattinaggio" : "Scheda pattinaggio", text: inviteMsg(s) }); } catch {}
   },
   // filtro per gruppo nell'elenco: aggiorna solo filtri e righe, il focus resta sul filtro toccato
   "c-gf"(el) {
@@ -1669,9 +1793,12 @@ async function importBackup(e) {
     // gruppi e allenamenti (backup dalla versione 2): solo se qui non ce ne sono ancora
     const bm = normMeta(data.meta), useMeta = !S.metaErr && (bm.groups.length || bm.trainings.length || bm.slots.length)
       && !S.meta.groups.length && !S.meta.trainings.length && !S.meta.slots.length;
-    if (!(await ask(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""} Ripristinarli?`))) return;
-    const meta = useMeta ? bm : S.meta;
-    if (useMeta) { await be.saveMeta(meta); S.meta = meta; }
+    // elenco degli elementi cambiato dall'allenatrice: solo se qui c'è ancora quello iniziale
+    const useEl = !S.metaErr && !!bm.elements && !S.meta.elements;
+    if (!(await ask(`Nel backup ci sono ${data.students.length} alunni, ${toAdd.length} non presenti ora.${useMeta ? " Ci sono anche gruppi e allenamenti." : ""}${useEl ? " C'è anche il tuo elenco degli elementi." : ""} Ripristinarli?`))) return;
+    const meta = { ...(useMeta ? bm : S.meta) }, el = useEl ? bm.elements : S.meta.elements;
+    delete meta.elements; if (el) meta.elements = el;
+    if (useMeta || useEl) { await be.saveMeta(meta); S.meta = meta; }
     const okGroup = (g) => (meta.groups.some((x) => x.id === g) ? g : "");
     for (const { code, ...rest } of toAdd) {
       const st = { ...rest, group: okGroup(rest.group) };
@@ -1686,7 +1813,13 @@ async function importBackup(e) {
   }
 }
 
+// cosa si manda dall'Invito (nuova versione): link e codice, oppure solo il codice (niente link: a volte il link
+// si apre nel browser di WhatsApp e non nell'app installata, mentre il codice si scrive ovunque)
+const INV_WHY = { code: "Arriva solo il codice: l'alunno apre l'app (anche dall'icona sulla Home) e lo scrive nella prima schermata.", link: "Il link apre subito la scheda. Se non si apre, basta scrivere il codice nella prima schermata." };
+const invWhat = () => (beta() && S.invWhat === "code" ? "code" : "link");
 function inviteMsg(s) {
+  if (invWhat() === "code") return `Ciao ${s.name}! Questo è il tuo codice per la scheda di pattinaggio:\n\n${fmtCode(s.code)}\n\n` +
+    `Apri l'app e scrivilo nella prima schermata.`;
   return `Ciao ${s.name}! ⛸️ Ecco la tua scheda di pattinaggio:\n${inviteLink(s.code)}\n\n` +
     `Se ti chiede un codice: ${fmtCode(s.code)}\n` +
     `Consiglio: aprila e aggiungila alla schermata Home del telefono.`;
@@ -2019,7 +2152,7 @@ function slotSheet(t) {
 // gli elementi come pulsanti da toccare. I filtri nascondono soltanto: quelli già scelti restano scelti.
 // (Eccezione voluta a focus "input": la tastiera coprirebbe il catalogo, che è la parte principale.)
 function progPicker() {
-  const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey));
+  const s = cur(), lv = lvlOf(s) || "base", have = new Set((s.progress || []).map(itemKey)), cat = catNow();
   const f = openSheet({ title: "Aggiungi elementi", body: `
     <div class="search"><label for="pq" class="sr">Cerca o scrivi un elemento nuovo</label>${icon("search")}
       <input id="pq" type="search" placeholder="Cerca o scrivi un elemento" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>
@@ -2028,12 +2161,13 @@ function progPicker() {
     <label class="chk new" id="newOpt" hidden><input type="checkbox" name="custom" checked>
       <span class="txt"><b>Nuovo: <span id="newName"></span></b><small>Non è nel catalogo: lo aggiungo in “Altro”, nel livello scelto.</small></span></label>
     <p class="muted small pick-hint">Tocca gli elementi da aggiungere. Quelli grigi con la spunta li ha già.</p>
-    <div class="picks">${LEVELS.map(([L]) => Object.entries(CATALOG[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
+    <div class="picks">${LEVELS.map(([L]) => Object.entries(cat[L]).map(([c, names]) => `<div class="pick-c" data-lv="${L}"><h3 class="cat">${c}</h3><div class="chips">
       ${names.map((n) => have.has(itemKey({ name: n }))
         ? `<span class="chip pick dis" data-n="${esc(norm(n))}">${icon("check")}<span>${esc(n)}</span><span class="sr">, già presente</span></span>`
         : `<label class="chip pick" data-n="${esc(norm(n))}"><input type="checkbox" name="pick" value="${esc(`${L}|${c}|${n}`)}">${icon("check")}<span>${esc(n)}</span></label>`).join("")}
       </div></div>`).join("")).join("")}</div>
     <p class="muted" id="noPick" hidden>Nessun elemento del catalogo con questo nome.</p>
+    <button type="button" class="linkbtn cat-edit" data-act="c-cat">${icon("edit")} Cambia l'elenco degli elementi</button>
     ${sheetBtns("Aggiungi")}`,
   onSubmit: async (fd) => {
     const add = fd.getAll("pick").map((k) => { const [level, cat, name] = k.split("|"); return { level, cat, name }; });
@@ -2046,7 +2180,7 @@ function progPicker() {
     });
     ok(add.length === 1 ? `${add[0].name} aggiunto` : `${add.length} elementi aggiunti`);
   } });
-  const q = f.querySelector("#pq"), btn = f.querySelector("[type=submit]"), all = new Set(Object.values(CATALOG).flatMap((c) => Object.values(c).flat()).map(norm));
+  const q = f.querySelector("#pq"), btn = f.querySelector("[type=submit]"), all = new Set(Object.values(cat).flatMap((c) => Object.values(c).flat()).map(norm));
   const upd = () => {
     const t = norm(q.value), L = f.elements.plv.value;
     f.querySelector("#pLv").hidden = !!t; // cercando, si cerca in tutti i livelli
@@ -2067,6 +2201,66 @@ function progPicker() {
   q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); q.blur(); } });
   f.addEventListener("input", upd); f.addEventListener("change", upd);
   upd();
+}
+
+// ---------------------------------------------------------- elementi del pattinaggio (nuova versione)
+// L'allenatrice cambia l'elenco proposto in "Aggiungi elementi". Salvato in meta.elements solo dalla prima modifica.
+const elements = () => (beta() && S.meta.elements ? S.meta.elements : defaultElements());
+const catNow = () => (beta() && S.meta.elements ? catalogFrom(S.meta.elements) : CATALOG);
+const lvSeg = (name, cur, legend = "Livello") => `<fieldset class="seg"><legend>${legend}</legend><div class="seg-opts">
+  ${LEVELS.map(([k, l]) => `<label class="seg-opt lv"><input type="radio" name="${name}" value="${k}" ${k === cur ? "checked" : ""}><span>${l}</span></label>`).join("")}</div></fieldset>`;
+
+function catSheet() {
+  const L0 = S.catLv || "base", list = elements();
+  const f = openSheet({ title: "Elementi del pattinaggio", body: `
+    <p class="muted small">Sono gli elementi che proponi in «Aggiungi elementi». Tocca un elemento per cambiarlo o toglierlo: chi lo ha già nei progressi non perde niente.</p>
+    ${lvSeg("clv", L0)}
+    ${LEVELS.map(([L]) => `<div class="cat-lv" data-lv="${L}" ${L === L0 ? "" : "hidden"}>${CATEGORIES.map((c) => {
+      const xs = list.filter((e) => e.level === L && e.cat === c);
+      return xs.length ? `<h3 class="cat">${c}</h3><ul class="menu cat-l">${xs.map((e) => `<li><button type="button" class="mi" data-act="c-cat-ed" data-id="${esc(e.id)}"><span>${esc(e.name)}</span>${icon("chevron", "chev")}</button></li>`).join("")}</ul>` : "";
+    }).join("") || `<p class="muted">Nessun elemento in questo livello.</p>`}</div>`).join("")}
+    <button type="button" class="btn wide" data-act="c-cat-new">${icon("plus")} Nuovo elemento</button>
+    ${S.meta.elements ? `<button type="button" class="linkbtn cat-edit" data-act="c-cat-reset">${icon("refresh")} Ripristina l'elenco iniziale</button>` : ""}
+    <div class="sheet-btns"><button type="button" class="btn ghost wide" data-act="close">Fatto</button></div>` });
+  f.addEventListener("change", (e) => {
+    if (e.target.name !== "clv") return;
+    S.catLv = e.target.value; f.dataset.dirty = "";
+    f.querySelectorAll(".cat-lv").forEach((d) => { d.hidden = d.dataset.lv !== S.catLv; });
+  });
+}
+
+function elementSheet(x) {
+  const L = x ? x.level : S.catLv || "base";
+  const users = (name) => S.students.filter((s) => (s.progress || []).some((p) => itemKey(p) === nameKey(name)));
+  openSheet({ title: x ? "Modifica elemento" : "Nuovo elemento", focus: x ? "title" : "input", body: `
+    <label>Nome<input name="name" required maxlength="60" value="${esc(x && x.name)}" placeholder="Es. Tre indietro esterno" autocomplete="off"></label>
+    ${lvSeg("level", L)}
+    <label>Categoria<select name="cat">${CATEGORIES.map((c) => `<option ${c === (x ? x.cat : "Altro") ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+    ${x && users(x.name).length ? `<p class="muted small">Ce l'hanno nei progressi ${users(x.name).length === 1 ? "1 alunno" : `${users(x.name).length} alunni`}: se cambi il nome, cambia anche da loro.</p>` : ""}
+    <div class="sheet-btns"><button type="button" class="btn ghost" data-act="c-cat-back">Indietro</button><button class="btn" type="submit">${x ? "Salva" : "Aggiungi"}</button></div>
+    ${x ? delBtn("Togli dall'elenco") : ""}`,
+  onSubmit: async (fd, sub) => {
+    const list = elements().map((e) => ({ ...e }));
+    if (sub && sub.name === "del") {
+      if (!(await ask(`Togliere “${x.name}” dall'elenco? Chi lo ha già nei progressi lo tiene.`))) return false;
+      await saveMeta({ ...S.meta, elements: list.filter((e) => e.id !== x.id) });
+      gone(`${x.name} tolto dall'elenco`); catSheet(); return false;
+    }
+    const name = fd.get("name").trim().replace(/\s+/g, " ");
+    if (!name) return bad("name", "Scrivi il nome dell'elemento.");
+    if (list.some((e) => e.id !== (x && x.id) && nameKey(e.name) === nameKey(name))) return bad("name", "C'è già un elemento con questo nome.");
+    const item = { id: x ? x.id : newId(), name, level: normLevel(fd.get("level")) || "base", cat: CATEGORIES.includes(fd.get("cat")) ? fd.get("cat") : "Altro" };
+    // nome cambiato: si aggiorna anche negli alunni che hanno già l'elemento (stessa scrittura)
+    const extra = {};
+    if (x && x.name !== name) {
+      for (const s of users(x.name)) extra[s.code] = { progress: s.progress.map((p) => (itemKey(p) === nameKey(x.name) ? { ...p, name } : p)) };
+    }
+    S.catLv = item.level;
+    await saveMeta({ ...S.meta, elements: x ? list.map((e) => (e.id === x.id ? item : e)) : [...list, item] }, extra);
+    const n = Object.keys(extra).length;
+    ok(x ? (n ? `Elemento salvato, anche in ${n === 1 ? "1 alunno" : `${n} alunni`}` : "Elemento salvato") : `${name} aggiunto all'elenco`);
+    catSheet(); return false;
+  } });
 }
 
 function exerciseSheet(x) {

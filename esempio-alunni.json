@@ -1,34 +1,34 @@
 {
  "app": "pattinaggio",
  "version": 1,
- "exportedAt": "2026-11-18T14:03:39.967Z",
+ "exportedAt": "2026-11-24T14:14:53.689Z",
  "students": [
   {
-   "code": "B586SSMNR6MC",
+   "code": "ZKCP48YAF3KE",
    "name": "Giulia B.",
    "level": "base",
-   "createdAt": 1789826619960,
+   "createdAt": 1790345693679,
    "progress": [
     {
-     "id": "ojr77e62",
+     "id": "qfhivy5w",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-10-10",
+     "date": "2026-10-16",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "8n8ouhqu",
+     "id": "j626wq9c",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-10-18",
+     "date": "2026-10-24",
      "note": "Ottima postura"
     },
     {
-     "id": "h4xr975q",
+     "id": "ohnfwjww",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
@@ -37,10 +37,10 @@
      "note": ""
     },
     {
-     "id": "vjy9j83x",
+     "id": "2riojffz",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "todo",
      "date": "",
      "note": ""
@@ -48,63 +48,63 @@
    ],
    "plan": [
     {
-     "id": "ej4sdeuz",
+     "id": "vm7ysn4b",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "i9t794c9",
-     "title": "Swizzle avanti e indietro",
+     "id": "ufbkwpof",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     },
     {
-     "id": "ajm6cep8",
+     "id": "zw5wkk6d",
      "title": "Salti preparatori sul posto",
      "detail": "10 ripetizioni"
     },
     {
-     "id": "6bhcy6kd",
+     "id": "jy6xnb5s",
      "title": "Entrata in trottola",
      "detail": "6 tentativi"
     },
     {
-     "id": "jdmsnu5q",
+     "id": "zin5k6mj",
      "title": "Filo esterno avanti su un piede",
      "detail": "Tutto il lato corto"
     }
    ],
    "checks": {
-    "ej4sdeuz": 1794920619960,
-    "jdmsnu5q": 1794921819960
+    "vm7ysn4b": 1795439693679,
+    "zin5k6mj": 1795440893679
    },
-   "checksAt": 1794921819960
+   "checksAt": 1795440893679
   },
   {
-   "code": "64PK6NRJD7PN",
+   "code": "9EEUWGDJ3KSB",
    "name": "Marco",
    "level": "base",
-   "createdAt": 1789913019960,
+   "createdAt": 1790432093679,
    "progress": [
     {
-     "id": "6pd4ngmx",
+     "id": "woaeddyw",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-10-08",
+     "date": "2026-10-14",
      "note": ""
     },
     {
-     "id": "x7rikb6u",
+     "id": "yrdn6g8f",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-10-17",
+     "date": "2026-10-23",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "7oq9v8qm",
+     "id": "rfmiqr9i",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
@@ -113,10 +113,10 @@
      "note": "Braccia più aperte"
     },
     {
-     "id": "46v3v95y",
+     "id": "amjaayq7",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "todo",
      "date": "",
      "note": ""
@@ -124,27 +124,27 @@
    ],
    "plan": [
     {
-     "id": "dcmkfycb",
+     "id": "7noiwvjq",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     },
     {
-     "id": "ckchap57",
+     "id": "ya27wihs",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "7awsajv3",
-     "title": "Swizzle avanti e indietro",
+     "id": "tok2ftm8",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     },
     {
-     "id": "4kam893a",
+     "id": "5n8p8gbp",
      "title": "Salti preparatori sul posto",
      "detail": "10 ripetizioni"
     },
     {
-     "id": "8ft8wqy4",
+     "id": "x3n2iqkk",
      "title": "Entrata in trottola",
      "detail": "6 tentativi"
     }
@@ -152,58 +152,58 @@
    "checks": {}
   },
   {
-   "code": "QV95T2TK8HG3",
+   "code": "HNWRMVRYC495",
    "name": "Sofi",
    "level": "base",
-   "createdAt": 1789999419960,
+   "createdAt": 1790518493679,
    "progress": [
     {
-     "id": "c3ou4rxi",
+     "id": "sdg8mbgu",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-09-06",
+     "date": "2026-09-12",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "aid6x5x2",
+     "id": "hbvvwsk7",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-09-14",
+     "date": "2026-09-20",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "6928wqyo",
+     "id": "ogbsdsxk",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
-     "date": "2026-09-25",
+     "date": "2026-10-01",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "dwdya5fe",
+     "id": "stc3o67n",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-10-03",
+     "date": "2026-10-09",
      "note": ""
     },
     {
-     "id": "ri2jqfp4",
+     "id": "dr3v5i2e",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
      "status": "done",
-     "date": "2026-10-11",
+     "date": "2026-10-17",
      "note": ""
     },
     {
-     "id": "9k3p8b5b",
+     "id": "wwg8kjuw",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
@@ -212,7 +212,7 @@
      "note": "Tenere la spalla ferma"
     },
     {
-     "id": "bzz8qx66",
+     "id": "99fdysg6",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati indietro",
@@ -221,7 +221,7 @@
      "note": "Ottima postura"
     },
     {
-     "id": "4spcqwun",
+     "id": "gasujaz5",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Tre avanti esterno",
@@ -232,70 +232,70 @@
    ],
    "plan": [
     {
-     "id": "9bkomhdo",
+     "id": "qj9x6pqv",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     },
     {
-     "id": "m8vbqeex",
+     "id": "67wxorbg",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "r6bbxpa6",
-     "title": "Swizzle avanti e indietro",
+     "id": "t6eshmgk",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     }
    ],
    "checks": {
-    "m8vbqeex": 1794996519960
+    "67wxorbg": 1795515593679
    },
-   "checksAt": 1794996519960
+   "checksAt": 1795515593679
   },
   {
-   "code": "M6653RVATGJY",
+   "code": "4YD3MUAG33RP",
    "name": "Luca R.",
    "level": "base",
-   "createdAt": 1790085819960,
+   "createdAt": 1790604893679,
    "progress": [
     {
-     "id": "ugz7c8xd",
+     "id": "ecghzpr9",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-09-14",
+     "date": "2026-09-20",
      "note": ""
     },
     {
-     "id": "ocrxok5c",
+     "id": "ve7r6rxw",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-09-25",
+     "date": "2026-10-01",
      "note": ""
     },
     {
-     "id": "oirgm3yk",
+     "id": "5rhk6wmu",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
-     "date": "2026-10-02",
+     "date": "2026-10-08",
      "note": "Guardare avanti, non il ghiaccio"
     },
     {
-     "id": "n5r262y4",
+     "id": "ydqp25iv",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-10-08",
+     "date": "2026-10-14",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "v3zp3dob",
+     "id": "ue9zbr2n",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
@@ -304,7 +304,7 @@
      "note": "Braccia più aperte"
     },
     {
-     "id": "z7r2uics",
+     "id": "t9h5sbco",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
@@ -313,7 +313,7 @@
      "note": "Ottima postura"
     },
     {
-     "id": "reasa83t",
+     "id": "rrt9ioi7",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati indietro",
@@ -324,132 +324,132 @@
    ],
    "plan": [
     {
-     "id": "3ac4dfpm",
+     "id": "urubhpqs",
      "title": "Incrociati avanti in cerchio",
      "detail": "5 giri per lato"
     },
     {
-     "id": "py3sovww",
+     "id": "ja78gxx4",
      "title": "Incrociati indietro in cerchio",
      "detail": "3 giri per lato"
     },
     {
-     "id": "k3v4waqu",
+     "id": "3h7fi47u",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     },
     {
-     "id": "qam7odet",
+     "id": "438utt7z",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "own4m2v8",
-     "title": "Swizzle avanti e indietro",
+     "id": "9wys6owr",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     }
    ],
    "checks": {
-    "3ac4dfpm": 1794827019960,
-    "py3sovww": 1794827319960,
-    "k3v4waqu": 1794827619960,
-    "qam7odet": 1794827919960,
-    "own4m2v8": 1794828219960
+    "urubhpqs": 1795346093679,
+    "ja78gxx4": 1795346393679,
+    "3h7fi47u": 1795346693679,
+    "438utt7z": 1795346993679,
+    "9wys6owr": 1795347293679
    },
-   "checksAt": 1794828219960
+   "checksAt": 1795347293679
   },
   {
-   "code": "W5FHU4TNQBRY",
+   "code": "MNQ2GFJRZEQX",
    "name": "Emma",
    "level": "intermedio",
-   "createdAt": 1790172219960,
+   "createdAt": 1790691293679,
    "progress": [
     {
-     "id": "wzzxeznp",
+     "id": "gz3sxydm",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-08-19",
+     "date": "2026-08-25",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "shotzj75",
+     "id": "iuji523h",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-08-25",
+     "date": "2026-08-31",
      "note": "Braccia più aperte"
     },
     {
-     "id": "664qoi4y",
+     "id": "9oj75fc2",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
-     "date": "2026-09-07",
+     "date": "2026-09-13",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "c96g98wo",
+     "id": "sckz4ynt",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-09-13",
+     "date": "2026-09-19",
      "note": "Braccia più aperte"
     },
     {
-     "id": "kq88tndx",
+     "id": "azd8bfku",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
      "status": "done",
-     "date": "2026-09-25",
+     "date": "2026-10-01",
      "note": ""
     },
     {
-     "id": "b4gbp6dt",
+     "id": "m6df3chw",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
      "status": "done",
-     "date": "2026-09-30",
+     "date": "2026-10-06",
      "note": "Ottima postura"
     },
     {
-     "id": "vh9e5ssq",
+     "id": "b7hrx2yq",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati indietro",
      "status": "done",
-     "date": "2026-10-11",
+     "date": "2026-10-17",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "fybnrh93",
+     "id": "jaowghfd",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Tre avanti esterno",
      "status": "done",
-     "date": "2026-10-17",
+     "date": "2026-10-23",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "9656iqeh",
+     "id": "cczs7ctm",
      "level": "base",
      "cat": "Salti",
-     "name": "Mezzo giro (waltz)",
+     "name": "Salto del valzer",
      "status": "doing",
      "date": "",
      "note": ""
     },
     {
-     "id": "mahvs7ms",
+     "id": "ar4u8i5a",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola verticale (upright)",
+     "name": "Trottola verticale",
      "status": "doing",
      "date": "",
      "note": "Ottima postura"
@@ -457,263 +457,263 @@
    ],
    "plan": [
     {
-     "id": "a882df34",
+     "id": "kebz3ut2",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     },
     {
-     "id": "dmmyzn2k",
+     "id": "6pd5xxu8",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "uh7jnous",
-     "title": "Swizzle avanti e indietro",
+     "id": "jo93prxs",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     }
    ],
    "checks": {
-    "dmmyzn2k": 1794917319960
+    "6pd5xxu8": 1795436393679
    },
-   "checksAt": 1794917319960
+   "checksAt": 1795436393679
   },
   {
-   "code": "EFEW5CD6GVN2",
+   "code": "X2C7EYK68M53",
    "name": "Tommy",
    "level": "intermedio",
-   "createdAt": 1790258619960,
+   "createdAt": 1790777693679,
    "progress": [
     {
-     "id": "xrpcenus",
+     "id": "no4fekki",
+     "level": "base",
+     "cat": "Fondamentali",
+     "name": "Pattinaggio avanti",
+     "status": "done",
+     "date": "2026-08-05",
+     "note": "Braccia più aperte"
+    },
+    {
+     "id": "qr37ra8s",
+     "level": "base",
+     "cat": "Fondamentali",
+     "name": "Pattinaggio indietro",
+     "status": "done",
+     "date": "2026-08-14",
+     "note": "Guardare avanti, non il ghiaccio"
+    },
+    {
+     "id": "55fmnek4",
+     "level": "base",
+     "cat": "Fondamentali",
+     "name": "Frenata a spazzaneve",
+     "status": "done",
+     "date": "2026-08-23",
+     "note": "Tenere la spalla ferma"
+    },
+    {
+     "id": "v6h42cjy",
+     "level": "base",
+     "cat": "Fondamentali",
+     "name": "Limoni avanti",
+     "status": "done",
+     "date": "2026-09-03",
+     "note": ""
+    },
+    {
+     "id": "bqs4rfyp",
+     "level": "intermedio",
+     "cat": "Fondamentali",
+     "name": "Spirale",
+     "status": "done",
+     "date": "2026-09-12",
+     "note": "Atterraggio pulito, continuare così"
+    },
+    {
+     "id": "ozee78dm",
+     "level": "base",
+     "cat": "Passi e giri",
+     "name": "Incrociati avanti",
+     "status": "done",
+     "date": "2026-09-19",
+     "note": "Tenere la spalla ferma"
+    },
+    {
+     "id": "6zneegz2",
+     "level": "base",
+     "cat": "Passi e giri",
+     "name": "Incrociati indietro",
+     "status": "done",
+     "date": "2026-09-27",
+     "note": "Tenere la spalla ferma"
+    },
+    {
+     "id": "6adbozrt",
+     "level": "intermedio",
+     "cat": "Passi e giri",
+     "name": "Tre avanti esterno",
+     "status": "done",
+     "date": "2026-10-06",
+     "note": "Ginocchio più piegato"
+    },
+    {
+     "id": "mmtquq65",
+     "level": "base",
+     "cat": "Salti",
+     "name": "Salto del valzer",
+     "status": "done",
+     "date": "2026-10-18",
+     "note": ""
+    },
+    {
+     "id": "cms58dd4",
+     "level": "intermedio",
+     "cat": "Trottole",
+     "name": "Trottola verticale",
+     "status": "doing",
+     "date": "",
+     "note": "Braccia più aperte"
+    },
+    {
+     "id": "beb6q4xo",
+     "level": "intermedio",
+     "cat": "Passi e giri",
+     "name": "Mohawk",
+     "status": "doing",
+     "date": "",
+     "note": "Atterraggio pulito, continuare così"
+    },
+    {
+     "id": "kfwptirc",
+     "level": "intermedio",
+     "cat": "Salti",
+     "name": "Toe loop",
+     "status": "todo",
+     "date": "",
+     "note": ""
+    }
+   ],
+   "plan": [
+    {
+     "id": "6bfa4w2f",
+     "title": "Incrociati avanti in cerchio",
+     "detail": "5 giri per lato"
+    },
+    {
+     "id": "3eaeqdqz",
+     "title": "Incrociati indietro in cerchio",
+     "detail": "3 giri per lato"
+    },
+    {
+     "id": "khx7jhyh",
+     "title": "Tre alternati lungo il lato lungo",
+     "detail": "3 vasche"
+    }
+   ],
+   "checks": {
+    "6bfa4w2f": 1795518893679,
+    "3eaeqdqz": 1795519193679,
+    "khx7jhyh": 1795519493679
+   },
+   "checksAt": 1795519493679
+  },
+  {
+   "code": "C63GK477XB4G",
+   "name": "Alice",
+   "level": "intermedio",
+   "createdAt": 1790864093679,
+   "progress": [
+    {
+     "id": "eov5nrg6",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
      "date": "2026-07-30",
-     "note": "Braccia più aperte"
+     "note": "Ginocchio più piegato"
     },
     {
-     "id": "43o5x7qv",
+     "id": "796xebvw",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
      "date": "2026-08-08",
-     "note": "Guardare avanti, non il ghiaccio"
+     "note": "Ginocchio più piegato"
     },
     {
-     "id": "56i4wz66",
+     "id": "tqcpr9cd",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
      "date": "2026-08-17",
-     "note": "Tenere la spalla ferma"
+     "note": "Ottima postura"
     },
     {
-     "id": "ddcpp8ev",
+     "id": "p2qiht36",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-08-28",
-     "note": ""
+     "date": "2026-08-25",
+     "note": "Ginocchio più piegato"
     },
     {
-     "id": "uah3wbzv",
+     "id": "jdqvxq6a",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
      "status": "done",
-     "date": "2026-09-06",
-     "note": "Atterraggio pulito, continuare così"
+     "date": "2026-09-03",
+     "note": "Più spinta in uscita"
     },
     {
-     "id": "wropjrsd",
+     "id": "hrtni3ta",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
      "status": "done",
-     "date": "2026-09-13",
-     "note": "Tenere la spalla ferma"
+     "date": "2026-09-10",
+     "note": "Più spinta in uscita"
     },
     {
-     "id": "fnmda2or",
+     "id": "fynkesgw",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati indietro",
      "status": "done",
-     "date": "2026-09-21",
-     "note": "Tenere la spalla ferma"
+     "date": "2026-09-18",
+     "note": "Ottima postura"
     },
     {
-     "id": "5wt69npx",
+     "id": "6cxzfs6n",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Tre avanti esterno",
      "status": "done",
-     "date": "2026-09-30",
-     "note": "Ginocchio più piegato"
-    },
-    {
-     "id": "5ngjsi3p",
-     "level": "base",
-     "cat": "Salti",
-     "name": "Mezzo giro (waltz)",
-     "status": "done",
-     "date": "2026-10-12",
-     "note": ""
-    },
-    {
-     "id": "xooqbkan",
-     "level": "intermedio",
-     "cat": "Trottole",
-     "name": "Trottola verticale (upright)",
-     "status": "doing",
-     "date": "",
-     "note": "Braccia più aperte"
-    },
-    {
-     "id": "y7kbv4ys",
-     "level": "intermedio",
-     "cat": "Passi e giri",
-     "name": "Mohawk",
-     "status": "doing",
-     "date": "",
-     "note": "Atterraggio pulito, continuare così"
-    },
-    {
-     "id": "kxp8wjoz",
-     "level": "intermedio",
-     "cat": "Salti",
-     "name": "Toe loop",
-     "status": "todo",
-     "date": "",
-     "note": ""
-    }
-   ],
-   "plan": [
-    {
-     "id": "5tvp4k2i",
-     "title": "Incrociati avanti in cerchio",
-     "detail": "5 giri per lato"
-    },
-    {
-     "id": "de5rzj3r",
-     "title": "Incrociati indietro in cerchio",
-     "detail": "3 giri per lato"
-    },
-    {
-     "id": "m44rwc83",
-     "title": "Tre alternati lungo il lato lungo",
-     "detail": "3 vasche"
-    }
-   ],
-   "checks": {
-    "5tvp4k2i": 1794999819960,
-    "de5rzj3r": 1795000119960,
-    "m44rwc83": 1795000419960
-   },
-   "checksAt": 1795000419960
-  },
-  {
-   "code": "YF2QEU2VCR3J",
-   "name": "Alice",
-   "level": "intermedio",
-   "createdAt": 1790345019960,
-   "progress": [
-    {
-     "id": "x39td2wu",
-     "level": "base",
-     "cat": "Fondamentali",
-     "name": "Pattinaggio avanti",
-     "status": "done",
-     "date": "2026-07-24",
-     "note": "Ginocchio più piegato"
-    },
-    {
-     "id": "sk4ftgaj",
-     "level": "base",
-     "cat": "Fondamentali",
-     "name": "Pattinaggio indietro",
-     "status": "done",
-     "date": "2026-08-02",
-     "note": "Ginocchio più piegato"
-    },
-    {
-     "id": "4j3ufbck",
-     "level": "base",
-     "cat": "Fondamentali",
-     "name": "Frenata a spazzaneve",
-     "status": "done",
-     "date": "2026-08-11",
-     "note": "Ottima postura"
-    },
-    {
-     "id": "q8mva5f6",
-     "level": "base",
-     "cat": "Fondamentali",
-     "name": "Swizzle avanti",
-     "status": "done",
-     "date": "2026-08-19",
-     "note": "Ginocchio più piegato"
-    },
-    {
-     "id": "tdohm9aj",
-     "level": "intermedio",
-     "cat": "Fondamentali",
-     "name": "Spirale",
-     "status": "done",
-     "date": "2026-08-28",
+     "date": "2026-09-27",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "aedr8ve6",
-     "level": "base",
-     "cat": "Passi e giri",
-     "name": "Incrociati avanti",
-     "status": "done",
-     "date": "2026-09-04",
-     "note": "Più spinta in uscita"
-    },
-    {
-     "id": "5a9fxvvd",
-     "level": "base",
-     "cat": "Passi e giri",
-     "name": "Incrociati indietro",
-     "status": "done",
-     "date": "2026-09-12",
-     "note": "Ottima postura"
-    },
-    {
-     "id": "t72yikb6",
-     "level": "intermedio",
-     "cat": "Passi e giri",
-     "name": "Tre avanti esterno",
-     "status": "done",
-     "date": "2026-09-21",
-     "note": "Più spinta in uscita"
-    },
-    {
-     "id": "v57x8fs2",
+     "id": "687k76d9",
      "level": "base",
      "cat": "Salti",
-     "name": "Mezzo giro (waltz)",
-     "status": "done",
-     "date": "2026-10-03",
-     "note": "Braccia più aperte"
-    },
-    {
-     "id": "c3dytzp9",
-     "level": "intermedio",
-     "cat": "Trottole",
-     "name": "Trottola verticale (upright)",
+     "name": "Salto del valzer",
      "status": "done",
      "date": "2026-10-09",
+     "note": "Braccia più aperte"
+    },
+    {
+     "id": "x5g9zymi",
+     "level": "intermedio",
+     "cat": "Trottole",
+     "name": "Trottola verticale",
+     "status": "done",
+     "date": "2026-10-15",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "vrtm877e",
+     "id": "9q9g8qto",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Mohawk",
@@ -722,16 +722,16 @@
      "note": ""
     },
     {
-     "id": "8hmwiii9",
+     "id": "uxsux6v6",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Toe loop",
      "status": "done",
-     "date": "2026-10-28",
+     "date": "2026-11-03",
      "note": "Braccia più aperte"
     },
     {
-     "id": "tu736ama",
+     "id": "729a662h",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Salchow",
@@ -742,163 +742,163 @@
    ],
    "plan": [
     {
-     "id": "6fjfcs72",
+     "id": "t622w5b6",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "xoffugnq",
-     "title": "Swizzle avanti e indietro",
+     "id": "9ujaydie",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     },
     {
-     "id": "7f9pxaeq",
+     "id": "5uho9b95",
      "title": "Salti preparatori sul posto",
      "detail": "10 ripetizioni"
     }
    ],
    "checks": {
-    "6fjfcs72": 1794924219960
+    "t622w5b6": 1795443293679
    },
-   "checksAt": 1794924219960
+   "checksAt": 1795443293679
   },
   {
-   "code": "6YKZGH4XUWK5",
+   "code": "YUMD44VD2CYK",
    "name": "Nico",
    "level": "avanzato",
-   "createdAt": 1790431419960,
+   "createdAt": 1790950493679,
    "progress": [
     {
-     "id": "xk5etbh9",
+     "id": "awhuq44b",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-07-02",
+     "date": "2026-07-08",
      "note": "Braccia più aperte"
     },
     {
-     "id": "yfjoexu6",
+     "id": "72g7sxz7",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-07-15",
+     "date": "2026-07-21",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "ifgpnikx",
+     "id": "zkmjuooc",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
-     "date": "2026-07-21",
+     "date": "2026-07-27",
      "note": "Tenere la spalla ferma"
     },
     {
-     "id": "9vg9tet8",
+     "id": "is4t7n6s",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-08-02",
+     "date": "2026-08-08",
      "note": ""
     },
     {
-     "id": "vduu3mby",
+     "id": "yhf4ntgy",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
      "status": "done",
-     "date": "2026-08-11",
+     "date": "2026-08-17",
      "note": ""
     },
     {
-     "id": "mqfi8bxk",
+     "id": "4qtgu8jo",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
      "status": "done",
-     "date": "2026-08-16",
+     "date": "2026-08-22",
      "note": ""
     },
     {
-     "id": "5ziozkfq",
+     "id": "49z34uim",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati indietro",
      "status": "done",
-     "date": "2026-08-29",
+     "date": "2026-09-04",
      "note": "Ottima postura"
     },
     {
-     "id": "4ikv6va9",
+     "id": "dyr293cj",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Tre avanti esterno",
      "status": "done",
-     "date": "2026-09-07",
+     "date": "2026-09-13",
      "note": ""
     },
     {
-     "id": "czwk98mg",
+     "id": "2quoyxqr",
      "level": "base",
      "cat": "Salti",
-     "name": "Mezzo giro (waltz)",
+     "name": "Salto del valzer",
      "status": "done",
-     "date": "2026-09-16",
+     "date": "2026-09-22",
      "note": ""
     },
     {
-     "id": "kn9y2stq",
+     "id": "j7yt7t9f",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola verticale (upright)",
+     "name": "Trottola verticale",
      "status": "done",
-     "date": "2026-09-20",
+     "date": "2026-09-26",
      "note": "Ottima postura"
     },
     {
-     "id": "emkugyzt",
+     "id": "4qpe9ixu",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Mohawk",
      "status": "done",
-     "date": "2026-10-02",
+     "date": "2026-10-08",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "vbcc83qs",
+     "id": "8i459qkm",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Toe loop",
      "status": "done",
-     "date": "2026-10-09",
+     "date": "2026-10-15",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "hcjxyiqf",
+     "id": "5syykf8k",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Salchow",
      "status": "done",
-     "date": "2026-10-18",
+     "date": "2026-10-24",
      "note": "Braccia più aperte"
     },
     {
-     "id": "tot5dygw",
+     "id": "86c429nu",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola bassa (sit)",
+     "name": "Trottola bassa",
      "status": "doing",
      "date": "",
      "note": ""
     },
     {
-     "id": "ty67jfqe",
+     "id": "pxmy2rrx",
      "level": "intermedio",
      "cat": "Salti",
-     "name": "Loop",
+     "name": "Rittberger",
      "status": "todo",
      "date": "",
      "note": ""
@@ -906,175 +906,175 @@
    ],
    "plan": [
     {
-     "id": "qnumt23o",
+     "id": "vhsn7cmi",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     },
     {
-     "id": "a45d4js4",
+     "id": "taa4sim8",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "z8jqsjjt",
-     "title": "Swizzle avanti e indietro",
+     "id": "caapd69v",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     }
    ],
    "checks": {}
   },
   {
-   "code": "4ENV394FFV2M",
+   "code": "M7FQYWHCBUSH",
    "name": "Bea",
    "level": "avanzato",
-   "createdAt": 1790517819960,
+   "createdAt": 1791036893679,
    "progress": [
     {
-     "id": "7jnejqqr",
+     "id": "5egrrtqg",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-06-16",
+     "date": "2026-06-22",
      "note": ""
     },
     {
-     "id": "vreb46j9",
+     "id": "mcnqtdzc",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-06-26",
+     "date": "2026-07-02",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "oktm8pgk",
+     "id": "j7snekej",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
-     "date": "2026-07-02",
+     "date": "2026-07-08",
      "note": ""
     },
     {
-     "id": "44d6729k",
+     "id": "agr3fcyd",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-07-12",
+     "date": "2026-07-18",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "4m47egrz",
+     "id": "3wpcy8wp",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
      "status": "done",
-     "date": "2026-07-22",
+     "date": "2026-07-28",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "vaa6j2qe",
+     "id": "wvak4wpp",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
      "status": "done",
-     "date": "2026-08-02",
+     "date": "2026-08-08",
      "note": "Ottima postura"
     },
     {
-     "id": "6zf9kj3n",
+     "id": "axd3rr3o",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati indietro",
      "status": "done",
-     "date": "2026-08-11",
+     "date": "2026-08-17",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "5ioo4q8m",
+     "id": "39w9ie47",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Tre avanti esterno",
      "status": "done",
-     "date": "2026-08-17",
+     "date": "2026-08-23",
      "note": "Ottima postura"
     },
     {
-     "id": "7qpp3mjg",
+     "id": "5gsv8myh",
      "level": "base",
      "cat": "Salti",
-     "name": "Mezzo giro (waltz)",
+     "name": "Salto del valzer",
      "status": "done",
-     "date": "2026-08-28",
+     "date": "2026-09-03",
      "note": "Braccia più aperte"
     },
     {
-     "id": "bfzsdyjq",
+     "id": "eaf9qvtc",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola verticale (upright)",
+     "name": "Trottola verticale",
      "status": "done",
-     "date": "2026-09-03",
+     "date": "2026-09-09",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "8izswwe8",
+     "id": "mynugbsi",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Mohawk",
      "status": "done",
-     "date": "2026-09-16",
+     "date": "2026-09-22",
      "note": ""
     },
     {
-     "id": "8hdsbt3y",
+     "id": "fqi4zrpm",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Toe loop",
      "status": "done",
-     "date": "2026-09-22",
+     "date": "2026-09-28",
      "note": "Tenere la spalla ferma"
     },
     {
-     "id": "ywar7i95",
+     "id": "sjt6sv78",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Salchow",
      "status": "done",
-     "date": "2026-10-02",
+     "date": "2026-10-08",
      "note": ""
     },
     {
-     "id": "4brggzne",
+     "id": "q5vqacrf",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola bassa (sit)",
+     "name": "Trottola bassa",
      "status": "done",
-     "date": "2026-10-10",
+     "date": "2026-10-16",
      "note": ""
     },
     {
-     "id": "ri6jns33",
+     "id": "3vpmavod",
      "level": "intermedio",
      "cat": "Salti",
-     "name": "Loop",
+     "name": "Rittberger",
      "status": "doing",
      "date": "",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "xokiqzga",
+     "id": "2jvbcqey",
      "level": "avanzato",
      "cat": "Trottole",
-     "name": "Trottola ad angelo (camel)",
+     "name": "Trottola ad angelo",
      "status": "doing",
      "date": "",
      "note": "Guardare avanti, non il ghiaccio"
     },
     {
-     "id": "jwwz6a77",
+     "id": "q8ed4bxt",
      "level": "avanzato",
      "cat": "Passi e giri",
      "name": "Bracket",
@@ -1085,189 +1085,189 @@
    ],
    "plan": [
     {
-     "id": "qb94sgf7",
+     "id": "g24t3d63",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     },
     {
-     "id": "fqeie6hm",
+     "id": "dp8cwp67",
      "title": "Spirale tenuta 5 secondi",
      "detail": "4 volte per gamba"
     },
     {
-     "id": "v8pvtm3f",
-     "title": "Swizzle avanti e indietro",
+     "id": "u3gz9pwd",
+     "title": "Limoni avanti e indietro",
      "detail": "2 vasche"
     },
     {
-     "id": "vxdkxpeb",
+     "id": "8hu352tp",
      "title": "Salti preparatori sul posto",
      "detail": "10 ripetizioni"
     },
     {
-     "id": "7hkq7g5h",
+     "id": "h5jdd7cr",
      "title": "Entrata in trottola",
      "detail": "6 tentativi"
     }
    ],
    "checks": {
-    "v8pvtm3f": 1794824019960,
-    "vxdkxpeb": 1794824319960
+    "u3gz9pwd": 1795343093679,
+    "8hu352tp": 1795343393679
    },
-   "checksAt": 1794824319960
+   "checksAt": 1795343393679
   },
   {
-   "code": "4QKE5ENNARHD",
+   "code": "AD4PKQFAHYVE",
    "name": "Leo",
    "level": "avanzato",
-   "createdAt": 1790604219960,
+   "createdAt": 1791123293679,
    "progress": [
     {
-     "id": "e37k87d9",
+     "id": "4ayuczfr",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio avanti",
      "status": "done",
-     "date": "2026-06-13",
+     "date": "2026-06-19",
      "note": "Tenere la spalla ferma"
     },
     {
-     "id": "vv4cbqbm",
+     "id": "46s742gp",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Pattinaggio indietro",
      "status": "done",
-     "date": "2026-06-24",
+     "date": "2026-06-30",
      "note": "Più spinta in uscita"
     },
     {
-     "id": "v5jzv8x9",
+     "id": "z3frxyx8",
      "level": "base",
      "cat": "Fondamentali",
      "name": "Frenata a spazzaneve",
      "status": "done",
-     "date": "2026-07-01",
+     "date": "2026-07-07",
      "note": "Ginocchio più piegato"
     },
     {
-     "id": "mwagc7y4",
+     "id": "7htrwvw4",
      "level": "base",
      "cat": "Fondamentali",
-     "name": "Swizzle avanti",
+     "name": "Limoni avanti",
      "status": "done",
-     "date": "2026-07-12",
+     "date": "2026-07-18",
      "note": ""
     },
     {
-     "id": "tcjspq6n",
+     "id": "kg3s4abd",
      "level": "intermedio",
      "cat": "Fondamentali",
      "name": "Spirale",
      "status": "done",
-     "date": "2026-07-21",
+     "date": "2026-07-27",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "apvcrzxp",
+     "id": "67qtzd7d",
      "level": "base",
      "cat": "Passi e giri",
      "name": "Incrociati avanti",
-     "status": "done",
-     "date": "2026-08-02",
-     "note": ""
-    },
-    {
-     "id": "u2i6qmyu",
-     "level": "base",
-     "cat": "Passi e giri",
-     "name": "Incrociati indietro",
      "status": "done",
      "date": "2026-08-08",
      "note": ""
     },
     {
-     "id": "83qby5fy",
+     "id": "2di73u4c",
+     "level": "base",
+     "cat": "Passi e giri",
+     "name": "Incrociati indietro",
+     "status": "done",
+     "date": "2026-08-14",
+     "note": ""
+    },
+    {
+     "id": "c8koqipj",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Tre avanti esterno",
      "status": "done",
-     "date": "2026-08-15",
+     "date": "2026-08-21",
      "note": "Tenere la spalla ferma"
     },
     {
-     "id": "8dccbm8i",
+     "id": "pq2kep7n",
      "level": "base",
      "cat": "Salti",
-     "name": "Mezzo giro (waltz)",
+     "name": "Salto del valzer",
      "status": "done",
-     "date": "2026-08-26",
+     "date": "2026-09-01",
      "note": "Guardare avanti, non il ghiaccio"
     },
     {
-     "id": "j38rbtcn",
+     "id": "tkkubddp",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola verticale (upright)",
+     "name": "Trottola verticale",
      "status": "done",
-     "date": "2026-09-03",
+     "date": "2026-09-09",
      "note": "Braccia più aperte"
     },
     {
-     "id": "3ytorz3x",
+     "id": "fjcr7obr",
      "level": "intermedio",
      "cat": "Passi e giri",
      "name": "Mohawk",
      "status": "done",
-     "date": "2026-09-15",
+     "date": "2026-09-21",
      "note": ""
     },
     {
-     "id": "dghudzvn",
+     "id": "h54xgrxd",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Toe loop",
      "status": "done",
-     "date": "2026-09-22",
+     "date": "2026-09-28",
      "note": "Braccia più aperte"
     },
     {
-     "id": "vmmefzyy",
+     "id": "g7bg6t8a",
      "level": "intermedio",
      "cat": "Salti",
      "name": "Salchow",
      "status": "done",
-     "date": "2026-10-01",
+     "date": "2026-10-07",
      "note": "Ottima postura"
     },
     {
-     "id": "y84sgoef",
+     "id": "c6odzftc",
      "level": "intermedio",
      "cat": "Trottole",
-     "name": "Trottola bassa (sit)",
+     "name": "Trottola bassa",
      "status": "done",
-     "date": "2026-10-09",
+     "date": "2026-10-15",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "bxbyaz8n",
+     "id": "w3j5zpdt",
      "level": "intermedio",
      "cat": "Salti",
-     "name": "Loop",
+     "name": "Rittberger",
      "status": "done",
-     "date": "2026-10-22",
+     "date": "2026-10-28",
      "note": "Atterraggio pulito, continuare così"
     },
     {
-     "id": "a4ptz5vd",
+     "id": "7bxhe58j",
      "level": "avanzato",
      "cat": "Trottole",
-     "name": "Trottola ad angelo (camel)",
+     "name": "Trottola ad angelo",
      "status": "doing",
      "date": "",
      "note": ""
     },
     {
-     "id": "vkmuvcrn",
+     "id": "hipi764r",
      "level": "avanzato",
      "cat": "Passi e giri",
      "name": "Bracket",
@@ -1278,27 +1278,27 @@
    ],
    "plan": [
     {
-     "id": "nwbqxvm2",
+     "id": "ucztz59a",
      "title": "Incrociati avanti in cerchio",
      "detail": "5 giri per lato"
     },
     {
-     "id": "ce7733uf",
+     "id": "qqganpic",
      "title": "Incrociati indietro in cerchio",
      "detail": "3 giri per lato"
     },
     {
-     "id": "272juvpy",
+     "id": "qjzdfpqm",
      "title": "Tre alternati lungo il lato lungo",
      "detail": "3 vasche"
     }
    ],
    "checks": {
-    "nwbqxvm2": 1794834219960,
-    "ce7733uf": 1794834519960,
-    "272juvpy": 1794834819960
+    "ucztz59a": 1795353293679,
+    "qqganpic": 1795353593679,
+    "qjzdfpqm": 1795353893679
    },
-   "checksAt": 1794834819960
+   "checksAt": 1795353893679
   }
  ]
 }

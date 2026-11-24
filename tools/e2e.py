@@ -3,15 +3,19 @@ Uso:  cd public && python3 -m http.server 8765   (in un altro terminale)
       python3 tools/e2e.py
 Richiede: pip install playwright && playwright install chromium
 """
-import asyncio, sys
+import asyncio, os, sys
 from playwright.async_api import async_playwright
 
 B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/"
+# i test della versione attuale girano con la nuova versione spenta (in dev è accesa di base)
+BETA0 = "try { if (localStorage.getItem('pg_beta') === null) localStorage.setItem('pg_beta', '0'); } catch (e) {}"
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch()
+        # PW_CHROME: percorso di un Chromium già installato, se la versione di Playwright non ha il suo
+        b = await p.chromium.launch(**({"executable_path": os.environ["PW_CHROME"]} if os.environ.get("PW_CHROME") else {}))
         ctx = await b.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
+        await ctx.add_init_script(BETA0)
         pg = await ctx.new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -371,6 +375,7 @@ async def main():
 
         # trascinamento con il dito (eventi touch reali via CDP): la pagina non deve scorrere
         ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)
+        await ctx2.add_init_script(BETA0)
         p2 = await ctx2.new_page()
         p2.on("pageerror", lambda e: errs.append(str(e)))
         await p2.goto(B + "?dev#/coach/alunni"); await p2.wait_for_timeout(700)
@@ -427,6 +432,7 @@ async def main():
         # numeri riassuntivi senza buchi, pannello che scorre fino a Salva anche su uno schermo basso
         for (w, h) in [(320, 568), (360, 740), (768, 1024), (844, 390)]:
             p3 = await b.new_page(viewport={"width": w, "height": h})
+            await p3.add_init_script(BETA0)
             await p3.goto(B + "?dev#/coach"); await p3.wait_for_timeout(500)
             for view in ["#/coach", "#/coach/alunni", "#/coach/calendario"]:
                 await p3.goto(B + view); await p3.wait_for_timeout(300)
@@ -440,6 +446,118 @@ async def main():
             bb = await p3.locator(".sheet-btns .btn[type=submit]").bounding_box()
             assert bb and bb["y"] >= 0 and bb["y"] + bb["height"] <= h, ("Salva fuori dallo schermo", w, h, bb)
             await p3.close()
+
+        # ===== nuova versione (solo in dev, accesa di base): calendario del mese, pannello unico, aiuto, pulizia
+        ctx4 = await b.new_context(viewport={"width": 390, "height": 844})
+        p4 = await ctx4.new_page()
+        p4.on("pageerror", lambda e: errs.append(str(e)))
+        p4.on("console", lambda m: m.type == "error" and errs.append(m.text))
+        msgs = []
+        p4.on("dialog", lambda d: (msgs.append(d.message), asyncio.ensure_future(d.accept())))
+        dev4 = lambda: p4.evaluate("JSON.parse(localStorage.getItem('pg_dev_v1'))")
+        today = await p4.evaluate("(() => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; })()")
+        await p4.goto(B + "?dev#/coach"); await p4.wait_for_timeout(800)
+        assert "nuova versione" in await p4.locator(".demo").inner_text()
+        d = await dev4()
+        assert all(t["date"] >= today for t in d["meta"]["trainings"] + d["meta"]["slots"]), "appuntamenti passati cancellati all'apertura"
+        assert await p4.locator("#hGr").count() == 0, "gruppi non più nella Home"
+        assert await p4.locator("nav.bnav .badge").inner_text() == "1", "richiesta da confermare sulla barra"
+        # calendario del mese: un pulsante per giorno, giorni passati disattivati, 44px
+        await p4.goto(B + "#/coach/calendario"); await p4.wait_for_timeout(400)
+        n = await p4.evaluate("new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()")
+        assert await p4.locator(".cal-d").count() == n
+        assert await p4.locator(f".cal-d[data-id='{today}']").get_attribute("aria-pressed") == "true"
+        assert await p4.locator(".cal-d:disabled").count() == int(today[-2:]) - 1
+        small = await p4.evaluate(MIN); assert not small, ("calendario", small)
+        assert await p4.locator("#hGroups").count() == 0 and "Passati" not in await p4.locator("main").inner_text()
+        # giorno con un orario libero: si sceglie e si vede la riga
+        free = sorted([t for t in d["meta"]["slots"] if not t["who"]], key=lambda t: t["date"] + t["time"])
+        day = free[-1]["date"]
+        if day[:7] != today[:7]:
+            await p4.click("[data-act=c-cal-m][data-d='1']"); await p4.wait_for_timeout(200)
+        await p4.click(f".cal-d[data-id='{day}']"); await p4.wait_for_timeout(200)
+        assert "Orario libero" in await p4.locator("section:has(#hDay)").inner_text()
+        assert await p4.evaluate("document.activeElement.dataset.id") == day, "il focus resta sul giorno"
+        # pannello unico: 3 lezioni di fila, il giorno scelto è già impostato
+        nb = len(d["meta"]["slots"])
+        await p4.click("[data-act=c-new-appt]"); await p4.wait_for_timeout(300)
+        assert await p4.input_value("#sheet [name=date]") == day
+        assert await p4.locator("#sheet [name=group]").is_visible()
+        await p4.check("#sheet input[name=kind][value=les]"); await p4.wait_for_timeout(100)
+        assert not await p4.locator("#sheet [name=group]").is_visible() and await p4.locator("#sheet [name=group]").is_disabled()
+        await p4.fill("#sheet [name=time]", "07:00"); await p4.select_option("#sheet [name=many]", "3")
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        d = await dev4(); new = [t for t in d["meta"]["slots"] if t["date"] == day and t["time"] in ("07:00", "07:30", "08:00")]
+        assert len(d["meta"]["slots"]) == nb + 3 and len(new) == 3, "tre orari di fila"
+        # sovrapposizione: chiede conferma
+        await p4.click("[data-act=c-new-appt]"); await p4.wait_for_timeout(300)
+        await p4.check("#sheet input[name=kind][value=les]"); await p4.fill("#sheet [name=time]", "07:15")
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        assert any("c'è già" in m for m in msgs), msgs
+        # orario con richiesta: chi l'ha chiesto si conferma dal pannello dell'orario
+        d = await dev4()
+        req = [(c, sid) for c, st in d["students"].items() for sid, r in (st.get("reqs") or {}).items() if r and not r.get("st") and not r.get("cancel")]
+        code, sid = req[0]
+        await p4.click("[data-act=c-cal-view][data-id=elenco]"); await p4.wait_for_timeout(200)
+        await p4.click(f"[data-act=c-edit-slot][data-id='{sid}']"); await p4.wait_for_timeout(300)
+        await p4.click(f"#sheet [data-act=c-lr-ok][data-code='{code}']"); await p4.wait_for_timeout(400)
+        d = await dev4()
+        assert next(t for t in d["meta"]["slots"] if t["id"] == sid)["who"] == code, "confermata dal pannello"
+        assert await p4.locator("#sheet").is_hidden()
+        assert await p4.locator("nav.bnav .badge").count() == 0
+        # prenota una lezione dal profilo dell'alunno (anche senza lezioni private attive), ogni settimana
+        nopriv = next(c for c, st in d["students"].items() if not st.get("priv"))
+        await p4.goto(B + f"#/coach/{nopriv}/profilo"); await p4.wait_for_timeout(300)
+        await p4.click("[data-act=c-book]"); await p4.wait_for_timeout(300)
+        assert await p4.input_value("#sheet [name=who]") == nopriv
+        await p4.fill("#sheet [name=time]", "06:00"); await p4.select_option("#sheet [name=rep]", "2")
+        await p4.click("#sheet [type=submit]"); await p4.wait_for_timeout(400)
+        d = await dev4()
+        assert len([t for t in d["meta"]["slots"] if t["who"] == nopriv]) == 2
+        assert len(d["students"][nopriv]["lessons"]) == 2, "le lezioni arrivano all'alunno"
+        assert await p4.locator("section:has(#hLessons) .trs li").count() == 2
+        # gruppi ora nell'elenco alunni
+        await p4.goto(B + "#/coach/alunni"); await p4.wait_for_timeout(300)
+        assert await p4.locator("#grBox [data-act=c-edit-group]").count() == 3
+        # aiuto: pannello con le voci della pagina, poi visita guidata
+        for view in ["#/coach", "#/coach/alunni", "#/coach/calendario", f"#/coach/{nopriv}/profilo", f"#/coach/{nopriv}/invito"]:
+            await p4.goto(B + view); await p4.wait_for_timeout(300)
+            await p4.click("[data-act=help]"); await p4.wait_for_timeout(250)
+            assert await p4.locator(".help-l li").count() >= 3, view
+            small = await p4.evaluate(MIN); assert not small, ("aiuto", view, small)
+            await p4.click("[data-act=help-tour]"); await p4.wait_for_timeout(250)
+            steps = int((await p4.locator(".tour-n").inner_text()).split(" di ")[1])
+            for k in range(steps):
+                hole = await p4.evaluate("(() => { const r = document.querySelector('.tour-hole').getBoundingClientRect(); const t = document.querySelector('.tour-tip').getBoundingClientRect(); return [r.width > 0, t.top >= 0 && t.bottom <= innerHeight]; })()")
+                assert hole == [True, True], (view, k, hole)
+                assert await p4.evaluate("document.activeElement.id") == "tourT"
+                await p4.click("[data-act=tour-next]"); await p4.wait_for_timeout(150)
+            assert await p4.locator("#tour").count() == 0
+            assert await p4.evaluate("document.activeElement.dataset.act") == "help", "focus torna al ?"
+        await p4.click("[data-act=help]"); await p4.click("[data-act=help-tour]"); await p4.wait_for_timeout(200)
+        await p4.keyboard.press("Escape"); await p4.wait_for_timeout(150)
+        assert await p4.locator("#tour").count() == 0 and not await p4.evaluate("document.getElementById('app').inert")
+        # stesso schema: titolo e barra allineati anche nella nuova versione
+        poss = {}
+        for view in ["#/coach", "#/coach/alunni", "#/coach/calendario", f"#/coach/{nopriv}/profilo"]:
+            await p4.goto(B + view); await p4.wait_for_timeout(300); poss[view] = await p4.evaluate(POS)
+        assert len({tuple(v) for v in poss.values()}) == 1, poss
+        # alunno: pulsante ? e nessun errore
+        await p4.evaluate(f"localStorage.setItem('pg_my_code','{nopriv}')"); await p4.goto(B + "#/"); await p4.wait_for_timeout(400)
+        await p4.click("[data-act=help]"); await p4.wait_for_timeout(200)
+        assert await p4.locator(".help-l li").count() >= 3
+        await p4.keyboard.press("Escape")
+        # telefono piccolo: il calendario sta nello schermo
+        await p4.set_viewport_size({"width": 320, "height": 568})
+        await p4.goto(B + "#/coach/calendario"); await p4.wait_for_timeout(300)
+        await p4.click("[data-act=c-cal-view][data-id=mese]"); await p4.wait_for_timeout(200)
+        assert await p4.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        w = await p4.evaluate("document.querySelector('.cal-d').getBoundingClientRect().width")
+        assert w >= 42, ("giorni troppo stretti", w)
+        # si torna alla versione attuale dal banner
+        await p4.click("[data-act=dev-beta]"); await p4.wait_for_timeout(300)
+        assert await p4.locator(".cal").count() == 0 and await p4.locator("[data-act=help]").count() == 0
+        await ctx4.close()
 
         await b.close()
         assert not errs, errs

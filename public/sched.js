@@ -44,13 +44,15 @@ export const sameSched = (a, b) => key(a) === key(b);
 //   open    = orari liberi futuri (solo se ha le lezioni private attive, campo priv)
 //   lessons = le sue lezioni prenotate future
 // e scrive solo reqs.{idOrario} = {at} (richiesta) o {cancel: at} (disdetta); l'allenatrice risponde con st: "ok" | "no".
+// al massimo 60 orari futuri copiati nel documento dell'alunno (l'app non ne fa creare di più)
+export const MAX_SLOTS = 60;
 const slotView = (t) => ({ id: t.id, date: t.date, time: t.time || "", dur: t.dur || 0, place: t.place || "", note: t.note || "" });
 export function openFor(meta, s, from = localDate()) {
   if (!s.priv) return [];
-  return sortTrainings(meta.slots.filter((t) => !t.who && t.date >= from)).slice(0, 30).map(slotView);
+  return sortTrainings(meta.slots.filter((t) => !t.who && t.date >= from)).slice(0, MAX_SLOTS).map(slotView);
 }
 export function lessonsFor(meta, s, from = localDate()) {
-  return sortTrainings(meta.slots.filter((t) => t.who && t.who === s.code && t.date >= from)).slice(0, 30).map(slotView);
+  return sortTrainings(meta.slots.filter((t) => t.who && t.who === s.code && t.date >= from)).slice(0, MAX_SLOTS).map(slotView);
 }
 const skey = (list) => JSON.stringify((list || []).map((t) => [t.id, t.date, t.time || "", t.dur || 0, t.place || "", t.note || ""]));
 export const sameSlots = (a, b) => skey(a) === skey(b);

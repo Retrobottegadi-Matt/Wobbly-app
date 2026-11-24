@@ -9,13 +9,17 @@ from playwright.async_api import async_playwright
 B = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/"
 # i test della versione attuale girano con la nuova versione spenta (in dev è accesa di base)
 BETA0 = "try { if (localStorage.getItem('pg_beta') === null) localStorage.setItem('pg_beta', '0'); } catch (e) {}"
+# presentazione del primo avvio già vista (si prova a parte, in un contesto pulito)
+INTRO0 = """try { if (localStorage.getItem('pg_intro') === null) localStorage.setItem('pg_intro', '{"s":1,"c":1}'); } catch (e) {}"""
+# appunti finti: copiare e incollare senza permessi del browser
+CLIP = "Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { window.__clip = t; return Promise.resolve(); }, readText: () => Promise.resolve(window.__clip || '') } });"
 
 async def main():
     async with async_playwright() as p:
         # PW_CHROME: percorso di un Chromium già installato, se la versione di Playwright non ha il suo
         b = await p.chromium.launch(**({"executable_path": os.environ["PW_CHROME"]} if os.environ.get("PW_CHROME") else {}))
         ctx = await b.new_context(viewport={"width": 390, "height": 844}, accept_downloads=True)
-        await ctx.add_init_script(BETA0)
+        await ctx.add_init_script(BETA0); await ctx.add_init_script(INTRO0)
         pg = await ctx.new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
@@ -375,7 +379,7 @@ async def main():
 
         # trascinamento con il dito (eventi touch reali via CDP): la pagina non deve scorrere
         ctx2 = await b.new_context(viewport={"width": 390, "height": 520}, has_touch=True, is_mobile=True)
-        await ctx2.add_init_script(BETA0)
+        await ctx2.add_init_script(BETA0); await ctx2.add_init_script(INTRO0)
         p2 = await ctx2.new_page()
         p2.on("pageerror", lambda e: errs.append(str(e)))
         await p2.goto(B + "?dev#/coach/alunni"); await p2.wait_for_timeout(700)
@@ -432,7 +436,7 @@ async def main():
         # numeri riassuntivi senza buchi, pannello che scorre fino a Salva anche su uno schermo basso
         for (w, h) in [(320, 568), (360, 740), (768, 1024), (844, 390)]:
             p3 = await b.new_page(viewport={"width": w, "height": h})
-            await p3.add_init_script(BETA0)
+            await p3.add_init_script(BETA0); await p3.add_init_script(INTRO0)
             await p3.goto(B + "?dev#/coach"); await p3.wait_for_timeout(500)
             for view in ["#/coach", "#/coach/alunni", "#/coach/calendario"]:
                 await p3.goto(B + view); await p3.wait_for_timeout(300)
@@ -457,6 +461,7 @@ async def main():
             if (a && !a.dataset.seen) { a.dataset.seen = 1; window.__asks.push(a.querySelector('h2').textContent);
               if (window.__autoAsk) setTimeout(() => a.querySelector('[data-ask=yes]').click(), 20); } })
             .observe(document, { childList: true, subtree: true });""")
+        await ctx4.add_init_script(INTRO0); await ctx4.add_init_script(CLIP)
         p4 = await ctx4.new_page()
         p4.on("pageerror", lambda e: errs.append(str(e)))
         p4.on("console", lambda m: m.type == "error" and errs.append(m.text))
@@ -720,6 +725,42 @@ async def main():
         assert await p4.locator("#offline[role=status]").is_visible()
         await ctx4.set_offline(False); await p4.evaluate("dispatchEvent(new Event('online'))"); await p4.wait_for_timeout(150)
         assert await p4.locator("#offline").count() == 0 and "online" in await p4.locator(".toast").inner_text()
+        # invito: "Solo il codice" manda un messaggio senza link; toccare il codice lo copia (solo il codice)
+        _st = (await dev4())["students"]; _st = [dict(v, code=k) for k, v in _st.items()] if isinstance(_st, dict) else _st
+        stu = sorted(_st, key=lambda x: x["name"])[0]
+        fc = "-".join(stu["code"][i:i + 4] for i in (0, 4, 8))
+        await p4.goto(B + f"#/coach/{stu['code']}/invito"); await p4.wait_for_timeout(400)
+        await p4.evaluate("window.open = (u) => { window.__opened = u; }")
+        await p4.click("[data-act=c-wa]"); await p4.wait_for_timeout(100)
+        txt = await p4.evaluate("decodeURIComponent(window.__opened.split('text=')[1])")
+        assert "http" in txt and fc in txt, txt
+        await p4.click(".inv-what label:has-text('Solo il codice')"); await p4.wait_for_timeout(100)
+        assert "solo il codice" in (await p4.locator("#invWhy").inner_text()).lower()
+        await p4.click("[data-act=c-wa]"); await p4.wait_for_timeout(100)
+        txt = await p4.evaluate("decodeURIComponent(window.__opened.split('text=')[1])")
+        assert "http" not in txt and fc in txt and stu["name"] in txt, txt
+        await p4.click(".bigcode[data-act=c-copy-code]"); await p4.wait_for_timeout(150)
+        assert await p4.evaluate("window.__clip") == fc and await p4.get_attribute(".toast", "data-kind") == "ok"
+        # la scelta resta dopo un ridisegno (altra sezione e ritorno)
+        await p4.click(".tabs a:has-text('Scheda')"); await p4.wait_for_timeout(200); await p4.click(".tabs a:has-text('Invito')"); await p4.wait_for_timeout(200)
+        assert await p4.locator(".inv-what input[value=code]").is_checked()
+        # ingresso: si può incollare tutto il messaggio (o il link) e il codice si trova da solo
+        async def entry():
+            await p4.evaluate("localStorage.removeItem('pg_my_code')"); await p4.goto(B + "#/coach"); await p4.wait_for_timeout(300)
+            await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)
+        await entry()
+        await p4.fill("#codeIn", txt); await p4.click("#codeForm [type=submit]"); await p4.wait_for_timeout(500)
+        assert await p4.evaluate("localStorage.getItem('pg_my_code')") == stu["code"] and await p4.locator("#codeForm").count() == 0
+        await entry()
+        await p4.fill("#codeIn", f"Apri {B}?c={stu['code']} grazie"); await p4.click("#codeForm [type=submit]"); await p4.wait_for_timeout(500)
+        assert await p4.evaluate("localStorage.getItem('pg_my_code')") == stu["code"]
+        await entry()
+        await p4.evaluate("window.__clip = 'il tuo codice: ' + " + repr(fc))
+        await p4.click("[data-act=code-paste]"); await p4.wait_for_timeout(150)
+        assert await p4.input_value("#codeIn") == fc
+        await p4.click("#codeForm [type=submit]"); await p4.wait_for_timeout(500)
+        assert await p4.evaluate("localStorage.getItem('pg_my_code')") == stu["code"]
+        await p4.goto(B + "#/coach"); await p4.wait_for_timeout(400)
         # dal banner si passa tra allenatrice e alunno
         await p4.set_viewport_size({"width": 390, "height": 844})
         await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)
@@ -734,6 +775,60 @@ async def main():
         await p4.click("[data-act=dev-beta]"); await p4.wait_for_timeout(300)
         assert await p4.locator(".cal").count() == 0 and await p4.locator("[data-act=help]").count() == 0
         await ctx4.close()
+
+        # ===== presentazione al primo avvio (nuova versione): una volta per ruolo, si rivede, porta alla visita guidata
+        ctx5 = await b.new_context(viewport={"width": 390, "height": 844})
+        p5 = await ctx5.new_page()
+        p5.on("pageerror", lambda e: errs.append(str(e)))
+        p5.on("console", lambda m: m.type == "error" and errs.append(m.text))
+        await p5.goto(B + "?dev#/coach"); await p5.wait_for_timeout(1000)
+        intro = p5.locator("#intro[role=dialog][aria-modal=true]")
+        assert await intro.is_visible(), "presentazione dell'allenatrice al primo avvio"
+        assert await p5.evaluate("document.activeElement.id") == "introT"
+        assert await p5.evaluate("document.getElementById('app').inert")
+        n = int((await p5.locator(".intro-n").inner_text()).split(" di ")[1])
+        assert n >= 5
+        t1 = await p5.locator("#introT").inner_text()
+        await p5.click("[data-in=next]"); await p5.wait_for_timeout(100)
+        assert await p5.locator(".intro-n").inner_text() == f"2 di {n}" and await p5.locator("#introT").inner_text() != t1
+        await p5.click("[data-in=prev]"); await p5.wait_for_timeout(100)
+        assert await p5.locator("#introT").inner_text() == t1
+        await p5.keyboard.press("ArrowRight"); await p5.wait_for_timeout(100)
+        assert await p5.locator(".intro-n").inner_text() == f"2 di {n}"
+        for b_ in await p5.locator("#intro button").all():
+            bb = await b_.bounding_box(); assert bb["height"] >= 43.5, ("pulsante piccolo nella presentazione", bb)
+        await p5.keyboard.press("Escape"); await p5.wait_for_timeout(150)
+        assert await intro.count() == 0 and not await p5.evaluate("document.getElementById('app').inert")
+        assert await p5.evaluate("document.activeElement.dataset.act") == "help", "il focus torna sul ?"
+        await p5.reload(); await p5.wait_for_timeout(1000)
+        assert await intro.count() == 0, "la presentazione si vede una volta sola"
+        # si rivede dalle Impostazioni; l'ultima schermata porta alla visita guidata della pagina
+        await p5.click("[data-act=c-settings]"); await p5.wait_for_timeout(200)
+        await p5.click("#sheet [data-act=intro]"); await p5.wait_for_timeout(200)
+        assert await intro.is_visible() and await p5.locator("#sheet").is_hidden()
+        for _ in range(n - 1): await p5.click("[data-in=next]"); await p5.wait_for_timeout(60)
+        assert await p5.locator("[data-in=next]").inner_text() == "Inizia" and await p5.locator("[data-in=skip]").count() == 0
+        await p5.click("[data-in=show]"); await p5.wait_for_timeout(250)
+        assert await intro.count() == 0 and await p5.locator("#tour").is_visible()
+        await p5.keyboard.press("Escape"); await p5.wait_for_timeout(100)
+        # alunno: presentazione sua (anche se quella dell'allenatrice è già vista), poi gli sticker nuovi
+        await p5.click("[data-act=dev-student]"); await p5.wait_for_timeout(400)
+        codes = await p5.evaluate("[...document.querySelectorAll('[data-act=dev-as]')].map(b => b.dataset.code)")
+        await p5.evaluate("(c) => { const d = JSON.parse(localStorage.getItem('pg_dev_v1')); const s = Array.isArray(d.students) ? d.students.find(x => x.code === c) : d.students[c]; s.stickers = [{id: 'zz1', k: 'star', msg: 'Brava!', at: Date.now()}]; localStorage.setItem('pg_dev_v1', JSON.stringify(d)); localStorage.removeItem('pg_seen_stk'); localStorage.setItem('pg_my_code', c); }", codes[0])
+        await p5.reload(); await p5.wait_for_timeout(1000)
+        assert await intro.is_visible() and await p5.locator(".stk-show").count() == 0, "prima la presentazione, poi gli sticker"
+        assert "scheda" in (await p5.locator("#introT").inner_text()).lower()
+        await p5.click("[data-in=skip]"); await p5.wait_for_timeout(600)
+        assert await p5.locator(".stk-show").is_visible(), "dopo la presentazione arrivano gli sticker"
+        await p5.keyboard.press("Escape"); await p5.wait_for_timeout(100)
+        await p5.goto(B + "#/profilo"); await p5.wait_for_timeout(400)
+        await p5.click("[data-act=intro]"); await p5.wait_for_timeout(150)
+        assert await intro.is_visible()
+        await p5.keyboard.press("Escape"); await p5.wait_for_timeout(100)
+        assert await p5.evaluate("document.activeElement.dataset.act") == "intro"
+        await p5.set_viewport_size({"width": 320, "height": 568}); await p5.click("[data-act=intro]"); await p5.wait_for_timeout(150)
+        bb = await p5.locator(".intro-card").bounding_box(); assert bb["x"] >= 0 and bb["x"] + bb["width"] <= 320
+        await ctx5.close()
 
         await b.close()
         assert not errs, errs

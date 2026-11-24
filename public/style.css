@@ -1118,3 +1118,10 @@ details.more > summary { font-size: var(--fs-small); }
 .dayc-i .chev { width: min(1rem, 18px); height: min(1rem, 18px); }
 /* titolo dei pannelli: si restringe accanto alla X e, con testo molto grande, non supera ~7vw */
 .sheet-h h2 { min-width: 0; font-size: min(var(--fs-h2), 7vw); }
+
+/* schermata Area allenatrice: l'ID del telefono (28 caratteri) va a capo dentro il riquadro; "Primo telefono" con la freccia a destra come le altre sezioni che si aprono */
+.bigcode.small-code { white-space: normal; word-break: break-all; overflow-wrap: anywhere; font-size: min(.95rem, 4.4vw); letter-spacing: .5px; line-height: 1.5; text-align: center; }
+.setup > summary { list-style: none; gap: .5rem; }
+.setup > summary::-webkit-details-marker { display: none; }
+.setup > summary::after { content: ""; flex: none; width: .5rem; height: .5rem; margin: 0 .35rem 0 auto; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-25%) rotate(45deg); transition: transform .3s var(--ease-ios, ease); }
+.setup[open] > summary::after { transform: translateY(25%) rotate(-135deg); }

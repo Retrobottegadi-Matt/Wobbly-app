@@ -24,6 +24,16 @@
 <body>
 <main id="app"></main>
 <div id="sheet" hidden></div>
+<script>
+  // se app.js non parte (iOS troppo vecchio o file non scaricati) dopo 20 secondi lo dice, con la versione di iOS
+  setTimeout(function () {
+    if (window.__appStarted) return;
+    var m = navigator.userAgent.match(/OS (\d+)_(\d+)/), v = m ? "iOS " + m[1] + "." + m[2] : navigator.userAgent.slice(0, 120);
+    document.getElementById("app").innerHTML = '<div class="center stuck" role="alert"><p><b>L\'app non riesce ad aprirsi.</b></p>' +
+      '<p>Controlla la connessione e riprova. Se succede ancora, manda una foto di questa schermata a chi gestisce l\'app.</p>' +
+      '<p class="muted small">Non partita · ' + v + '</p><p><button class="btn" onclick="location.reload()">Riprova</button></p></div>';
+  }, 20000);
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

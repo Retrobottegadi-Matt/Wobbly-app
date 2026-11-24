@@ -282,7 +282,9 @@ function countUp() {
 
 // ---------------------------------------------------------- avvio
 async function main() {
+  window.__appStarted = true;
   ensureToast();
+  loading(); step("collegamento al database");
   try {
     const q = new URLSearchParams(location.search);
     if (q.has("dev")) localStorage.setItem(LS_DEV, "1");
@@ -335,9 +337,31 @@ function route() {
   if (parts[0] === "coach") routeCoach(parts[1] || "home", parts[2] || "progressi");
   else routeStudent(["progressi", "profilo"].includes(parts[0]) ? parts[0] : "oggi");
 }
-const loading = () => { $root.innerHTML = beta()
-  ? `<div class="center" role="status" aria-label="Caricamento"><div class="skater" aria-hidden="true"><span class="sk-trail"></span><span class="sk-boot">${icon("skate")}</span><span class="sk-ice"></span></div></div>`
-  : `<div class="center" role="status" aria-label="Caricamento"><div class="spinner"></div></div>`; };
+// caricamento con controllo: se dopo 15 secondi è ancora qui (o c'è un errore), la schermata dice dove si è fermata
+let bootStep = "avvio", bootErr = "", bootTimer = 0;
+const step = (s) => { bootStep = s; };
+const isLoading = () => !!$root.querySelector('[aria-label="Caricamento"]');
+function stuck() {
+  if (!isLoading()) return;
+  clearTimeout(bootTimer);
+  $root.innerHTML = `<div class="center stuck" role="alert"><p><b>L'app non riesce a caricarsi.</b></p>
+    <p class="muted small">Controlla la connessione, poi tocca Riprova. Se succede ancora, manda a chi gestisce l'app una foto di questa schermata.</p>
+    <p class="muted small">Fermo su: ${esc(bootStep)}${bootErr ? `<br>Errore: ${esc(bootErr)}` : ""}<br>${esc(osVer())}</p>
+    <button class="btn" onclick="location.reload()">Riprova</button></div>`;
+}
+const osVer = () => { const m = navigator.userAgent.match(/OS (\d+)_(\d+)/); return m ? `iOS ${m[1]}.${m[2]}` : navigator.userAgent.slice(0, 120); };
+const onBootErr = (e) => {
+  const x = e && (e.reason || e.error || e), m = x && (x.message || x.code || String(x));
+  if (!m || /ResizeObserver/.test(m)) return;
+  bootErr = String(m).slice(0, 200);
+  if (isLoading()) stuck();
+};
+window.addEventListener("error", onBootErr);
+window.addEventListener("unhandledrejection", onBootErr);
+const loading = () => {
+  $root.innerHTML = `<div class="center" role="status" aria-label="Caricamento"><div class="skater" aria-hidden="true"><span class="sk-trail"></span><span class="sk-boot">${icon("skate")}</span><span class="sk-ice"></span></div></div>`;
+  clearTimeout(bootTimer); bootTimer = setTimeout(stuck, 15000);
+};
 // ordine delle pagine: andando "avanti" la pagina entra scivolando da destra, tornando indietro da sinistra
 const RANK = { "": 0, statistiche: .5, alunni: 1, calendario: 2, progressi: 1, profilo: 2 }, TABR = { profilo: 0, progressi: .01, scheda: .02, invito: .03 };
 function pageRank() {
@@ -361,7 +385,7 @@ function routeStudent(view) {
     }).catch(() => {});
     return;
   }
-  loading();
+  loading(); step("lettura della scheda");
   unsub.push(be.watchStudent(code, (s, meta) => {
     if (!s) {
       if (meta && meta.fromCache) return; // offline: aspetta il server
@@ -701,17 +725,23 @@ const lvlOf = (s) => normLevel(s.level);
 // ======================================================== ALLENATRICE
 function routeCoach(view, tab) {
   let stu = null, met = null;
-  loading();
+  loading(); step("verifica del telefono");
   unsub.push(() => { stu && stu(); met && met(); });
   unsub.push(be.onCoachAuth((u) => {
     S.coach = u;
+    if (u && u.error) bootErr = String(u.error.code || u.error.message || u.error).slice(0, 200);
     if (stu) { stu(); stu = null; }
     if (met) { met(); met = null; }
     if (!u || !u.isCoach) { if (u && !u.error && !be.dev) localStorage.removeItem(LS_ROLE); return renderCoachLogin(u); }
     if (!be.dev) localStorage.setItem(LS_ROLE, "coach");
-    loading();
+    loading(); step("lettura degli alunni e del calendario");
     let gotS = false, gotM = false;
-    const draw = () => { if (gotS && gotM) { renderCoach(view, tab); cleanPast(); maybeIntro("c"); } };
+    const draw = () => {
+      if (!gotS || !gotM) return step(gotS ? "lettura del calendario" : "lettura degli alunni");
+      try { step("disegno della pagina"); renderCoach(view, tab); }
+      catch (e) { console.error(e); onBootErr(e); if (isLoading()) stuck(); return; }
+      cleanPast(); maybeIntro("c");
+    };
     stu = be.watchStudents((list) => {
       S.students = list.sort((a, b) => a.name.localeCompare(b.name, "it"));
       gotS = true; draw();

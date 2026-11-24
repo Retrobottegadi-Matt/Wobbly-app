@@ -306,7 +306,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .mi { appearance: none; width: 100%; display: flex; align-items: center; gap: .75rem; min-height: 3rem; padding: .75rem 1rem;
   background: var(--surface); border: 1px solid transparent; box-shadow: var(--shadow); border-radius: var(--r); font: inherit; font-weight: 600;
   color: var(--ink); text-align: left; cursor: pointer; }
-.mi > span, .mi .txt { flex: 1; min-width: 0; overflow-wrap: break-word; hyphens: auto; }
+.mi > span, .mi .txt { flex: 1; min-width: 0; overflow-wrap: break-word; }
 .mi > .ic:first-child { flex: none; width: 1.4rem; height: 1.4rem; }
 .mi-help { margin: .3rem .25rem 0; }
 .sheet-panel label.sw-row { display: flex; margin: 0; color: var(--ink); font-size: 1rem; cursor: pointer; }
@@ -856,7 +856,7 @@ details.more[open] > summary { margin-bottom: .4rem; }
   transform: translateY(-25%) rotate(45deg); transition: transform .15s ease-out; }
 .beta details.more[open] > summary::after { transform: translateY(25%) rotate(-135deg); }
 .beta .cal-d.ask::after { top: 2px; right: 2px; width: 8px; height: 8px; }
-.beta .dayc-i > span { overflow-wrap: break-word; hyphens: auto; }
+.beta .dayc-i > span { overflow-wrap: break-word; }
 .beta .dayc-i > span > b { display: block; font-size: .8125rem; font-weight: 800; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 .beta .dayc-i small { display: block; }
 .beta .dayc-i .chev { color: var(--on-pastel); }
@@ -1052,7 +1052,7 @@ details.more[open] > summary { margin-bottom: .4rem; }
 @container (max-width: 21rem) { .tabs a { flex: 1 1 calc(50% - .2rem); } }
 /* scelte a pillola: con poco spazio una sotto l'altra (niente parole spezzate come "Interm-edio") */
 fieldset.seg { container-type: inline-size; min-width: 0; }
-@container (max-width: 17.9rem) {
+@container (max-width: 15rem) {
   .seg-opts, .beta .seg-opts:has(> .seg-opt:nth-child(3):last-child) { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
   .seg-opt { flex-direction: row; gap: .5rem; }
 }
@@ -1086,3 +1086,17 @@ fieldset.seg { container-type: inline-size; min-width: 0; }
 a.btn { text-decoration: none; }
 .btn { line-height: 1.25; }
 .grid2 .btn { padding-inline: .75rem; }
+
+/* ===== moduli (controllo 27/11, iPhone SE 375×667 con testo grande) ===== */
+/* "Altre opzioni" e "Sposta in un altro livello": la classe .more dei link ("Vedi tutti") le metteva in riga,
+   e i campi finivano sopra gli altri. Un details è sempre un blocco a tutta larghezza. */
+details.more { display: block; padding: 0; min-height: 0; font-size: inherit; font-weight: inherit; }
+details.more > summary { font-size: var(--fs-small); }
+/* Annulla e Salva affiancati anche con testo grande (vanno uno sotto l'altro solo se proprio non ci stanno) */
+.sheet-btns .btn { flex: 1 1 6rem; }
+/* scelte a pillola: testo un po' più compatto, così tre scelte stanno in una riga anche su iPhone SE con testo grande */
+.seg-opt { font-size: min(1rem, 4.6vw); padding-inline: .4rem; }
+.sheet-panel label.seg-opt { font-size: min(1rem, 4.6vw); }
+/* pannelli più alti dello schermo (iPhone SE, testo grande): le parti non si schiacciano una sull'altra, il pannello scorre */
+.sheet-panel > * { flex-shrink: 0; }
+.sheet-panel label.seg-opt:is(.todo, .doing, .done) { font-size: min(1rem, 4.1vw); }

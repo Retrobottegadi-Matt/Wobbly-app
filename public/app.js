@@ -130,7 +130,7 @@ function paint(html) {
   if (tourOn()) requestAnimationFrame(tourPlace); // la guida resta sull'elemento anche dopo un ridisegno
   delete $root.dataset.view;
   $root.classList.remove("enter");
-  if (animateNext) { animateNext = false; void $root.offsetWidth; $root.classList.add("enter"); }
+  if (animateNext) { animateNext = false; $root.dataset.dir = S.dir || ""; void $root.offsetWidth; $root.classList.add("enter"); if (beta()) countUp(); }
   if (flashSel) {
     const el = $root.querySelector(flashSel); flashSel = null;
     if (el) (el.dataset.act === "c-move" ? el.closest("li") : el).classList.add("just");
@@ -141,6 +141,22 @@ function paint(html) {
   let el = $root.querySelector(sel);
   if (el && el.disabled) el = $root.querySelector(`${sel.replace(/\[data-d="-?\d+"\]/, "")}:not([disabled])`);
   if (el) restoreFocus(el);
+}
+
+// numeri che salgono all'entrata nella pagina (nuova versione); niente con "Riduci animazioni"
+const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
+function countUp() {
+  if (still()) return;
+  $root.querySelectorAll("[data-count]").forEach((el) => {
+    const to = Number(el.dataset.count), t0 = performance.now(), D = 550;
+    if (!(to > 0)) return;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(to * e);
+      if (k < 1 && document.contains(el)) requestAnimationFrame(step);
+    };
+    el.textContent = "0"; requestAnimationFrame(step);
+  });
 }
 
 // ---------------------------------------------------------- avvio
@@ -184,6 +200,10 @@ function route() {
   clearSubs();
   endTour(false);
   closeSheet();
+  document.documentElement.classList.toggle("beta", beta());
+  const r = pageRank();
+  S.dir = lastRank === null || Math.floor(r / 10) !== Math.floor(lastRank / 10) ? "" : r > lastRank ? "r" : r < lastRank ? "l" : "";
+  lastRank = r;
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   const code = parts[0] === "coach" && isCode(parts[1]) ? parts[1] : null;
   if (code !== lastCode) { S.reorder = false; lastCode = code; }
@@ -193,7 +213,17 @@ function route() {
   if (parts[0] === "coach") routeCoach(parts[1] || "home", parts[2] || "progressi");
   else routeStudent(["progressi", "profilo"].includes(parts[0]) ? parts[0] : "oggi");
 }
-const loading = () => { $root.innerHTML = `<div class="center" role="status" aria-label="Caricamento"><div class="spinner"></div></div>`; };
+const loading = () => { $root.innerHTML = beta()
+  ? `<div class="center" role="status" aria-label="Caricamento"><div class="skater" aria-hidden="true"><span class="sk-trail"></span><span class="sk-boot">${icon("skate")}</span><span class="sk-ice"></span></div></div>`
+  : `<div class="center" role="status" aria-label="Caricamento"><div class="spinner"></div></div>`; };
+// ordine delle pagine: andando "avanti" la pagina entra scivolando da destra, tornando indietro da sinistra
+const RANK = { "": 0, statistiche: .5, alunni: 1, calendario: 2, progressi: 1, profilo: 2 }, TABR = { profilo: 0, progressi: .01, scheda: .02, invito: .03 };
+function pageRank() {
+  const p = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (p[0] === "coach") return isCode(p[1]) ? 1.5 + (TABR[p[2] || "progressi"] || 0) : RANK[p[1] || ""] ?? 0;
+  return (RANK[p[0] || ""] ?? 0) - 10;
+}
+let lastRank = null;
 
 // ======================================================== ALUNNO
 function routeStudent(view) {
@@ -270,8 +300,9 @@ const sect = (id, title, body, right = "", cls = "card") => `<section class="sec
   <div class="sec-h out"><h2 id="${id}">${title}</h2>${right}</div><div class="${cls}">${body}</div></section>`;
 // barra flottante in basso; action = pulsante tondo accanto (azione principale della schermata)
 // badges: { chiave: numero } → pallino con il numero sull'icona (es. richieste da confermare)
-const tabbar = (items, on, action = "", badges = {}) => `<div class="dock"><nav class="bnav" aria-label="Sezioni" data-help="nav">${items
-  .map(([href, ic, l, k]) => { const b = badges[k] || 0; return `<a href="${href}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}${b ? `<b class="badge" aria-hidden="true">${b}</b>` : ""}<span>${l}${b ? `<i class="sr">, ${b} da confermare</i>` : ""}</span></a>`; }).join("")}</nav>${action}</div>`;
+// nuova versione: solo icone (il nome resta per VoiceOver)
+const tabbar = (items, on, action = "", badges = {}) => `<div class="dock"><nav class="bnav${beta() ? " ico" : ""}" aria-label="Sezioni" data-help="nav">${items
+  .map(([href, ic, l, k]) => { const b = badges[k] || 0; return `<a href="${href}" class="${k === on ? "on" : ""}"${k === on ? ' aria-current="page"' : ""}>${icon(ic)}${b ? `<b class="badge" aria-hidden="true">${b}</b>` : ""}<span${beta() ? ' class="sr"' : ""}>${l}${b ? `<i class="sr">, ${b} da confermare</i>` : ""}</span></a>`; }).join("")}</nav>${action}</div>`;
 // pulsante "?" (nuova versione): spiega la pagina
 const helpBtn = () => (beta() ? `<button class="icon" data-act="help" data-help="help" aria-label="Aiuto: come funziona questa pagina">${icon("help")}</button>` : "");
 const STUDENT_TABS = [["#/", "home", "Oggi", "oggi"], ["#/progressi", "chart", "Progressi", "progressi"], ["#/profilo", "user", "Profilo", "profilo"]];
@@ -449,6 +480,7 @@ function renderCoach(view, tab) {
   if (isCode(view)) return renderCoachStudent(view, tab);
   if (view === "alunni") return renderCoachList();
   if (view === "calendario") return beta() ? renderCoachMonth() : renderCoachCal();
+  if (view === "statistiche" && beta()) return renderCoachStats();
   return renderCoachHome();
 }
 // nuova versione: allenamenti e lezioni dei giorni passati si cancellano da soli, una volta per sessione,
@@ -581,10 +613,10 @@ function renderCoachHome() {
   ${metaWarn()}
   <section class="statbox" aria-labelledby="hNum" data-help="stats"><h2 class="sr" id="hNum">In sintesi</h2>
     <ul class="stats">
-      <li class="stat"><span>${icon("users")}Alunni</span><b>${n}</b></li>
-      <li class="stat"><span>${icon("chart")}Media progressi</span><b>${n ? `${avg}%` : "–"}</b></li>
-      <li class="stat"><span>${icon("clock")}Attivi in 7 giorni</span><b>${active}<small> su ${n}</small></b></li>
-    </ul></section>
+      <li class="stat"><span>${icon("users")}Alunni</span><b><span data-count="${n}">${n}</span></b></li>
+      <li class="stat"><span>${icon("chart")}Media progressi</span><b>${n ? `<span data-count="${avg}">${avg}</span>%` : "–"}</b></li>
+      <li class="stat"><span>${icon("clock")}Attivi in 7 giorni</span><b><span data-count="${active}">${active}</span><small> su ${n}</small></b></li>
+    </ul>${beta() ? `<a class="btn ghost wide" href="#/coach/statistiche">${icon("chart")} Tutte le statistiche</a>` : ""}</section>
   ${box.length ? sect("hInbox", "Da confermare", `<ul class="trs reqs">${box.map(inboxRow).join("")}</ul>`) : ""}
   ${first ? feature(first.t, first.who, S.metaErr ? "" : first.act, first.act === "c-edit-slot" ? "Prossima lezione privata" : "Prossimo allenamento") : ""}
   ${first && !next.length ? "" : sect("hNext", first ? "Poi in calendario" : "Prossimi allenamenti",
@@ -794,6 +826,57 @@ function renderCoachMonth() {
   ${box.length ? sect("hInbox", "Da confermare", `<ul class="trs reqs">${box.map(inboxRow).join("")}</ul>`) : ""}
   ${view}${body}
   ${bnav("calendario", S.metaErr ? "" : fab("c-new-appt", "Nuovo appuntamento"))}`);
+}
+
+// ---------------------------------------------------------- Statistiche (nuova versione)
+// barre orizzontali di un solo colore: etichetta e valore scritti, la barra è solo un aiuto visivo
+const hbars = (rows, max, unit = "") => `<ul class="hbars">${rows.map(([label, v, sub]) => `<li>
+  <span class="hb-l"><b>${label}</b>${sub ? `<small>${sub}</small>` : ""}</span><span class="hb-v">${v}${unit}</span>
+  <span class="hb-t" aria-hidden="true"><i style="width:${max ? Math.max(2, Math.round((v / max) * 100)) : 0}%"></i></span></li>`).join("")}</ul>`;
+function renderCoachStats() {
+  S.page = "c-stats";
+  const st = S.students, n = st.length, d30 = addDays(-30), now = Date.now();
+  const items = st.flatMap((s) => (s.progress || []).map(normItem));
+  const done30 = items.filter((i) => i.status === "done" && i.date >= d30).length;
+  const avg = n ? Math.round(st.reduce((a, s) => a + pct(s), 0) / n) : 0;
+  const active7 = st.filter((s) => (s.checksAt || 0) >= now - 7 * 864e5 && checksDone(s) > 0).length;
+  const tile = (ic, label, v, unit = "", sub = "") => `<li class="stat"><span>${icon(ic)}${label}</span><b><span data-count="${v}">${v}</span>${unit}${sub ? `<small> ${sub}</small>` : ""}</b></li>`;
+  // per livello: media dei progressi
+  const lv = LEVELS.map(([k, l]) => { const g = st.filter((s) => (lvlOf(s) || "base") === k);
+    return [l, g.length ? Math.round(g.reduce((a, s) => a + pct(s), 0) / g.length) : 0, nAlunni(g.length)]; }).filter((r) => r[2] !== "0 alunni");
+  // chi ha completato più elementi in 30 giorni
+  const top = st.map((s) => [esc(s.name), (s.progress || []).filter((i) => i.status === "done" && i.date >= d30).length])
+    .filter((r) => r[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  // elementi su cui si lavora di più (stato "in corso")
+  const cnt = {};
+  items.filter((i) => i.status === "doing").forEach((i) => { cnt[i.name] = (cnt[i.name] || 0) + 1; });
+  const doing = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => [esc(k), v]);
+  // da seguire: hanno una scheda ma non la spuntano da 14 giorni
+  const idle = st.filter((s) => (s.plan || []).length && (s.checksAt || 0) < now - 14 * 864e5);
+  // lezioni private nelle prossime 4 settimane
+  const up = S.meta.slots.filter((t) => t.date >= today());
+  const weeks = [0, 1, 2, 3].map((k) => { const a = addDays(7 * k), b = addDays(7 * k + 7), w = up.filter((t) => t.who && t.date >= a && t.date < b);
+    return [["Questa settimana", "Prossima settimana", "Tra 2 settimane", "Tra 3 settimane"][k], w.length, `${Math.round(w.reduce((m, t) => m + (t.dur || 0), 0) / 6) / 10} ore`]; });
+  const free = up.filter((t) => !t.who).length, asks = S.metaErr ? 0 : inbox().filter((x) => x.kind === "req").length;
+  const gr = [...S.meta.groups.map((g) => [esc(g.name), inGroup(g.id)]), ...(st.some((s) => !validGroup(s.group)) ? [["Senza gruppo", st.filter((s) => !validGroup(s.group)).length]] : [])];
+  const mx = (r) => Math.max(1, ...r.map((x) => x[1]));
+  paint(`${demoBanner()}
+  ${head("Statistiche", "Panoramica degli alunni", `<div class="top-acts">${helpBtn()}</div>`,
+    `<a href="#/coach" class="icon" data-help="back" aria-label="Torna a Oggi">${icon("back")}</a>`)}
+  <section class="statbox" aria-labelledby="hNum" data-help="stats"><h2 class="sr" id="hNum">In sintesi</h2><ul class="stats four">
+    ${tile("users", "Alunni", n)}${tile("chart", "Media progressi", avg, "%")}
+    ${tile("done", "Completati in 30 giorni", done30)}${tile("clock", "Attivi in 7 giorni", active7, "", `su ${n}`)}</ul></section>
+  ${sect("hLiv", "Progressi per livello", lv.length ? hbars(lv, 100, "%") : `<p class="muted">Ancora nessun alunno.</p>`)}
+  ${sect("hTop", "Più elementi completati in 30 giorni", top.length ? hbars(top, mx(top)) : empty("chart", "Ancora niente questo mese", "Quando segni un elemento come completato, qui vedi chi è andato più avanti."))}
+  ${sect("hDoing", "Elementi su cui stanno lavorando", doing.length ? hbars(doing.map(([k, v]) => [k, v, v === 1 ? "1 alunno" : `${v} alunni`]), mx(doing)) : `<p class="muted">Nessun elemento in corso.</p>`)}
+  ${sect("hIdle", "Da seguire", idle.length ? `<p class="muted small">Hanno una scheda ma non spuntano esercizi da più di 14 giorni.</p>${srows(idle)}`
+    : `<p class="muted">Tutti hanno usato la scheda nelle ultime due settimane.</p>`, "", "card plainlist")}
+  ${sect("hPrivs", "Lezioni private", `<ul class="mini">
+      <li><b data-count="${up.filter((t) => t.who).length}">${up.filter((t) => t.who).length}</b><span>prenotate</span></li>
+      <li><b data-count="${free}">${free}</b><span>orari liberi</span></li><li><b data-count="${asks}">${asks}</b><span>da confermare</span></li></ul>
+    ${hbars(weeks, mx(weeks))}`)}
+  ${gr.length ? sect("hGrp", "Alunni per gruppo", hbars(gr, mx(gr))) : ""}
+  ${bnav("", S.metaErr ? "" : fab("c-new-appt", "Nuovo appuntamento"))}`);
 }
 
 // lezioni private di un alunno, nel suo profilo (nuova versione): prenotate, richieste, prenota subito

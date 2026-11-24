@@ -597,6 +597,25 @@ async def main():
         assert await p4.evaluate("document.documentElement.scrollWidth <= innerWidth")
         w = await p4.evaluate("document.querySelector('.cal-d').getBoundingClientRect().width")
         assert w >= 42, ("giorni troppo stretti", w)
+        # barra in basso solo icone, con il nome per VoiceOver
+        await p4.goto(B + "#/coach"); await p4.wait_for_timeout(400)
+        assert await p4.locator("nav.bnav.ico a > span.sr").count() == 3
+        assert await p4.evaluate("[...document.querySelectorAll('nav.bnav a')].map(a => a.textContent.trim())") == ["Oggi", "Alunni", "Calendario"]
+        # statistiche: dalla Home, numeri che corrispondono ai dati
+        await p4.click("text=Tutte le statistiche"); await p4.wait_for_timeout(900)
+        assert p4.url.endswith("#/coach/statistiche")
+        d = await dev4()
+        assert await p4.locator(".stat [data-count] >> nth=0").inner_text() == str(len(d["students"])), "conteggio finito"
+        for h in ["hLiv", "hTop", "hDoing", "hIdle", "hPrivs"]:
+            assert await p4.locator(f"#{h}").count() == 1, h
+        booked = len([t for t in d["meta"]["slots"] if t["who"] and t["date"] >= today])
+        assert await p4.locator("section:has(#hPrivs) .mini b >> nth=0").inner_text() == str(booked)
+        small = await p4.evaluate(MIN); assert not small, ("statistiche", small)
+        r = await p4.evaluate(OVER); assert not r["page"] and not r["bad"], ("statistiche", r)
+        await p4.click("[data-help=back]"); await p4.wait_for_timeout(200)
+        assert await p4.locator("#app").get_attribute("data-dir") == "l", "tornando indietro la pagina entra da sinistra"
+        await p4.click("nav.bnav a[href='#/coach/calendario']"); await p4.wait_for_timeout(100)
+        assert await p4.locator("#app").get_attribute("data-dir") == "r"
         # dal banner si passa tra allenatrice e alunno
         await p4.set_viewport_size({"width": 390, "height": 844})
         await p4.click("[data-act=dev-student]"); await p4.wait_for_timeout(400)

@@ -46,7 +46,7 @@ public/            ← cartella da pubblicare (GitHub Pages)
   drag.js          tieni premuto e trascina per riordinare (Scheda e Progressi), con scorrimento bloccato e automatico ai bordi
   config.js        firebaseConfig; se apiKey inizia con "INSERISCI" → modalità demo
   style.css        design system a token CSS (:root), v10: crema caldo, blu cobalto (--blue, carta in evidenza .feat con grana --grain e "sole" giallo), pastelli caldi (giallo/pesca in --pink/pervinca in --lilac/salvia/azzurro/arancio), barra in basso scura (--nav-*); tema chiaro e scuro "notte blu"; animazioni in fondo al file
-  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v22)
+  sw.js            service worker network-first; ad ogni rilascio aumentare la versione (ora pattinaggio-v24)
   manifest.json, icons/
 firestore.rules    regole di sicurezza (vanno incollate nella console Firestore)
 GUIDA.md           guida per l'utente finale (messa online dal browser, senza CLI)
@@ -101,6 +101,9 @@ tools/genera-esempi.mjs  rigenera esempio-alunni.json
   - Aggiungi elementi (`progPicker`): ricerca che serve anche a scrivere un elemento nuovo (va in "Altro", livello scelto), livello come schede, elementi come pulsanti da toccare (`.chip.pick`); i filtri nascondono soltanto, le scelte restano. Eccezione voluta: `focus: "title"` (la tastiera coprirebbe il catalogo).
   - Modifica elemento: la data si vede solo con stato Completato (nascosta resta inviata: non si perde); livello e categoria in "Sposta in un altro livello o categoria" (`details.more`).
   - Nuovo appuntamento: in vista solo tipo, data, ora, per chi / con chi; durata, quante di fila, ripeti, luogo e note in "Altre opzioni"; frase riassuntiva `#apptSum` (non aria-live). Righe con il tipo scritto ("Allenamento · …", "Lezione privata · …", "Orario libero").
+  - Barra in basso solo icone (`.bnav.ico`, il nome resta in `.sr` per VoiceOver; l'aiuto "?" spiega le icone).
+  - Statistiche (`#/coach/statistiche`, `renderCoachStats`, link "Tutte le statistiche" sotto i numeri della Home): 4 numeri, progressi per livello, più elementi completati in 30 giorni, elementi in corso, "Da seguire" (scheda non usata da 14 giorni), lezioni private (prenotate, libere, da confermare, ore per settimana), alunni per gruppo. Barre `hbars()` di un solo colore con etichetta e valore scritti (la barra è solo un aiuto).
+  - Movimento a tema pattinaggio (classe `.beta` su `<html>`, messa da `route()`): caricamento con pattino che scivola e lascia la traccia; cambio pagina che "scivola" dal lato giusto (`pageRank()` → `data-dir` r/l su `#app`, animati solo i figli, mai `#app`); barre che si riempiono; numeri che salgono (`[data-count]`, `countUp()`, niente con riduzione movimento); riflesso sull'elemento toccato; spunta "incisa"; pattino che entra negli avvisi. Entrate ≤ 300 ms, barre e numeri ≤ 600 ms.
   - Numero sull'icona Oggi della barra = richieste da confermare. "Da confermare" anche nel Calendario.
   - Pulizia: allenamenti e orari dei giorni passati si cancellano (`pruneOld` = da oggi; `cleanPast()` una volta per sessione all'apertura, mai con dati dalla cache: `watchMeta` passa `fromCache`).
   - Aiuto: pulsante "?" (`helpBtn`, `data-act=help`) in ogni pagina, alunno e allenatrice. Contenuti in `help.js` (`HELP[S.page]`, voci `[data-help, icona, titolo, testo]`): il pannello elenca le voci presenti nella pagina, "Mostrami" avvia la visita guidata (sagoma + fumetto, Avanti/Indietro, Esc chiude e il focus torna al "?"; si riposiziona dopo ogni ridisegno; si chiude al cambio pagina). `sect()` mette `data-help` = id senza "h" in minuscolo. Ogni nuovo elemento importante va aggiunto a `HELP`.
